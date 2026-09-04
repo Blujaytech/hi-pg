@@ -1,0 +1,85 @@
+# Phase 16: for self-hosting on a single VM (DigitalOcean/Hetzner/EC2/etc).
+# NOT what you need if deploying to a managed PaaS (Railway/Render/Fly + a managed Postgres +
+# Vercel for the web app) -- in that case skip this file entirely and just point each platform
+# at backend/Dockerfile or the Next.js app directly. See docs/deployment.md for both paths.
+#
+# Usage: cp .env.example .env, fill in every value (no dev fallbacks are used here on purpose),
+# cp Caddyfile.example Caddyfile and set your real domain, then:
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# Unlike infra/docker-compose.yml (local dev), this file:
+#  - never falls back to a default secret/password if an env var is missing (docker compose
+#    itself will error out on a missing required var, which is what we want here)
+#  - runs the backend with SPRING_PROFILES_ACTIVE=prod (see application-prod.yml)
+#  - fronts everything with Caddy for automatic HTTPS (Let's Encrypt) and correct
+#    X-Forwarded-For -- required for RateLimitFilter (Phase 15) to work correctly; see
+#    docs/security.md and docs/deployment.md
+#  - does NOT include the web app -- deploy Next.js to Vercel (or any Node host) separately,
+#    pointing NEXT_PUBLIC_API_BASE_URL at this backend's public URL
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: pgplatform-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: pgplatform
+      POSTGRES_USER: pgplatform
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pgplatform -d pgplatform"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # Deliberately no "ports:" mapping to the host -- only the backend container (on the same
+    # compose network) can reach Postgres. Expose 5432 yourself only if you need external DB
+    # access (e.g. for a one-off psql session, ADR-0023), and prefer an SSH tunnel over that.
+
+  backend:
+    build:
+      context: ../backend
+    container_name: pgplatform-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/pgplatform
+      SPRING_DATASOURCE_USERNAME: pgplatform
+      SPRING_DATASOURCE_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}"
+      JWT_SECRET: "${JWT_SECRET:?JWT_SECRET must be set in .env}"
+      CORS_ALLOWED_ORIGINS: "${CORS_ALLOWED_ORIGINS:?CORS_ALLOWED_ORIGINS must be set in .env}"
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-}
+      RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:-}
+    # No "ports:" mapping to the host -- only Caddy talks to this container directly, over the
+    # compose network, on its container port 8080.
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/api/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: pgplatform-caddy
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    command: caddy run --config /etc/caddyfile --adapter caddyfile
+
+volumes:
+  postgres-data:
+  caddy-data:
+  caddy-config:

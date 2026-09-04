@@ -1,0 +1,32 @@
+# Backend
+backend/target/
+backend/.mvn/
+*.class
+
+# Flutter
+mobile/.dart_tool/
+mobile/.flutter-plugin-registrant/
+mobile/build/
+mobile/.packages
+mobile/pubspec.lock
+mobile/**/generated_plugin_registrant.dart
+mobile/.idea/
+
+# Next.js
+web/.next/
+web/node_modules/
+web/out/
+
+# Env / secrets
+.env
+*.env
+!*.env.example
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+*.iml
+
+# Infra
+infra/postgres-data/

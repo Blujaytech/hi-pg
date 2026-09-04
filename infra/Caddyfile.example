@@ -1,0 +1,11 @@
+# Phase 16: copy to infra/Caddyfile and replace api.yourdomain.com with your real domain
+# (must have a DNS A/AAAA record pointing at this VM before starting Caddy, or it can't get a
+# Let's Encrypt certificate). Caddy handles HTTPS automatically -- no manual certbot/cron needed.
+#
+# This is what makes RateLimitFilter's X-Forwarded-For read (Phase 15) trustworthy: Caddy sets
+# X-Forwarded-For itself for every request it proxies, overwriting anything a client sent, so a
+# caller can no longer spoof their own rate-limit bucket. See docs/security.md.
+
+api.yourdomain.com {
+	reverse_proxy backend:8080
+}

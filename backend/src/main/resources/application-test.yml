@@ -1,0 +1,18 @@
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+app:
+  rate-limit:
+    # High enough that no integration test suite run (many @Test methods can share the same
+    # localhost IP + auth path within one fixed 60s window) ever trips this by accident --
+    # RateLimitFilterTest below exercises the real low limit directly, not through this profile.
+    auth:
+      max-requests: 100000
+  razorpay:
+    # A real-looking test secret so RazorpayWebhookServiceTest can compute a
+    # valid HMAC signature and prove the verification logic actually works,
+    # independent of whether a real Razorpay account exists.
+    webhook-secret: test-webhook-secret-not-for-production
+

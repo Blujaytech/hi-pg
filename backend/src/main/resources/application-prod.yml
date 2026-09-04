@@ -1,0 +1,30 @@
+# Phase 16: activated with SPRING_PROFILES_ACTIVE=prod. Deliberately does NOT set a datasource
+# block here -- Spring Boot's relaxed env-var binding already maps SPRING_DATASOURCE_URL /
+# SPRING_DATASOURCE_USERNAME / SPRING_DATASOURCE_PASSWORD (see docs/deployment.md) regardless of
+# active profile, so nothing prod-specific is needed for that. This file exists for settings
+# that should differ specifically in production and nowhere else.
+
+server:
+  # Trust the reverse proxy's X-Forwarded-* headers for building correct redirect URLs / scheme
+  # detection. Only correct when a real reverse proxy sits in front of this app and strips any
+  # client-supplied X-Forwarded-* before setting its own -- same assumption RateLimitFilter
+  # already documents for its own X-Forwarded-For read (see docs/security.md). Do not enable
+  # this if the backend is ever exposed directly with no proxy in front of it.
+  forward-headers-strategy: framework
+
+app:
+  jwt:
+    # No dev-only fallback here (unlike application.yml's ${JWT_SECRET:dev-only-...}) --
+    # deliberately fails fast at startup if JWT_SECRET isn't set, rather than silently signing
+    # production tokens with a secret that's checked into git and known to anyone who's read it.
+    secret: ${JWT_SECRET}
+
+logging:
+  level:
+    root: INFO
+    com.pgplatform: INFO
+
+management:
+  endpoint:
+    health:
+      show-details: never

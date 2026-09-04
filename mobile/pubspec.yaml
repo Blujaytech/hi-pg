@@ -1,0 +1,38 @@
+name: pg_platform_mobile
+description: PG Management & Discovery Platform - Owner + Student app (Flutter, single codebase, two role-gated flows).
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.6
+
+  # Networking
+  dio: ^5.4.3
+
+  # Routing
+  go_router: ^14.2.0
+
+  # State management (kept deliberately simple/vanilla for a two-dev team;
+  # see docs/decisions.md if this needs to become riverpod/bloc later)
+  provider: ^6.1.2
+
+  # Secure JWT storage
+  flutter_secure_storage: ^9.2.2
+
+  # Env config (--dart-define based, see core/env.dart)
+  # (no package needed -- String.fromEnvironment is built in)
+
+  intl: ^0.19.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
