@@ -2,7 +2,7 @@
 
 A platform for PG (paying-guest accommodation) owners to manage their properties (PGs → Floors → Rooms → Beds), students, fees, expenses, complaints, and documents, and for students to discover, view, and book PG beds with live availability and online payments.
 
-## Repo layout
+## Repo layout.
 
 ```
 pg-platform/
