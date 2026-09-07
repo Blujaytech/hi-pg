@@ -1,0 +1,70 @@
+# Render Blueprint for the pg-platform backend (Path A in docs/deployment.md).
+# Import this at https://dashboard.render.com/blueprints -> "New Blueprint Instance",
+# pointing at this repo and the branch you want deployed (see `branch:` below).
+#
+# What this provisions automatically: the backend web service (built from
+# backend/Dockerfile) and a managed Postgres database, wired together.
+# What you still set by hand in the Render dashboard after import (secrets can't
+# live in this file): SPRING_DATASOURCE_URL, CORS_ALLOWED_ORIGINS, and any of the
+# optional integration keys (Razorpay, Google, S3) once you provision those.
+# See docs/deployment.md's "Environment variables" table for what each one does.
+
+databases:
+  - name: pg-platform-db
+    plan: free
+    postgresMajorVersion: 16
+
+services:
+  - type: web
+    name: pg-platform-backend
+    env: docker
+    plan: free
+    branch: feature/owner-auth
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+      # Build this from the Postgres "Internal Database URL" info Render shows you
+      # (Host + Port + Database), formatted as jdbc:postgresql://<host>:<port>/<database>.
+      # Left unset here because Render doesn't have a JDBC-formatted value to hand over
+      # automatically -- see docs/deployment.md.
+      - key: SPRING_DATASOURCE_URL
+        sync: false
+      - key: SPRING_DATASOURCE_USERNAME
+        fromDatabase:
+          name: pg-platform-db
+          property: user
+      - key: SPRING_DATASOURCE_PASSWORD
+        fromDatabase:
+          name: pg-platform-db
+          property: password
+      - key: JWT_SECRET
+        generateValue: true
+      # Set to your deployed web app's real origin(s) once it exists -- no wildcard.
+      # See docs/security.md.
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+      # Optional integrations -- leave blank until provisioned (blank = affected
+      # endpoints return 501, per ADR-0019/ADR-0020 in docs/decisions.md).
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false
+      - key: GOOGLE_MAPS_API_KEY
+        sync: false
+      - key: GOOGLE_OAUTH_CLIENT_ID
+        sync: false
+      - key: GOOGLE_OAUTH_CLIENT_SECRET
+        sync: false
+      - key: S3_ENDPOINT
+        sync: false
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_ACCESS_KEY
+        sync: false
+      - key: S3_SECRET_KEY
+        sync: false
