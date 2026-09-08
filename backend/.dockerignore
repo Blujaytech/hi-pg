@@ -1,0 +1,7 @@
+# Build output and local-only files should never be sent to Render's build context.
+target/
+bin/
+.git/
+.idea/
+*.iml
+*.log
