@@ -90,7 +90,7 @@ public class ComplaintService {
         // owner-logged on behalf of a student with no login at all (ADR-0009), so this is often a no-op, by design.
         if (request.status() == ComplaintStatus.RESOLVED && saved.getStudent().getUser() != null) {
             notificationService.notifyUser(saved.getStudent().getUser().getId(), "Complaint resolved",
-                    "Your complaint ("" + saved.getDescription() + "") has been marked resolved.");
+                    "Your complaint (\"" + saved.getDescription() + "\") has been marked resolved.");
         }
 
         return ComplaintResponse.from(saved);
