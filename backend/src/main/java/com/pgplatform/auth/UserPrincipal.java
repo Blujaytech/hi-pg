@@ -42,4 +42,9 @@ public class UserPrincipal implements UserDetails {
     public String getUsername() {
         return username;
     }
+
+    @Override
+    public boolean isEnabled() {
+        return true;
+    }
 }

@@ -161,7 +161,7 @@ public class StudentService {
         student.setDateOfJoining(dateOfJoining);
     }
 
-    Student requireOwnedStudent(UUID studentId, UUID ownerId) {
+    public Student requireOwnedStudent(UUID studentId, UUID ownerId) {
         Student student = studentRepository.findByIdAndDeletedAtIsNull(studentId)
                 .orElseThrow(() -> new NotFoundException("Student not found"));
         if (!student.getPg().getOwner().getId().equals(ownerId)) {
