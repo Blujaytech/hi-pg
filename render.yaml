@@ -1,0 +1,48 @@
+# Render Blueprint for the Spring Boot backend and its Postgres database.
+# The service is intentionally defined at the repository root because this is
+# a monorepo; Docker builds only from backend/.
+services:
+  - type: web
+    name: pg-platform-api
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+      - key: PORT
+        value: "10000"
+      - key: DB_HOST
+        fromDatabase:
+          name: pg-platform-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: pg-platform-db
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: pg-platform-db
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: pg-platform-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: pg-platform-db
+          property: password
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+
+databases:
+  - name: pg-platform-db
+    plan: free
+    region: singapore
+    databaseName: pgplatform
+    user: pgplatform

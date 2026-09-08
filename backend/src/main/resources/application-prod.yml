@@ -1,8 +1,6 @@
-# Phase 16: activated with SPRING_PROFILES_ACTIVE=prod. Deliberately does NOT set a datasource
-# block here -- Spring Boot's relaxed env-var binding already maps SPRING_DATASOURCE_URL /
-# SPRING_DATASOURCE_USERNAME / SPRING_DATASOURCE_PASSWORD (see docs/deployment.md) regardless of
-# active profile, so nothing prod-specific is needed for that. This file exists for settings
-# that should differ specifically in production and nowhere else.
+# Production settings activated with SPRING_PROFILES_ACTIVE=prod. The Render Blueprint supplies
+# DB_HOST / DB_PORT / DB_NAME / DB_USER / DB_PASSWORD from managed Postgres. Deployments using an
+# existing database can continue to override these with SPRING_DATASOURCE_* environment vars.
 
 server:
   # Trust the reverse proxy's X-Forwarded-* headers for building correct redirect URLs / scheme
@@ -11,6 +9,22 @@ server:
   # already documents for its own X-Forwarded-For read (see docs/security.md). Do not enable
   # this if the backend is ever exposed directly with no proxy in front of it.
   forward-headers-strategy: framework
+
+spring:
+  datasource:
+    # Render exposes these values directly from a managed Postgres resource in
+    # render.yaml. Explicit SPRING_DATASOURCE_* variables still override these
+    # properties when deploying against an existing/external database.
+    url: '${SPRING_DATASOURCE_URL:jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}}'
+    username: '${SPRING_DATASOURCE_USERNAME:${DB_USER}}'
+    password: '${SPRING_DATASOURCE_PASSWORD:${DB_PASSWORD}}'
+  jpa:
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:5}
 
 app:
   jwt:
