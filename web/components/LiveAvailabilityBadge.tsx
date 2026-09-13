@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { API_BASE_URL } from '@/lib/api';
 
 /**
  * Phase 10 -- subscribes to the backend's SSE stream for one PG and shows
@@ -24,8 +25,7 @@ export function LiveAvailabilityBadge({
   const [live, setLive] = useState(false);
 
   useEffect(() => {
-    const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080/api/v1';
-    const source = new EventSource(`${apiBase}/public/pgs/${pgId}/availability/stream`);
+    const source = new EventSource(`${API_BASE_URL}/public/pgs/${pgId}/availability/stream`);
 
     source.addEventListener('availability', (event) => {
       try {

@@ -25,7 +25,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 /**
@@ -39,6 +41,7 @@ import java.util.UUID;
 public class PgSearchService {
 
     private static final int MAX_PAGE_SIZE = 50;
+    static final int MAX_QUERY_WORDS = 3;
 
     private final PgRepository pgRepository;
     private final FloorRepository floorRepository;
@@ -53,13 +56,36 @@ public class PgSearchService {
         this.bedRepository = bedRepository;
     }
 
+    /**
+     * {@code query} is free text matched word by word (case-insensitive,
+     * partial) against the PG's name, address, city, state and pincode, so
+     * "metro", "ameerpet ladies" or "500038" all work. Every word must match
+     * somewhere; only the first {@value #MAX_QUERY_WORDS} words are used.
+     * {@code city} stays an exact (case-insensitive) city filter for existing
+     * clients.
+     */
     @Transactional(readOnly = true)
-    public PagedResponse<PgSearchResultResponse> search(String city, GenderPreference genderPreference,
+    public PagedResponse<PgSearchResultResponse> search(String query, String city, GenderPreference genderPreference,
                                                           BigDecimal minRent, BigDecimal maxRent,
                                                           int page, int size) {
         Pageable pageable = PageRequest.of(Math.max(page, 0), clampSize(size), Sort.by(Sort.Direction.DESC, "createdAt"));
-        Page<Pg> results = pgRepository.search(blankToNull(city), genderPreference, minRent, maxRent, pageable);
+        List<String> words = likePatterns(query);
+        Page<Pg> results = pgRepository.search(wordAt(words, 0), wordAt(words, 1), wordAt(words, 2),
+                blankToNull(city), genderPreference, minRent, maxRent, pageable);
         return PagedResponse.from(results, this::toSearchResult);
+    }
+
+    /** Lower-cased {@code %word%} LIKE patterns, with LIKE wildcards escaped. */
+    static List<String> likePatterns(String query) {
+        if (query == null || query.isBlank()) return List.of();
+        return Arrays.stream(query.trim().toLowerCase(Locale.ROOT).split("\\s+"))
+                .limit(MAX_QUERY_WORDS)
+                .map(word -> "%" + word.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%")
+                .toList();
+    }
+
+    private static String wordAt(List<String> words, int index) {
+        return index < words.size() ? words.get(index) : null;
     }
 
     @Transactional(readOnly = true)

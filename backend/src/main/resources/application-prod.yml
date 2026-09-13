@@ -32,6 +32,11 @@ app:
     # deliberately fails fast at startup if JWT_SECRET isn't set, rather than silently signing
     # production tokens with a secret that's checked into git and known to anyone who's read it.
     secret: ${JWT_SECRET}
+  google:
+    # Google student sign-in is part of the production mobile app. Fail at
+    # startup when its Web OAuth client ID is missing instead of deploying a
+    # button that can never authenticate.
+    oauth-client-id: ${GOOGLE_OAUTH_CLIENT_ID}
 
 logging:
   level:

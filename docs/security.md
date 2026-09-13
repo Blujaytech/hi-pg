@@ -4,7 +4,7 @@
 
 - JWT access tokens (HMAC-SHA, 15 min default TTL), stateless -- `JwtAuthFilter` validates on every request, no server session.
 - Refresh tokens are opaque random strings; only their SHA-256 hash is persisted (`refresh_tokens.token_hash`), so a DB leak alone doesn't hand out usable tokens. Each `/auth/refresh` call rotates: old token revoked, new one issued.
-- Owner: email + password (BCrypt, min 8 chars). Student: phone + OTP (hashed, purpose-scoped, rate-limited -- see below). Google OAuth is a named stub (`GoogleAuthService`) -- not implemented, returns 501.
+- Owner: email + password (BCrypt, min 8 chars). Student: phone + OTP (hashed, purpose-scoped, rate-limited -- see below), or Google sign-in. The backend verifies Google's signature, issuer, expiry, verified-email claim, and the web OAuth client ID audience before issuing its own JWT. Google identities can only create/link STUDENT users; an owner email is rejected and owner password login is unchanged.
 - Password reset tokens: opaque, hashed, single-use, 30 min TTL. `requestReset` never reveals whether an email exists (no account enumeration).
 
 ## Authorization -- no Postgres RLS
@@ -13,7 +13,7 @@ The original Supabase prototype had row-level security for free. Spring Boot doe
 
 Two concrete shapes of the same discipline exist today, both audited in Phase 15 (ADR-0022) and found consistently applied:
 - `OwnershipGuard.requireOwns(...)` -- used by `PgService`, `FloorService`, `RoomService`, `BedService` (the original Phase 2-3 resources).
-- A private `requireOwned*`/`requireOwnedByUser` helper on the service itself, following the identical fetch-then-compare-owner-id-then-throw-`ForbiddenException` shape -- used by `StudentService.requireOwnedStudent`, `FeeService.requireOwnedFee`, `ComplaintService.requireOwnedComplaint`, `DocumentService.requireOwnedDocument` (all delegate through `requireOwnedStudent`/`requireOwnedPg` for creates/lists), `BookingService.requireOwnedByUser` (student-side), and a direct equality check in `PaymentOrderService.createOrder`.
+- A private `requireOwned*`/`requireOwnedByUser` helper on the service itself, following the identical fetch-then-compare-owner-id-then-throw-`ForbiddenException` shape -- used by `StudentService.requireOwnedStudent`, `FeeService.requireOwnedFee`, `ComplaintService` (owner and student-self-service paths), `DocumentService.requireOwnedDocument` (all delegate through `requireOwnedStudent`/`requireOwnedPg` for creates/lists), `BookingService.requireOwnedByUser` (student-side), and a direct equality check in `PaymentOrderService.createOrder`.
 
 Every one of these has a test proving cross-owner/cross-student access fails (`OwnershipGuardIntegrationTest`, and a `*IsForbidden`/`*DoesNotBelongToYou`-style test per newer service). **Any new owner- or student-scoped feature must repeat this pattern and this test, not assume JPA queries scope by owner automatically -- they don't.**
 

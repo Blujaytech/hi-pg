@@ -21,7 +21,7 @@ import lombok.Setter;
  * the one thing that doesn't work yet is actually writing bytes anywhere,
  * because {@link DocumentStorageGateway} has no real implementation until an
  * S3-compatible bucket + credentials exist. `storageKey` stays null until
- * then. This mirrors how Google OAuth is stubbed (GoogleAuthService) rather
+ * then. This follows the project's explicit integration-boundary pattern rather
  * than left entirely unbuilt.
  */
 @Getter

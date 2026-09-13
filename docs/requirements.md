@@ -19,7 +19,7 @@ Source of truth for *what* the platform must do: `PG_PLATFORM_TECHNICAL_PLAN.md`
 | Owner dashboard | **Built** (Phase 3, thin: counts + occupancy %) |
 | Student management (owner-side manual add) | **Built** (Phase 4, incl. bed assign/reassign/move-out) |
 | Fee management / Expense management | **Built** (Phase 5/5b, offline payment recording only -- Razorpay is Phase 12) |
-| Complaint management | **Built** (Phase 6, owner-side only -- student self-service filing deferred) |
+| Complaint management | **Built** (owner lifecycle management + student self-service filing/tracking) |
 | Documents (Aadhaar/photo) | **Stubbed** (Phase 7b -- API contract + DB table built, object storage not provisioned; every upload/download call returns 501) |
 | Receipts | **Built** (Phase 7a -- auto-generated per payment, snapshot-based, sequential numbering) |
 | Reports (revenue, occupancy, outstanding dues) | **Built** (Phase 8, computed at read time -- see ADR-0013) |

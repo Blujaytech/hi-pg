@@ -6,7 +6,10 @@ void main() {
   testWidgets('RoleSelectScreen shows both entry points', (tester) async {
     await tester.pumpWidget(const MaterialApp(home: RoleSelectScreen()));
 
-    expect(find.text("I'm a PG Owner"), findsOneWidget);
-    expect(find.text("I'm a Student"), findsOneWidget);
+    // Let the one-shot entrance animation finish.
+    await tester.pumpAndSettle();
+
+    expect(find.text("I'm a PG owner"), findsOneWidget);
+    expect(find.text('Search for a stay'), findsOneWidget);
   });
 }

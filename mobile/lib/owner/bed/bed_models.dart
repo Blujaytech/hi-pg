@@ -20,18 +20,47 @@ extension BedStatusX on BedStatus {
       };
 }
 
+class BedOccupant {
+  final String studentId;
+  final String fullName;
+  final String phone;
+  final String? guardianName;
+  final String? guardianPhone;
+  final String dateOfJoining;
+
+  BedOccupant({
+    required this.studentId,
+    required this.fullName,
+    required this.phone,
+    required this.guardianName,
+    required this.guardianPhone,
+    required this.dateOfJoining,
+  });
+
+  factory BedOccupant.fromJson(Map<String, dynamic> json) => BedOccupant(
+        studentId: json['studentId'] as String,
+        fullName: json['fullName'] as String,
+        phone: json['phone'] as String,
+        guardianName: json['guardianName'] as String?,
+        guardianPhone: json['guardianPhone'] as String?,
+        dateOfJoining: json['dateOfJoining'] as String,
+      );
+}
+
 class Bed {
   final String id;
   final String roomId;
   final String label;
   final BedStatus status;
+  final BedOccupant? occupant;
 
-  Bed({required this.id, required this.roomId, required this.label, required this.status});
+  Bed({required this.id, required this.roomId, required this.label, required this.status, this.occupant});
 
   factory Bed.fromJson(Map<String, dynamic> json) => Bed(
         id: json['id'] as String,
         roomId: json['roomId'] as String,
         label: json['label'] as String,
         status: BedStatusX.fromApi(json['status'] as String),
+        occupant: json['occupant'] != null ? BedOccupant.fromJson(json['occupant'] as Map<String, dynamic>) : null,
       );
 }

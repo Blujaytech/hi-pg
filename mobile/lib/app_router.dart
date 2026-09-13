@@ -6,61 +6,207 @@ import 'auth/auth_state.dart';
 import 'auth/owner_login_screen.dart';
 import 'auth/owner_signup_screen.dart';
 import 'auth/role_select_screen.dart';
+import 'auth/splash_screen.dart';
 import 'auth/student_otp_screen.dart';
 import 'owner/complaint/complaint_list_screen.dart';
 import 'owner/dashboard/dashboard_screen.dart';
 import 'owner/expense/expense_list_screen.dart';
 import 'owner/fee/fee_list_screen.dart';
-import 'owner/receipt/receipt_list_screen.dart';
-import 'owner/report/report_screen.dart';
 import 'owner/floor/floor_list_screen.dart';
 import 'owner/floor/floor_models.dart';
 import 'owner/pg/pg_list_screen.dart';
 import 'owner/pg/pg_models.dart';
+import 'owner/receipt/receipt_list_screen.dart';
+import 'owner/report/report_screen.dart';
 import 'owner/room/room_list_screen.dart';
 import 'owner/student/student_list_screen.dart';
-import 'student/discovery/pg_details_screen.dart';
+import 'shared/account/account_screen.dart';
+import 'shared/app_shell.dart';
 import 'student/booking/my_bookings_screen.dart';
-import 'student/fee/my_fees_screen.dart';
+import 'student/complaint/my_complaints_screen.dart';
+import 'student/discovery/pg_details_screen.dart';
 import 'student/discovery/pg_search_screen.dart';
+import 'student/fee/my_fees_screen.dart';
 import 'student/student_home_screen.dart';
 
-/// Route gating: an unauthenticated user can only reach the auth routes; an
-/// authenticated Owner/Student is bounced to their home if they land on an
-/// auth route or the other role's routes. See technical plan §3 ("two app
-/// modes gated by role after login").
+const _ownerTabs = [
+  AppTab(
+      icon: Icons.home_outlined,
+      selectedIcon: Icons.home_rounded,
+      label: 'Home'),
+  AppTab(
+      icon: Icons.insights_outlined,
+      selectedIcon: Icons.insights_rounded,
+      label: 'Insights'),
+  AppTab(
+      icon: Icons.bar_chart_outlined,
+      selectedIcon: Icons.bar_chart_rounded,
+      label: 'Reports'),
+  AppTab(
+      icon: Icons.person_outline_rounded,
+      selectedIcon: Icons.person_rounded,
+      label: 'Account'),
+];
+
+const _studentTabs = [
+  AppTab(
+      icon: Icons.home_outlined,
+      selectedIcon: Icons.home_rounded,
+      label: 'Home'),
+  AppTab(
+      icon: Icons.search_rounded,
+      selectedIcon: Icons.manage_search_rounded,
+      label: 'Explore'),
+  AppTab(
+      icon: Icons.event_available_outlined,
+      selectedIcon: Icons.event_available_rounded,
+      label: 'Bookings'),
+  AppTab(
+      icon: Icons.person_outline_rounded,
+      selectedIcon: Icons.person_rounded,
+      label: 'Account'),
+];
+
+/// Cross-fade used wherever the app changes "mode" (splash -> welcome,
+/// sign-in -> home) rather than drilling into detail.
+CustomTransitionPage<void> _fadePage(GoRouterState state, Widget child) {
+  return CustomTransitionPage<void>(
+    key: state.pageKey,
+    child: child,
+    transitionDuration: const Duration(milliseconds: 380),
+    reverseTransitionDuration: const Duration(milliseconds: 260),
+    transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+        FadeTransition(
+      opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
+      child: child,
+    ),
+  );
+}
+
+bool _isExplore(String location) =>
+    location == '/explore' || location.startsWith('/explore/');
+
+/// Route gating, as a pure function so it can be unit tested.
+///
+/// Browsing PGs (`/explore/...`) is open to everyone -- a guest is only asked
+/// to sign in when they try to book a bed, and [from] brings them back to
+/// that PG afterwards. Otherwise an unauthenticated user can only reach the
+/// auth routes, and an authenticated Owner/Customer is bounced to their home
+/// if they land on an auth route or the other role's routes (technical plan
+/// §3, "two app modes gated by role after login"). `/splash` is exempt: it
+/// waits for the session to restore and routes itself.
+@visibleForTesting
+String? routeRedirect({
+  required AuthStatus status,
+  required UserRole? role,
+  required String location,
+  String? from,
+}) {
+  if (location == '/splash' || _isExplore(location)) return null;
+
+  final loggedIn = status == AuthStatus.authenticated;
+  final loggingIn = location == '/' ||
+      location.startsWith('/owner/login') ||
+      location.startsWith('/owner/signup') ||
+      location.startsWith('/student/login');
+
+  if (!loggedIn) {
+    return loggingIn ? null : '/';
+  }
+
+  if (loggingIn) {
+    // Only in-app explore pages are accepted as a return target.
+    if (from != null && _isExplore(from)) return from;
+    return role == UserRole.owner ? '/owner' : '/student';
+  }
+
+  final isOwnerRoute = location.startsWith('/owner');
+  final isStudentRoute = location.startsWith('/student');
+  if (role == UserRole.owner && isStudentRoute) return '/owner';
+  if (role == UserRole.student && isOwnerRoute) return '/student';
+
+  return null;
+}
+
 GoRouter buildRouter(AuthState authState) {
   return GoRouter(
-    initialLocation: '/',
+    initialLocation: '/splash',
     refreshListenable: authState,
-    redirect: (context, state) {
-      final loggedIn = authState.status == AuthStatus.authenticated;
-      final loggingIn = state.matchedLocation == '/' ||
-          state.matchedLocation.startsWith('/owner/login') ||
-          state.matchedLocation.startsWith('/owner/signup') ||
-          state.matchedLocation.startsWith('/student/login');
-
-      if (!loggedIn) {
-        return loggingIn ? null : '/';
-      }
-
-      if (loggedIn && loggingIn) {
-        return authState.role == UserRole.owner ? '/owner' : '/student';
-      }
-
-      final isOwnerRoute = state.matchedLocation.startsWith('/owner');
-      final isStudentRoute = state.matchedLocation.startsWith('/student');
-      if (authState.role == UserRole.owner && isStudentRoute) return '/owner';
-      if (authState.role == UserRole.student && isOwnerRoute) return '/student';
-
-      return null;
-    },
+    redirect: (context, state) => routeRedirect(
+      status: authState.status,
+      role: authState.role,
+      location: state.matchedLocation,
+      from: state.uri.queryParameters['from'],
+    ),
     routes: [
-      GoRoute(path: '/', builder: (context, state) => const RoleSelectScreen()),
-      GoRoute(path: '/owner/login', builder: (context, state) => const OwnerLoginScreen()),
-      GoRoute(path: '/owner/signup', builder: (context, state) => const OwnerSignupScreen()),
-      GoRoute(path: '/student/login', builder: (context, state) => const StudentOtpScreen()),
-      GoRoute(path: '/owner', builder: (context, state) => const PgListScreen()),
+      GoRoute(
+        path: '/splash',
+        pageBuilder: (context, state) =>
+            const NoTransitionPage(child: SplashScreen()),
+      ),
+      GoRoute(
+        path: '/',
+        pageBuilder: (context, state) =>
+            _fadePage(state, const RoleSelectScreen()),
+      ),
+      GoRoute(
+          path: '/owner/login',
+          builder: (context, state) => const OwnerLoginScreen()),
+      GoRoute(
+          path: '/owner/signup',
+          builder: (context, state) => const OwnerSignupScreen()),
+      GoRoute(
+          path: '/student/login',
+          builder: (context, state) => StudentOtpScreen(
+                returnTo: state.uri.queryParameters['from'] != null &&
+                        _isExplore(state.uri.queryParameters['from']!)
+                    ? state.uri.queryParameters['from']
+                    : null,
+              )),
+
+      // Public PG browsing: no account needed until a bed is booked.
+      GoRoute(
+        path: '/explore',
+        builder: (context, state) => const PgSearchScreen(),
+        routes: [
+          GoRoute(
+            path: 'pgs/:pgId',
+            builder: (context, state) =>
+                PgDetailsScreen(pgId: state.pathParameters['pgId']!),
+          ),
+        ],
+      ),
+
+      // Owner mode: bottom tabs.
+      StatefulShellRoute.indexedStack(
+        pageBuilder: (context, state, shell) => _fadePage(
+          state,
+          AppShell(navigationShell: shell, tabs: _ownerTabs),
+        ),
+        branches: [
+          StatefulShellBranch(routes: [
+            GoRoute(
+                path: '/owner',
+                builder: (context, state) => const PgListScreen()),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(
+                path: '/owner/dashboard',
+                builder: (context, state) => const DashboardScreen()),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(
+                path: '/owner/reports',
+                builder: (context, state) => const ReportScreen()),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(
+                path: '/owner/account',
+                builder: (context, state) => const AccountScreen()),
+          ]),
+        ],
+      ),
+      // Owner detail screens, pushed above the tab bar.
       GoRoute(
         path: '/owner/pgs/:pgId/floors',
         builder: (context, state) => FloorListScreen(
@@ -75,8 +221,6 @@ GoRouter buildRouter(AuthState authState) {
           floor: state.extra as Floor?,
         ),
       ),
-      GoRoute(path: '/owner/dashboard', builder: (context, state) => const DashboardScreen()),
-      GoRoute(path: '/owner/reports', builder: (context, state) => const ReportScreen()),
       GoRoute(
         path: '/owner/pgs/:pgId/students',
         builder: (context, state) => StudentListScreen(
@@ -112,14 +256,48 @@ GoRouter buildRouter(AuthState authState) {
           studentName: state.extra as String?,
         ),
       ),
-      GoRoute(path: '/student', builder: (context, state) => const StudentHomeScreen()),
-      GoRoute(path: '/student/search', builder: (context, state) => const PgSearchScreen()),
+
+      // Student mode: bottom tabs.
+      StatefulShellRoute.indexedStack(
+        pageBuilder: (context, state, shell) => _fadePage(
+          state,
+          AppShell(navigationShell: shell, tabs: _studentTabs),
+        ),
+        branches: [
+          StatefulShellBranch(routes: [
+            GoRoute(
+                path: '/student',
+                builder: (context, state) => const StudentHomeScreen()),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(
+                path: '/student/search',
+                builder: (context, state) => const PgSearchScreen()),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(
+                path: '/student/bookings',
+                builder: (context, state) => const MyBookingsScreen()),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(
+                path: '/student/account',
+                builder: (context, state) => const AccountScreen()),
+          ]),
+        ],
+      ),
+      // Student detail screens, pushed above the tab bar.
       GoRoute(
         path: '/student/pgs/:pgId',
-        builder: (context, state) => PgDetailsScreen(pgId: state.pathParameters['pgId']!),
+        builder: (context, state) =>
+            PgDetailsScreen(pgId: state.pathParameters['pgId']!),
       ),
-      GoRoute(path: '/student/bookings', builder: (context, state) => const MyBookingsScreen()),
-      GoRoute(path: '/student/fees', builder: (context, state) => const MyFeesScreen()),
+      GoRoute(
+          path: '/student/fees',
+          builder: (context, state) => const MyFeesScreen()),
+      GoRoute(
+          path: '/student/complaints',
+          builder: (context, state) => const MyComplaintsScreen()),
     ],
   );
 }

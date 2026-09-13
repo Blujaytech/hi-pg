@@ -37,6 +37,11 @@ services:
           property: password
       - key: JWT_SECRET
         generateValue: true
+      # OAuth client IDs are public identifiers (the Android app contains the
+      # same value). Keeping it in the Blueprint prevents a deployment where
+      # the Google button is visible but the backend cannot verify its token.
+      - key: GOOGLE_OAUTH_CLIENT_ID
+        value: 83954662324-8tsednfctojp1stj3o7rc7fvs02m1lds.apps.googleusercontent.com
       - key: CORS_ALLOWED_ORIGINS
         sync: false
 

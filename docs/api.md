@@ -23,11 +23,11 @@ Auth: `Authorization: Bearer <accessToken>` on every endpoint except `/auth/**`,
 | POST | `/auth/owner/login` | `{email, password}` | returns `AuthResponse` |
 | POST | `/auth/student/otp/request` | `{phone}` | 202, sends OTP (logged, not really sent -- see `NotificationGateway`) |
 | POST | `/auth/student/otp/verify` | `{phone, code, fullName?}` | returns `AuthResponse`; creates the student on first verify |
+| POST | `/auth/student/google` | `{idToken}` | verifies a Google ID token and returns `AuthResponse`; creates or signs in a STUDENT only |
 | POST | `/auth/refresh` | `{refreshToken}` | rotates refresh token, returns new `AuthResponse` |
 | POST | `/auth/logout` | `{refreshToken}` | 204, revokes that refresh token |
 | POST | `/auth/owner/password-reset/request` | `{email}` | 200, always the same message (no account enumeration) |
 | POST | `/auth/owner/password-reset/confirm` | `{token, newPassword}` | 204 |
-| POST | `/auth/google` | `{idToken, roleHint?}` | **501 -- stub, not implemented** |
 
 `AuthResponse`: `{accessToken, refreshToken, userId, fullName, role}`.
 
@@ -129,7 +129,7 @@ Both GET, no body. Response (`DashboardSummaryResponse`):
 
 ## Owner: Complaints (`/owner/students/{studentId}/complaints`, `/owner/pgs/{pgId}/complaints`, `/owner/complaints/{complaintId}`)
 
-Owner-side only for now -- logged on a student's behalf, same pattern as Fees. Student self-service filing is deferred; see `docs/decisions.md`.
+Owners may log a complaint on a student's behalf. Linked student accounts also have a self-service API below.
 
 | Method | Path | Notes |
 |---|---|---|
@@ -141,7 +141,19 @@ Owner-side only for now -- logged on a student's behalf, same pattern as Fees. S
 | DELETE | `/owner/complaints/{complaintId}` | soft delete |
 
 `ComplaintCreateRequest`: `{category: MAINTENANCE|CLEANLINESS|NOISE|SECURITY|BILLING|OTHER, priority?: LOW|MEDIUM|HIGH (default MEDIUM), description}`.
-`ComplaintResponse` adds `status: OPEN|IN_PROGRESS|RESOLVED|CLOSED` and `resolvedAt` -- set automatically (to now / cleared to null) whenever status moves into or out of `RESOLVED`/`CLOSED`, never set directly by the client.
+`ComplaintResponse` includes `pgId`, `pgName`, `status: OPEN|IN_PROGRESS|RESOLVED|CLOSED`, and `resolvedAt` -- set automatically (to now / cleared to null) whenever status moves into or out of `RESOLVED`/`CLOSED`, never set directly by the client.
+
+## Student: Complaints (`/student/complaints`)
+
+Authenticated, `hasRole('STUDENT')`. The student identity is resolved from the JWT's user id and its linked Student record; no student id is accepted from the client. An account that has not booked a bed yet gets the same actionable 404 used by self-service fees.
+
+| Method | Path | Notes |
+|---|---|---|
+| POST | `/student/complaints` | `ComplaintCreateRequest`; files against the caller's linked Student record, starts `OPEN`, and emits a live notification to the PG owner |
+| GET | `/student/complaints` | list the caller's complaints, newest first |
+| GET | `/student/complaints/{complaintId}` | one complaint; 403 if it belongs to another student |
+
+Students cannot change complaint status or delete complaints. The owner remains responsible for moving a complaint through `OPEN -> IN_PROGRESS -> RESOLVED/CLOSED` and supplying resolution notes.
 
 ## Owner: Dashboard -- now includes complaints
 
@@ -195,7 +207,7 @@ Technical plan §6 Phase 9. Listed under `SecurityConfig`'s `/api/v1/public/**` 
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/public/pgs?city=&genderPreference=&minRent=&maxRent=&page=0&size=20` | paginated search, all filters optional; `size` clamped to 50 |
+| GET | `/public/pgs?q=&city=&genderPreference=&minRent=&maxRent=&page=0&size=20` | paginated search, all filters optional; `size` clamped to 50. `q` is free text matched word by word (case-insensitive, partial) against name, address, city, state and pincode -- every word must match, first 3 words used, `%`/`_` are literal. `city` is an exact (case-insensitive) city match, kept for existing clients |
 | GET | `/public/pgs/{pgId}` | full details incl. per-room live availability; 404 if not found or not `ACTIVE` |
 
 Search response is `PagedResponse<PgSearchResultResponse>` -- a project-wide pagination envelope (`{content, page, size, totalElements, totalPages}`, see `docs/decisions.md`), not Spring's raw `Page`. `PgSearchResultResponse`: `{id, name, city, address, description, genderPreference, latitude, longitude, availableBeds, minRentPerBed, maxRentPerBed}` -- rent range is derived from that PG's `Room.rentPerBed` values, not a stored field on the PG itself.
@@ -265,7 +277,7 @@ No client actually calls this yet -- see `docs/decisions.md` ADR-0020 for why (n
 
 ## Notifications -- Phase 13
 
-Not a REST resource -- `NotificationService.notifyUser(userId, title, message)` is called internally whenever something happens that a user should hear about: a booking is confirmed or cancelled (`BookingService`, both the student and the PG owner), an online payment is received (`PaymentOrderService`), or a complaint is marked resolved (`ComplaintService`, only when the complaining student has a linked login -- most complaints today are owner-logged with no student login to notify, see ADR-0009). Delivery is push (to every registered device token) and email (if the user has one); failures for one recipient/channel are logged and swallowed, never allowed to fail the operation that triggered them. `LoggingNotificationGateway` is still the only implementation -- see ADR-0020.
+Not a REST resource -- `NotificationService.notifyUser(userId, title, message)` is called internally whenever something happens that a user should hear about: a booking is confirmed or cancelled (`BookingService`, both the student and the PG owner), an online payment is received (`PaymentOrderService`), a student files a complaint (the PG owner), or a complaint is marked resolved (the student). Delivery is push (to every registered device token) and email (if the user has one); failures for one recipient/channel are logged and swallowed, never allowed to fail the operation that triggered them. `LoggingNotificationGateway` is still the only external-delivery implementation -- live in-app SSE events work locally; see ADR-0020/ADR-0024.
 
 ## Me: live events stream (`/me/events/stream`) -- Phase 14
 
@@ -277,4 +289,4 @@ Same single-instance caveat as the Phase 10 stream (ADR-0016): the emitter regis
 
 ## Not yet built
 
-WhatsApp notifications (explicitly deferred per the technical plan), and everything from Phase 15/16 (security hardening pass, deployment). Also still open: student *self-service* complaint filing (today's complaints are owner-logged only); browser-side consumption of the live events stream (needs a cookie- or query-token-based auth path for `EventSource`, not attempted -- see ADR-0021). Add each new endpoint's contract here **before or alongside** implementation -- contract-first (CLAUDE.md).
+WhatsApp notifications (explicitly deferred per the technical plan), production wiring for external integrations, and browser-side consumption of the live events stream (needs a cookie- or query-token-based auth path for `EventSource`, not attempted -- see ADR-0021). Add each new endpoint's contract here **before or alongside** implementation -- contract-first (CLAUDE.md).

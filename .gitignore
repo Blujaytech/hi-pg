@@ -1,6 +1,7 @@
 # Backend
 backend/target/
 backend/.mvn/
+/apache-maven-3.9.9/
 *.class
 
 # Flutter
@@ -8,9 +9,11 @@ mobile/.dart_tool/
 mobile/.flutter-plugin-registrant/
 mobile/build/
 mobile/.packages
-mobile/pubspec.lock
 mobile/**/generated_plugin_registrant.dart
 mobile/.idea/
+
+# Local tool download (the project uses the wrapper/system Maven in CI/Render)
+/apache-maven-3.9.9/
 
 # Next.js
 web/.next/

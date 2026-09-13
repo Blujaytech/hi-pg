@@ -57,7 +57,7 @@ class PgSearchServiceTest extends AbstractIntegrationTest {
         roomService.create(floorId, ownerId, new RoomCreateRequest("G1", 2, new BigDecimal("8000.00"), RoomType.NON_AC));
         roomService.create(floorId, ownerId, new RoomCreateRequest("G2", 1, new BigDecimal("12000.00"), RoomType.AC));
 
-        PagedResponse<PgSearchResultResponse> results = pgSearchService.search("Chennai", GenderPreference.FEMALE,
+        PagedResponse<PgSearchResultResponse> results = pgSearchService.search(null, "Chennai", GenderPreference.FEMALE,
                 null, null, 0, 20);
         assertThat(results.content()).hasSize(1);
         PgSearchResultResponse result = results.content().get(0);
@@ -65,9 +65,9 @@ class PgSearchServiceTest extends AbstractIntegrationTest {
         assertThat(result.minRentPerBed()).isEqualByComparingTo("8000.00");
         assertThat(result.maxRentPerBed()).isEqualByComparingTo("12000.00");
 
-        assertThat(pgSearchService.search("Chennai", GenderPreference.MALE, null, null, 0, 20).content()).isEmpty();
-        assertThat(pgSearchService.search(null, null, new BigDecimal("15000"), null, 0, 20).content()).isEmpty();
-        assertThat(pgSearchService.search("chennai", null, null, null, 0, 20).content()).hasSize(1); // case-insensitive city match
+        assertThat(pgSearchService.search(null, "Chennai", GenderPreference.MALE, null, null, 0, 20).content()).isEmpty();
+        assertThat(pgSearchService.search(null, null, null, new BigDecimal("15000"), null, 0, 20).content()).isEmpty();
+        assertThat(pgSearchService.search(null, "chennai", null, null, null, 0, 20).content()).hasSize(1); // case-insensitive city match
 
         PgDetailsResponse details = pgSearchService.getDetails(pgId);
         assertThat(details.totalBeds()).isEqualTo(3);
@@ -76,5 +76,39 @@ class PgSearchServiceTest extends AbstractIntegrationTest {
         assertThat(details.floors().get(0).rooms()).hasSize(2);
 
         assertThatThrownBy(() -> pgSearchService.getDetails(UUID.randomUUID())).isInstanceOf(NotFoundException.class);
+    }
+
+    @Test
+    void freeTextSearchMatchesNameAddressAndCityWordByWord() {
+        UUID ownerId = createOwner();
+        // A made-up locality keeps this test independent of PGs other tests create.
+        String area = "zq" + UUID.randomUUID().toString().substring(0, 8);
+        pgService.create(ownerId, new PgCreateRequest("Residency " + area, "Road 1", "Hyderabad",
+                null, "500038", null, null, null, GenderPreference.FEMALE));
+        pgService.create(ownerId, new PgCreateRequest("Green Valley PG", "near " + area + " Metro", "Hyderabad",
+                null, null, null, null, null, GenderPreference.MALE));
+
+        // One word, matched in the name of one PG and the address of the other.
+        PagedResponse<PgSearchResultResponse> byArea = pgSearchService.search(area, null, null, null, null, 0, 20);
+        assertThat(byArea.content()).hasSize(2);
+        assertThat(byArea.totalElements()).isEqualTo(2);
+        // Case-insensitive and partial.
+        assertThat(pgSearchService.search(area.toUpperCase().substring(0, 7), null, null, null, null, 0, 50)
+                .content()).extracting(PgSearchResultResponse::name).contains("Residency " + area, "Green Valley PG");
+
+        // Every word has to match somewhere.
+        assertThat(pgSearchService.search(area + " metro", null, null, null, null, 0, 20).content())
+                .extracting(PgSearchResultResponse::name).containsExactly("Green Valley PG");
+        assertThat(pgSearchService.search("residency " + area, null, null, null, null, 0, 20).content())
+                .extracting(PgSearchResultResponse::name).containsExactly("Residency " + area);
+        assertThat(pgSearchService.search(area + " 500038", null, null, null, null, 0, 20).content()).hasSize(1);
+
+        // Combines with the other filters.
+        assertThat(pgSearchService.search(area, null, GenderPreference.MALE, null, null, 0, 20).content())
+                .extracting(PgSearchResultResponse::name).containsExactly("Green Valley PG");
+
+        // LIKE wildcards typed by a user are literal, not wildcards.
+        assertThat(pgSearchService.search("%" + area, null, null, null, null, 0, 20).content()).isEmpty();
+        assertThat(pgSearchService.search(area.replace('q', '_'), null, null, null, null, 0, 20).content()).isEmpty();
     }
 }

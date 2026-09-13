@@ -18,8 +18,13 @@ pluginManagement {
 
 plugins {
     id "dev.flutter.flutter-plugin-loader" version "1.0.0"
-    id "com.android.application" version "8.1.0" apply false
-    id "org.jetbrains.kotlin.android" version "1.8.22" apply false
+    // Bumped from 8.2.1: transitive androidx.core/androidx.browser releases
+    // pulled in by url_launcher_android now require AGP 8.9.1+ (checkDebugAarMetadata
+    // fails otherwise). Needs Gradle 8.11.1+ -- see gradle-wrapper.properties.
+    id "com.android.application" version "8.9.1" apply false
+    // Keep the app compiler aligned with the current Flutter Android plugins,
+    // which publish Kotlin 2.3 metadata.
+    id "org.jetbrains.kotlin.android" version "2.3.21" apply false
 }
 
 include ":app"

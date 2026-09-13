@@ -31,9 +31,9 @@ One dated entry per significant decision: what was decided, alternatives conside
 **Decision**: creating a Room with `sharingCount = N` creates N `Bed` rows (`Bed 1`..`Bed N`). Changing `sharingCount` later grows by appending new `AVAILABLE` beds, or shrinks by soft-deleting the *highest-numbered AVAILABLE* beds first; shrinking below the number of currently-`OCCUPIED` beds is rejected (409).
 **Why**: matches "bed auto-creation from room 'sharing' count, as the prototype does" (technical plan §6 Phase 2) plus the obvious real-world constraint that an occupied bed can't just disappear. See `RoomService.syncBedsToSharingCount` and `RoomBedAutoCreationTest`.
 
-## 2026-09-01 -- Deferred: Google OAuth
+## 2026-09-01 -- Deferred: Google OAuth (superseded by ADR-0026)
 
-**Status**: stubbed (`GoogleAuthService.authenticate` throws, `POST /auth/google` returns 501). Confirmed in the stack (technical plan §3) but verifying a Google `idToken` needs a configured OAuth client ID/secret that isn't provisioned yet, and doing it properly (JWKS verification, not just calling Google's legacy tokeninfo endpoint) is its own small feature. Left as a named, discoverable stub rather than silently absent so mobile/web can build the "Sign in with Google" button against a real (if 501-ing) endpoint. Pick this up as `feature/google-oauth` when credentials exist.
+**Original status**: Google sign-in was left as a 501 stub until OAuth clients were provisioned. This was completed on 2026-09-13; see ADR-0026.
 
 ## 2026-09-01 -- Deferred: Amenities / photos on `Pg`
 
@@ -193,3 +193,35 @@ Test-profile override: `application-test.yml` raises `max-requests` to 100000 so
 **Why Caddy specifically for the self-hosted path**: automatic Let's Encrypt HTTPS with no manual certbot/cron setup, and -- more load-bearing -- it overwrites `X-Forwarded-For` on every proxied request rather than passing through a client-supplied value, which is exactly the assumption `RateLimitFilter` (Phase 15, ADR-0022) documented as required and unverified. Any managed PaaS in Path A already does the equivalent. This closes the loop on that Phase 15 open item for whichever path gets chosen.
 **`application-prod.yml`'s fail-fast `JWT_SECRET`**: `application.yml`'s `${JWT_SECRET:dev-only-secret-change-me-dev-only-secret-change-me}` fallback exists for local dev convenience, but the exact same fallback silently working in a misconfigured production deploy would mean every JWT in production is signed with a secret visible in this public-pattern repo. The `prod` profile overrides it with `${JWT_SECRET}` (no default) so a missing env var is a startup crash, not a silent security hole.
 **What's still not done**: no account has been created with any provider named in `docs/deployment.md`; no domain purchased; no backup actually taken or restore actually tested (both called out as explicit pre-launch checklist items, not assumed). This ADR documents preparation, not completion -- the technical plan's 16 phases are now all addressed to the extent buildable without the user's own infrastructure decisions and credentials.
+
+## 2026-09-12 -- ADR-0024: Student complaint self-service uses the booking-created Student link
+
+**Decision**: A logged-in Student can now create, list, and read their own complaints through `/api/v1/student/complaints`. The service resolves the Student record exclusively from the authenticated JWT user id (`students.user_id`); the client never supplies a student id. A student account without that link receives the same actionable "book a bed first" 404 as self-service fees. Students cannot edit status or delete complaints--those remain owner responsibilities.
+
+**Why now**: ADR-0009 deferred self-service until a Student login could be linked safely to a Student record. Phase 11 completed that link during booking (ADR-0018), so the original blocker no longer exists. Reusing the existing `Complaint` entity and owner status lifecycle avoids a parallel support-ticket system.
+
+**Authorization**: list/create scope from the authenticated user. Detail access additionally compares the complaint's student id with that linked Student record and returns 403 for cross-student access. Integration tests cover success, an unlinked account, and cross-student denial.
+
+**Notifications**: filing a complaint calls the existing `NotificationService` for the PG owner, giving the owner a live in-app event immediately. External push/email delivery remains dependent on credentials as documented in ADR-0020.
+
+## 2026-09-13 -- ADR-0025: Mobile UI is a monochrome design system with bottom tabs and a code-drawn brand
+
+**Decision**: The Flutter app uses a black-and-white visual system (`mobile/lib/core/theme.dart`; green/amber/red appear only to signal state such as available, pending, overdue) with a bundled typeface (Inter, SIL OFL, `mobile/assets/fonts/`; Plus Jakarta Sans was tried first and dropped because its narrow word space made bold multi-word text run together). Signed-in navigation is bottom tabs via go_router `StatefulShellRoute.indexedStack` -- Owner: Home / Insights / Reports / Account; Student: Home / Explore / Bookings / Account. Detail screens stay top-level routes pushed above the shell. A new `/splash` route plays the launch animation and routes itself once `AuthState.bootstrap` resolves; the router's redirect exempts it.
+
+**Brand assets have one source**: the mark (a house-shaped speech bubble with a face -- "hi" + home) is a `CustomPainter` in `mobile/lib/shared/brand/hi_pg_brand.dart`. The in-app logo, the launch animation, the Android launcher icons (adaptive, Android 13 themed, legacy) and the native splash bitmaps are all drawn from it; the bitmaps are regenerated with `flutter test tool/brand_assets_test.dart`, never hand-edited. The native splash shows the mark at exactly the size and position of the animation's first frame, so the hand-off from Android to Flutter is seamless.
+
+**Why**: a Lottie/video/GIF launch would add APK weight, blur at density extremes and create a second copy of the logo that drifts. A runtime font fetch would render differently on an offline first launch. Tabs because Reports, Dashboard and Log out were hidden behind overflow menus, and sign-in screens had no way back to the welcome screen.
+
+**Behaviour changes that ride along**: `AuthState.bootstrap` treats an unreadable keystore as signed out (the splash waits on it, so a throw would strand the app). Owner student/fee/complaint/expense lists previously rendered an API failure as an empty list ("No students yet"); they now show an error state with retry. Owner create/edit dialogs became bottom-sheet forms with field validation.
+
+**Guest browsing (2026-09-13)**: PG search and details are open without an account at `/explore` and `/explore/pgs/:pgId` (the backend endpoints were already public, ADR-0015). A guest is asked to verify their mobile number only when they book a bed; the OTP route carries `?from=` the PG they were on, the router sends them back there after sign-in (only `/explore` paths are accepted as a return target), and booking resumes for the bed they picked. User-facing copy says "customer" instead of "student"; code, routes and API paths keep `student`.
+
+## 2026-09-13 -- ADR-0026: Google sign-in is student-only and additive to OTP
+
+**Decision**: Student accounts may authenticate through either the existing phone/OTP flow or Google. Flutter obtains a native Google ID token using the Android OAuth client and requests the backend audience using the Web application OAuth client ID. `POST /api/v1/auth/student/google` verifies the token signature, issuer, expiry, audience and verified-email claim before issuing the platform's normal access and refresh tokens. The stable Google `sub` claim is stored in `users.google_subject`; email is profile/contact data, not the identity key.
+
+**Owner boundary**: Google sign-in never creates, converts or links an OWNER. If the verified Google email or subject belongs to an owner, the request returns 409 and directs the person to owner login. The owner email/password endpoints and UI are unchanged.
+
+**Booking behaviour**: Guests still browse without signing in. The booking sheet now offers Google and phone/OTP; after either student authentication method, the selected bed remains pending and the booking confirmation resumes.
+
+**Configuration**: Both Flutter's `GOOGLE_OAUTH_WEB_CLIENT_ID` and the backend's `GOOGLE_OAUTH_CLIENT_ID` must contain the same Web application client ID. A native ID-token flow does not use an OAuth client secret. The Android OAuth client remains restricted by package name and signing-certificate SHA-1 in Google Cloud.

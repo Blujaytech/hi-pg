@@ -12,8 +12,8 @@ import lombok.Setter;
 /**
  * A single users table for both Owner and Student roles (role column), matching
  * the domain-model spec inherited from the Supabase prototype's `profiles` table.
- * Owners are expected to sign up with email+password; students with phone+OTP;
- * either can additionally be provider=GOOGLE. See docs/decisions.md.
+ * Owners sign up with email+password. Students can use phone+OTP or Google;
+ * Google authentication is deliberately never linked to owner accounts.
  */
 @Getter
 @Setter
@@ -40,6 +40,10 @@ public class User extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private AuthProviderType provider = AuthProviderType.LOCAL;
+
+    /** Stable Google Account identifier (the verified ID token's sub claim). */
+    @Column(name = "google_subject")
+    private String googleSubject;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)

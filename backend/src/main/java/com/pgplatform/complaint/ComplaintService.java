@@ -9,6 +9,7 @@ import com.pgplatform.complaint.dto.ComplaintStatusUpdateRequest;
 import com.pgplatform.notification.NotificationService;
 import com.pgplatform.owner.PgService;
 import com.pgplatform.student.Student;
+import com.pgplatform.student.StudentRepository;
 import com.pgplatform.student.StudentService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,13 +26,16 @@ public class ComplaintService {
 
     private final ComplaintRepository complaintRepository;
     private final StudentService studentService;
+    private final StudentRepository studentRepository;
     private final PgService pgService;
     private final NotificationService notificationService;
 
-    public ComplaintService(ComplaintRepository complaintRepository, StudentService studentService, PgService pgService,
+    public ComplaintService(ComplaintRepository complaintRepository, StudentService studentService,
+                             StudentRepository studentRepository, PgService pgService,
                              NotificationService notificationService) {
         this.complaintRepository = complaintRepository;
         this.studentService = studentService;
+        this.studentRepository = studentRepository;
         this.pgService = pgService;
         this.notificationService = notificationService;
     }
@@ -39,6 +43,22 @@ public class ComplaintService {
     @Transactional
     public ComplaintResponse create(UUID studentId, UUID ownerId, ComplaintCreateRequest request) {
         Student student = studentService.requireOwnedStudent(studentId, ownerId);
+
+        return saveNewComplaint(student, request);
+    }
+
+    /** Self-service complaint filing for the authenticated Student login. */
+    @Transactional
+    public ComplaintResponse createForStudent(UUID userId, ComplaintCreateRequest request) {
+        Student student = requireLinkedStudent(userId);
+        ComplaintResponse response = saveNewComplaint(student, request);
+        notificationService.notifyUser(student.getPg().getOwner().getId(), "New student complaint",
+                student.getFullName() + " raised a " + request.category().name().toLowerCase()
+                        + " complaint at " + student.getPg().getName() + ".");
+        return response;
+    }
+
+    private ComplaintResponse saveNewComplaint(Student student, ComplaintCreateRequest request) {
 
         Complaint complaint = new Complaint();
         complaint.setStudent(student);
@@ -49,6 +69,26 @@ public class ComplaintService {
         complaint.setStatus(ComplaintStatus.OPEN);
 
         return ComplaintResponse.from(complaintRepository.save(complaint));
+    }
+
+    /** Self-service list, scoped from the JWT user id rather than a client-supplied student id. */
+    @Transactional(readOnly = true)
+    public List<ComplaintResponse> listForStudentUser(UUID userId) {
+        Student student = requireLinkedStudent(userId);
+        return complaintRepository.findAllByStudentIdAndDeletedAtIsNullOrderByCreatedAtDesc(student.getId())
+                .stream().map(ComplaintResponse::from).toList();
+    }
+
+    /** Self-service detail with an explicit cross-student ownership check. */
+    @Transactional(readOnly = true)
+    public ComplaintResponse getForStudentUser(UUID complaintId, UUID userId) {
+        Student student = requireLinkedStudent(userId);
+        Complaint complaint = complaintRepository.findByIdAndDeletedAtIsNull(complaintId)
+                .orElseThrow(() -> new NotFoundException("Complaint not found"));
+        if (!complaint.getStudent().getId().equals(student.getId())) {
+            throw new ForbiddenException("This complaint does not belong to you");
+        }
+        return ComplaintResponse.from(complaint);
     }
 
     @Transactional(readOnly = true)
@@ -110,5 +150,11 @@ public class ComplaintService {
             throw new ForbiddenException("You do not have access to this complaint");
         }
         return complaint;
+    }
+
+    private Student requireLinkedStudent(UUID userId) {
+        return studentRepository.findByUserIdAndDeletedAtIsNull(userId)
+                .orElseThrow(() -> new NotFoundException(
+                        "You don't have a student profile yet -- book a bed first"));
     }
 }

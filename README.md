@@ -24,7 +24,7 @@ Implemented so far (see `docs/decisions.md` for the running log):
 - **Phase 3** — Owner dashboard: PG/floor/room/bed counts, occupancy %, active student count (per-owner and per-PG).
 - **Phase 4** — Student management: owner adds/edits students, assigns/reassigns/frees beds, marks a student moved out.
 - **Phase 5 / 5b** — Fee management (per-student monthly charges, offline payment recording, auto status PENDING → PARTIALLY_PAID → PAID) and Expense management (per-PG costs by category). Dashboard now also shows pending dues, this-month collections/expenses/net.
-- **Phase 6** — Complaint management: owner logs a complaint on a student's behalf, tracks it through OPEN → IN_PROGRESS → RESOLVED/CLOSED (resolution notes required to resolve). Student *self-service* filing is deferred -- see `docs/decisions.md`.
+- **Phase 6** — Complaint management: owner logs and manages complaints through OPEN → IN_PROGRESS → RESOLVED/CLOSED; linked students can file and track their own complaints securely from the mobile app.
 
 - **Phase 7** — Receipts: auto-generated (one per payment, never a direct `POST`), snapshot-based so past receipts never change if the student/PG record is edited later, sequentially numbered from a DB sequence (`RCPT-<year>-<seq>`). Document storage (Aadhaar/photo uploads): full API contract + DB table built, but every upload/download call returns `501` until a real object-storage bucket is provisioned -- see `docs/decisions.md` (ADR-0012) for what's needed to finish it.
 

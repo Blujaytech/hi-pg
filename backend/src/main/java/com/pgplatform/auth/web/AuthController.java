@@ -96,9 +96,9 @@ public class AuthController {
         return ResponseEntity.noContent().build();
     }
 
-    // --- Google OAuth (stub, both roles) ---
+    // --- Student: Google identity ---
 
-    @PostMapping("/google")
+    @PostMapping("/student/google")
     public AuthResponse google(@Valid @RequestBody GoogleAuthRequest request) {
         return googleAuthService.authenticate(request);
     }

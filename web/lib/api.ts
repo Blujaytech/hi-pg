@@ -5,7 +5,19 @@
  * same messages. See docs/api.md for the endpoint contracts.
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080/api/v1';
+const LOCAL_API_BASE_URL = 'http://localhost:8080/api/v1';
+const PRODUCTION_API_BASE_URL = 'https://pg-platform-api.onrender.com/api/v1';
+
+/**
+ * The public API URL is injected at build time by Next.js. Keep the local
+ * fallback for development, but make a production build usable even when a
+ * hosting provider has not been configured with NEXT_PUBLIC_API_BASE_URL yet.
+ * The trailing-slash trim prevents URLs such as `/api/v1//public/...`.
+ */
+export const API_BASE_URL = (
+  process.env.NEXT_PUBLIC_API_BASE_URL?.trim() ||
+  (process.env.NODE_ENV === 'production' ? PRODUCTION_API_BASE_URL : LOCAL_API_BASE_URL)
+).replace(/\/+$/, '');
 
 export class ApiError extends Error {
   status?: number;

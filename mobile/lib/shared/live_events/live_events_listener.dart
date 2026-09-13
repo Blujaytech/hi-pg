@@ -6,10 +6,9 @@ import '../api_client.dart';
 
 /// Phase 14 -- subscribes to the authenticated per-user event stream
 /// (`/me/events/stream`) and surfaces each one as a SnackBar while this
-/// widget is mounted. Wrap any screen that should show live activity
-/// (booking confirmed, payment received, complaint resolved, ...) in this;
-/// see PgListScreen (owner) and StudentHomeScreen for the two places it's
-/// used today. Purely additive to push/email (NotificationService sends
+/// widget is mounted. It wraps AppShell, so live activity (booking
+/// confirmed, payment received, complaint resolved, ...) surfaces on
+/// whichever tab of either role is open. Purely additive to push/email (NotificationService sends
 /// all three) -- this is just the "app is open right now" channel.
 class LiveEventsListener extends StatefulWidget {
   final Widget child;

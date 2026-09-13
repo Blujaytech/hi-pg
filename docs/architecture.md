@@ -13,7 +13,7 @@ Next.js web  ---/
 ## Backend package layout (`backend/src/main/java/com/pgplatform/`)
 
 - `common/` -- `BaseEntity` (soft-delete + audit convention), exceptions, `GlobalExceptionHandler`, JPA auditing config, health endpoint.
-- `auth/` -- users, roles, JWT issuance/validation/refresh, owner email+password auth, student phone+OTP auth, password reset, Google OAuth (stub), Spring Security config.
+- `auth/` -- users, roles, JWT issuance/validation/refresh, owner email+password auth, student phone+OTP or Google auth, password reset, Spring Security config.
 - `owner/` -- Pg → Floor → Room → Bed hierarchy, ownership authorization (`OwnershipGuard`), bed auto-creation.
 - `student/`, `billing/`, `expense/`, `complaint/`, `document/`, `notification/`, `report/` -- scaffolded package directories for phases not yet built. `notification/` has a real interface (`NotificationGateway`) with a logging stub implementation, used today by OTP and password-reset flows.
 

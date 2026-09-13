@@ -1,30 +1,35 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:mobile/main.dart';
+import 'package:pg_platform_mobile/main.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('plays the launch animation then shows the two role choices',
+      (WidgetTester tester) async {
+    // No stored session: the launch screen should hand off to the welcome
+    // screen. Without a mock the keystore read never completes in a test.
+    FlutterSecureStorage.setMockInitialValues({});
+    // MainActivity reports the Android system splash as already gone.
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      const MethodChannel('hipg/launch'),
+      (_) async => null,
+    );
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
-
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
+    await tester.pumpWidget(const PgPlatformApp());
     await tester.pump();
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    expect(find.byKey(const Key('launch-animation')), findsOneWidget);
+    expect(find.byKey(const Key('owner-entry-button')), findsNothing);
+
+    // The animation runs ~2.8s, then hands off once the session is read.
+    await tester.pump(const Duration(milliseconds: 3000));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('launch-animation')), findsNothing);
+    expect(find.byKey(const Key('owner-entry-button')), findsOneWidget);
+    expect(find.byKey(const Key('student-entry-button')), findsOneWidget);
+    expect(find.text("I'm a PG owner"), findsOneWidget);
+    expect(find.text('Search for a stay'), findsOneWidget);
   });
 }

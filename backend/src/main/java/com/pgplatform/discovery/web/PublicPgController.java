@@ -33,13 +33,14 @@ public class PublicPgController {
 
     @GetMapping("/api/v1/public/pgs")
     public PagedResponse<PgSearchResultResponse> search(
+            @RequestParam(required = false) String q,
             @RequestParam(required = false) String city,
             @RequestParam(required = false) GenderPreference genderPreference,
             @RequestParam(required = false) BigDecimal minRent,
             @RequestParam(required = false) BigDecimal maxRent,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return pgSearchService.search(city, genderPreference, minRent, maxRent, page, size);
+        return pgSearchService.search(q, city, genderPreference, minRent, maxRent, page, size);
     }
 
     @GetMapping("/api/v1/public/pgs/{pgId}")

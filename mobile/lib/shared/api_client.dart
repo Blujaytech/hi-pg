@@ -13,10 +13,13 @@ import '../core/secure_storage.dart';
 /// caller to sign back in.
 class ApiClient {
   ApiClient._internal() {
+    final requestTimeout = Duration(seconds: Env.usesLocalBackend ? 15 : 90);
     _dio = Dio(BaseOptions(
       baseUrl: Env.apiBaseUrl,
-      connectTimeout: const Duration(seconds: 15),
-      receiveTimeout: const Duration(seconds: 15),
+      // Local failures should surface quickly; free hosted instances may need
+      // substantially longer to wake after inactivity.
+      connectTimeout: requestTimeout,
+      receiveTimeout: requestTimeout,
     ));
 
     _dio.interceptors.add(InterceptorsWrapper(
@@ -29,7 +32,9 @@ class ApiClient {
       },
       onError: (error, handler) async {
         final isAuthEndpoint = error.requestOptions.path.contains('/auth/');
-        if (error.response?.statusCode == 401 && !isAuthEndpoint && !_isRetry(error.requestOptions)) {
+        if (error.response?.statusCode == 401 &&
+            !isAuthEndpoint &&
+            !_isRetry(error.requestOptions)) {
           final refreshed = await _tryRefresh();
           if (refreshed) {
             final retryOptions = error.requestOptions;
@@ -59,9 +64,13 @@ class ApiClient {
     final refreshToken = await SecureStorage.instance.refreshToken;
     if (refreshToken == null) return false;
     try {
-      final response = await _dio.post('/auth/refresh', data: {'refreshToken': refreshToken});
+      final response = await _dio
+          .post('/auth/refresh', data: {'refreshToken': refreshToken});
       final data = response.data as Map<String, dynamic>;
-      await SecureStorage.instance.saveAccessToken(data['accessToken'] as String);
+      await SecureStorage.instance.saveRotatedTokens(
+        accessToken: data['accessToken'] as String,
+        refreshToken: data['refreshToken'] as String,
+      );
       return true;
     } catch (_) {
       await SecureStorage.instance.clear();
@@ -69,7 +78,8 @@ class ApiClient {
     }
   }
 
-  Future<Response<T>> get<T>(String path, {Map<String, dynamic>? queryParameters}) async {
+  Future<Response<T>> get<T>(String path,
+      {Map<String, dynamic>? queryParameters}) async {
     return _wrap(() => _dio.get<T>(path, queryParameters: queryParameters));
   }
 
@@ -97,10 +107,24 @@ class ApiClient {
   Stream<Map<String, dynamic>> sseStream(String path) async* {
     final response = await _dio.get<ResponseBody>(
       path,
-      options: Options(responseType: ResponseType.stream, headers: {'Accept': 'text/event-stream'}),
+      // Unlike regular API calls, an SSE connection is meant to stay open
+      // indefinitely between heartbeats -- the shared 15s receiveTimeout
+      // (fine for normal requests) would otherwise abort it as soon as the
+      // server goes quiet for that long.
+      options: Options(
+        responseType: ResponseType.stream,
+        headers: {'Accept': 'text/event-stream'},
+        receiveTimeout: Duration.zero,
+      ),
     );
 
-    final lines = response.data!.stream.transform(utf8.decoder).transform(const LineSplitter());
+    // Dio exposes SSE chunks as Uint8List. Cast to List<int> first because
+    // StreamTransformer is invariant in its input type, while utf8.decoder
+    // accepts List<int> rather than the narrower Uint8List.
+    final lines = response.data!.stream
+        .cast<List<int>>()
+        .transform(utf8.decoder)
+        .transform(const LineSplitter());
     final dataBuffer = StringBuffer();
 
     await for (final line in lines) {
@@ -138,6 +162,15 @@ class ApiClient {
         message: (data['message'] as String?) ?? 'Something went wrong',
         statusCode: e.response?.statusCode,
         details: (data['details'] as List?)?.cast<String>() ?? const [],
+      );
+    }
+    if (e.type == DioExceptionType.connectionTimeout ||
+        e.type == DioExceptionType.receiveTimeout) {
+      return ApiException(
+        message: Env.usesLocalBackend
+            ? 'Cannot reach the local backend. Make sure PostgreSQL and Spring Boot are running on port 8080.'
+            : 'The server is taking longer than expected to wake up. Please wait a moment and try again.',
+        statusCode: e.response?.statusCode,
       );
     }
     return ApiException(

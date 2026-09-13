@@ -3,7 +3,10 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../core/api_exception.dart';
+import '../core/theme.dart';
+import '../shared/app_states.dart';
 import 'auth_state.dart';
+import 'auth_widgets.dart';
 
 class OwnerLoginScreen extends StatefulWidget {
   const OwnerLoginScreen({super.key});
@@ -27,16 +30,19 @@ class _OwnerLoginScreenState extends State<OwnerLoginScreen> {
   }
 
   Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (_loading || !_formKey.currentState!.validate()) return;
+    FocusScope.of(context).unfocus();
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      await context.read<AuthState>().ownerLogin(email: _emailController.text.trim(), password: _passwordController.text);
+      await context.read<AuthState>().ownerLogin(
+          email: _emailController.text.trim(),
+          password: _passwordController.text);
       if (mounted) context.go('/owner');
     } on ApiException catch (e) {
-      setState(() => _error = e.message);
+      if (mounted) setState(() => _error = e.message);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -45,45 +51,85 @@ class _OwnerLoginScreenState extends State<OwnerLoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Owner Login')),
+      appBar: AppBar(leading: const AuthBackButton()),
       body: SafeArea(
+        top: false,
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (_error != null) ...[
-                  Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
-                  const SizedBox(height: 12),
+          padding: const EdgeInsets.fromLTRB(24, 4, 24, 28),
+          child: AutofillGroup(
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const AuthHeader(
+                    eyebrow: 'PG owner',
+                    title: 'Welcome back',
+                    subtitle:
+                        'Log in to manage your properties, customers and rent.',
+                  ),
+                  const SizedBox(height: 30),
+                  if (_error != null) ...[
+                    AppMessageBanner(
+                      icon: Icons.error_outline_rounded,
+                      message: _error!,
+                      color: AppColors.danger,
+                      background: AppColors.dangerSoft,
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                  TextFormField(
+                    controller: _emailController,
+                    enabled: !_loading,
+                    keyboardType: TextInputType.emailAddress,
+                    textInputAction: TextInputAction.next,
+                    autofillHints: const [AutofillHints.email],
+                    decoration: const InputDecoration(
+                      labelText: 'Email address',
+                      prefixIcon: Icon(Icons.alternate_email_rounded),
+                    ),
+                    validator: (v) => (v == null || !v.contains('@'))
+                        ? 'Enter a valid email'
+                        : null,
+                  ),
+                  const SizedBox(height: 14),
+                  PasswordFormField(
+                    controller: _passwordController,
+                    enabled: !_loading,
+                    onSubmitted: _submit,
+                    validator: (v) =>
+                        (v == null || v.isEmpty) ? 'Enter your password' : null,
+                  ),
+                  const SizedBox(height: 26),
+                  FilledButton(
+                    onPressed: _submit,
+                    child: ProgressLabel(
+                      loading: _loading,
+                      label: 'Log in',
+                      loadingLabel: 'Logging in...',
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        'New to hi pg?',
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodyMedium
+                            ?.copyWith(color: AppColors.muted),
+                      ),
+                      TextButton(
+                        onPressed: _loading
+                            ? null
+                            : () => context.push('/owner/signup'),
+                        child: const Text('Create an account'),
+                      ),
+                    ],
+                  ),
                 ],
-                TextFormField(
-                  controller: _emailController,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(labelText: 'Email'),
-                  validator: (v) => (v == null || !v.contains('@')) ? 'Enter a valid email' : null,
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _passwordController,
-                  obscureText: true,
-                  decoration: const InputDecoration(labelText: 'Password'),
-                  validator: (v) => (v == null || v.isEmpty) ? 'Enter your password' : null,
-                ),
-                const SizedBox(height: 24),
-                FilledButton(
-                  onPressed: _loading ? null : _submit,
-                  child: _loading
-                      ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('Log in'),
-                ),
-                const SizedBox(height: 12),
-                TextButton(
-                  onPressed: () => context.go('/owner/signup'),
-                  child: const Text("Don't have an account? Sign up"),
-                ),
-              ],
+              ),
             ),
           ),
         ),

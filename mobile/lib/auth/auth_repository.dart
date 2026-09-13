@@ -13,7 +13,8 @@ class AuthRepository {
     required String password,
     String? phone,
   }) async {
-    final response = await _client.post<Map<String, dynamic>>('/auth/owner/signup', data: {
+    final response =
+        await _client.post<Map<String, dynamic>>('/auth/owner/signup', data: {
       'fullName': fullName,
       'email': email,
       'password': password,
@@ -22,8 +23,10 @@ class AuthRepository {
     return AuthSession.fromJson(response.data!);
   }
 
-  Future<AuthSession> ownerLogin({required String email, required String password}) async {
-    final response = await _client.post<Map<String, dynamic>>('/auth/owner/login', data: {
+  Future<AuthSession> ownerLogin(
+      {required String email, required String password}) async {
+    final response =
+        await _client.post<Map<String, dynamic>>('/auth/owner/login', data: {
       'email': email,
       'password': password,
     });
@@ -31,11 +34,14 @@ class AuthRepository {
   }
 
   Future<void> requestStudentOtp({required String phone}) async {
-    await _client.post<void>('/auth/student/otp/request', data: {'phone': phone});
+    await _client
+        .post<void>('/auth/student/otp/request', data: {'phone': phone});
   }
 
-  Future<AuthSession> verifyStudentOtp({required String phone, required String code, String? fullName}) async {
-    final response = await _client.post<Map<String, dynamic>>('/auth/student/otp/verify', data: {
+  Future<AuthSession> verifyStudentOtp(
+      {required String phone, required String code, String? fullName}) async {
+    final response = await _client
+        .post<Map<String, dynamic>>('/auth/student/otp/verify', data: {
       'phone': phone,
       'code': code,
       if (fullName != null && fullName.isNotEmpty) 'fullName': fullName,
@@ -43,11 +49,21 @@ class AuthRepository {
     return AuthSession.fromJson(response.data!);
   }
 
+  Future<AuthSession> googleStudentLogin({required String idToken}) async {
+    final response = await _client.post<Map<String, dynamic>>(
+      '/auth/student/google',
+      data: {'idToken': idToken},
+    );
+    return AuthSession.fromJson(response.data!);
+  }
+
   Future<void> requestPasswordReset({required String email}) async {
-    await _client.post<void>('/auth/owner/password-reset/request', data: {'email': email});
+    await _client.post<void>('/auth/owner/password-reset/request',
+        data: {'email': email});
   }
 
   Future<void> logout({required String refreshToken}) async {
-    await _client.post<void>('/auth/logout', data: {'refreshToken': refreshToken});
+    await _client
+        .post<void>('/auth/logout', data: {'refreshToken': refreshToken});
   }
 }

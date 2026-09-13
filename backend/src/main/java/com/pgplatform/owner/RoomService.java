@@ -7,6 +7,9 @@ import com.pgplatform.owner.dto.BedResponse;
 import com.pgplatform.owner.dto.RoomCreateRequest;
 import com.pgplatform.owner.dto.RoomResponse;
 import com.pgplatform.owner.dto.RoomUpdateRequest;
+import com.pgplatform.student.Student;
+import com.pgplatform.student.StudentRepository;
+import com.pgplatform.student.StudentStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,13 +29,15 @@ public class RoomService {
     private final BedRepository bedRepository;
     private final FloorService floorService;
     private final BedAvailabilityBroadcaster broadcaster;
+    private final StudentRepository studentRepository;
 
     public RoomService(RoomRepository roomRepository, BedRepository bedRepository, FloorService floorService,
-                        BedAvailabilityBroadcaster broadcaster) {
+                        BedAvailabilityBroadcaster broadcaster, StudentRepository studentRepository) {
         this.roomRepository = roomRepository;
         this.bedRepository = bedRepository;
         this.floorService = floorService;
         this.broadcaster = broadcaster;
+        this.studentRepository = studentRepository;
     }
 
     @Transactional
@@ -144,7 +149,12 @@ public class RoomService {
     }
 
     private RoomResponse toResponse(Room room, List<Bed> beds) {
-        List<BedResponse> bedResponses = beds.stream().map(BedResponse::from).toList();
+        List<BedResponse> bedResponses = beds.stream().map(bed -> {
+            Student occupant = bed.getStatus() == BedStatus.OCCUPIED
+                    ? studentRepository.findByBedIdAndStatusAndDeletedAtIsNull(bed.getId(), StudentStatus.ACTIVE).orElse(null)
+                    : null;
+            return BedResponse.from(bed, occupant);
+        }).toList();
         return RoomResponse.from(room, bedResponses);
     }
 }

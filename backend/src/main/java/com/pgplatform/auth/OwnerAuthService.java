@@ -27,6 +27,9 @@ public class OwnerAuthService {
         if (userRepository.existsByEmailAndDeletedAtIsNull(request.email())) {
             throw new ConflictException("An account with this email already exists");
         }
+        if (request.phone() != null && userRepository.existsByPhoneAndDeletedAtIsNull(request.phone())) {
+            throw new ConflictException("An account with this phone number already exists");
+        }
 
         User user = new User();
         user.setFullName(request.fullName());

@@ -24,7 +24,9 @@ class RateLimitFilterTest {
 
     @BeforeEach
     void setUp() {
-        filter = new RateLimitFilter(new ObjectMapper());
+        // Match Spring Boot's production ObjectMapper, which auto-registers
+        // Java Time support used by ApiError.timestamp.
+        filter = new RateLimitFilter(new ObjectMapper().findAndRegisterModules());
         ReflectionTestUtils.setField(filter, "windowSeconds", 60L);
         ReflectionTestUtils.setField(filter, "maxRequestsPerWindow", 3);
     }

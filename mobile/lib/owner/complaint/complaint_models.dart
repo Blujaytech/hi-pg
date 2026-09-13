@@ -1,4 +1,11 @@
-enum ComplaintCategory { maintenance, cleanliness, noise, security, billing, other }
+enum ComplaintCategory {
+  maintenance,
+  cleanliness,
+  noise,
+  security,
+  billing,
+  other
+}
 
 extension ComplaintCategoryX on ComplaintCategory {
   String get apiValue => switch (this) {
@@ -20,7 +27,8 @@ extension ComplaintCategoryX on ComplaintCategory {
       };
 
   static ComplaintCategory fromApi(String value) =>
-      ComplaintCategory.values.firstWhere((c) => c.apiValue == value, orElse: () => ComplaintCategory.other);
+      ComplaintCategory.values.firstWhere((c) => c.apiValue == value,
+          orElse: () => ComplaintCategory.other);
 }
 
 enum ComplaintPriority { low, medium, high }
@@ -39,7 +47,8 @@ extension ComplaintPriorityX on ComplaintPriority {
       };
 
   static ComplaintPriority fromApi(String value) =>
-      ComplaintPriority.values.firstWhere((p) => p.apiValue == value, orElse: () => ComplaintPriority.medium);
+      ComplaintPriority.values.firstWhere((p) => p.apiValue == value,
+          orElse: () => ComplaintPriority.medium);
 }
 
 enum ComplaintStatus { open, inProgress, resolved, closed }
@@ -60,13 +69,16 @@ extension ComplaintStatusX on ComplaintStatus {
       };
 
   static ComplaintStatus fromApi(String value) =>
-      ComplaintStatus.values.firstWhere((s) => s.apiValue == value, orElse: () => ComplaintStatus.open);
+      ComplaintStatus.values.firstWhere((s) => s.apiValue == value,
+          orElse: () => ComplaintStatus.open);
 }
 
 class Complaint {
   final String id;
   final String studentId;
   final String studentName;
+  final String pgId;
+  final String pgName;
   final ComplaintCategory category;
   final ComplaintPriority priority;
   final String description;
@@ -79,6 +91,8 @@ class Complaint {
     required this.id,
     required this.studentId,
     required this.studentName,
+    required this.pgId,
+    required this.pgName,
     required this.category,
     required this.priority,
     required this.description,
@@ -92,12 +106,16 @@ class Complaint {
         id: json['id'] as String,
         studentId: json['studentId'] as String,
         studentName: json['studentName'] as String,
+        pgId: json['pgId'] as String,
+        pgName: json['pgName'] as String? ?? 'Your PG',
         category: ComplaintCategoryX.fromApi(json['category'] as String),
         priority: ComplaintPriorityX.fromApi(json['priority'] as String),
         description: json['description'] as String,
         status: ComplaintStatusX.fromApi(json['status'] as String),
         resolutionNotes: json['resolutionNotes'] as String?,
-        resolvedAt: json['resolvedAt'] != null ? DateTime.parse(json['resolvedAt'] as String) : null,
+        resolvedAt: json['resolvedAt'] != null
+            ? DateTime.parse(json['resolvedAt'] as String)
+            : null,
         createdAt: DateTime.parse(json['createdAt'] as String),
       );
 }

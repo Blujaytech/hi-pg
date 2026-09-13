@@ -35,6 +35,8 @@ app:
   otp:
     ttl-minutes: 5
     max-attempts-per-hour: 5
+  google:
+    oauth-client-id: ${GOOGLE_OAUTH_CLIENT_ID:}
   razorpay:
     key-id: ${RAZORPAY_KEY_ID:}
     key-secret: ${RAZORPAY_KEY_SECRET:}
