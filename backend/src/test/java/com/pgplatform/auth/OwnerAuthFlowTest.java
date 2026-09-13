@@ -47,6 +47,30 @@ class OwnerAuthFlowTest extends AbstractIntegrationTest {
         assertThat(secondAttempt.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
     }
 
+    @Test
+    void ownerEmailIsStoredNormalizedAndLoginIsCaseInsensitive() {
+        OwnerSignupRequest signup = new OwnerSignupRequest(
+                "Case Safe Owner", "Owner.Case@Example.COM", "password123", null);
+
+        ResponseEntity<AuthResponsePayload> signupResponse =
+                restTemplate.postForEntity("/api/v1/auth/owner/signup", signup, AuthResponsePayload.class);
+        assertThat(signupResponse.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+
+        OwnerLoginRequest login = new OwnerLoginRequest("OWNER.CASE@EXAMPLE.COM", "password123");
+        ResponseEntity<AuthResponsePayload> loginResponse =
+                restTemplate.postForEntity("/api/v1/auth/owner/login", login, AuthResponsePayload.class);
+
+        assertThat(loginResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(loginResponse.getBody()).isNotNull();
+        assertThat(loginResponse.getBody().accessToken()).isNotBlank();
+
+        ResponseEntity<String> duplicate = restTemplate.postForEntity(
+                "/api/v1/auth/owner/signup",
+                new OwnerSignupRequest("Duplicate", "owner.case@example.com", "password123", null),
+                String.class);
+        assertThat(duplicate.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+    }
+
     record AuthResponsePayload(String accessToken, String refreshToken, String userId, String fullName, String role) {
     }
 }

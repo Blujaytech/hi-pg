@@ -9,6 +9,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Locale;
+
 @Service
 public class OwnerAuthService {
 
@@ -24,7 +26,8 @@ public class OwnerAuthService {
 
     @Transactional
     public AuthResponse signup(OwnerSignupRequest request) {
-        if (userRepository.existsByEmailAndDeletedAtIsNull(request.email())) {
+        String normalizedEmail = normalizeEmail(request.email());
+        if (userRepository.existsByEmailIgnoreCaseAndDeletedAtIsNull(normalizedEmail)) {
             throw new ConflictException("An account with this email already exists");
         }
         if (request.phone() != null && userRepository.existsByPhoneAndDeletedAtIsNull(request.phone())) {
@@ -33,7 +36,7 @@ public class OwnerAuthService {
 
         User user = new User();
         user.setFullName(request.fullName());
-        user.setEmail(request.email());
+        user.setEmail(normalizedEmail);
         user.setPhone(request.phone());
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         user.setRole(Role.OWNER);
@@ -45,7 +48,7 @@ public class OwnerAuthService {
 
     @Transactional
     public AuthResponse login(OwnerLoginRequest request) {
-        User user = userRepository.findByEmailAndDeletedAtIsNull(request.email())
+        User user = userRepository.findByEmailIgnoreCaseAndDeletedAtIsNull(normalizeEmail(request.email()))
                 .filter(u -> u.getRole() == Role.OWNER)
                 .orElseThrow(() -> new BadCredentialsException("Invalid credentials"));
 
@@ -57,5 +60,9 @@ public class OwnerAuthService {
         }
 
         return tokenIssuer.issueFor(user);
+    }
+
+    private String normalizeEmail(String email) {
+        return email.trim().toLowerCase(Locale.ROOT);
     }
 }
