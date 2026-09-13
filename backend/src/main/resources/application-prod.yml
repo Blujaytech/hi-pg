@@ -11,6 +11,13 @@ server:
   forward-headers-strategy: framework
 
 spring:
+  # Render's free web instances have very limited CPU. Eagerly constructing
+  # every controller/service/repository kept the process from opening its HTTP
+  # port before Render's port-scan deadline. Production traffic can initialize
+  # feature beans on first use; the health endpoint and web server remain
+  # available as soon as the core application context is ready.
+  main:
+    lazy-initialization: true
   datasource:
     # Render exposes these values directly from a managed Postgres resource in
     # render.yaml. Explicit SPRING_DATASOURCE_* variables still override these
@@ -18,13 +25,26 @@ spring:
     url: '${SPRING_DATASOURCE_URL:jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}}'
     username: '${SPRING_DATASOURCE_USERNAME:${DB_USER}}'
     password: '${SPRING_DATASOURCE_PASSWORD:${DB_PASSWORD}}'
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:5}
+      minimum-idle: ${DB_POOL_MIN_IDLE:1}
+  data:
+    jpa:
+      # Repository query parsing is one of the most CPU-intensive startup
+      # phases. Build repository proxies only when an API first needs them.
+      repositories:
+        bootstrap-mode: lazy
   jpa:
+    # Flyway owns the production schema and validates migration checksums on
+    # every boot. Repeating Hibernate's complete schema validation delays port
+    # binding considerably on a small instance.
+    hibernate:
+      ddl-auto: none
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
     properties:
       hibernate:
         jdbc:
           time_zone: UTC
-    hikari:
-      maximum-pool-size: ${DB_POOL_MAX_SIZE:5}
 
 app:
   jwt:
