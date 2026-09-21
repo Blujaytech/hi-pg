@@ -7,6 +7,8 @@ import '../../core/theme.dart';
 import '../../shared/app_states.dart';
 import 'booking_models.dart';
 import 'booking_repository.dart';
+import '../payment/payment_repository.dart';
+import '../payment/razorpay_checkout.dart';
 
 class MyBookingsScreen extends StatefulWidget {
   const MyBookingsScreen({super.key});
@@ -17,11 +19,14 @@ class MyBookingsScreen extends StatefulWidget {
 
 class _MyBookingsScreenState extends State<MyBookingsScreen> {
   final _repository = BookingRepository();
+  final _paymentRepository = PaymentRepository();
+  late final RazorpayCheckout _checkout;
   late Future<List<Booking>> _future;
 
   @override
   void initState() {
     super.initState();
+    _checkout = RazorpayCheckout(_paymentRepository);
     _future = _repository.listMine();
   }
 
@@ -116,6 +121,53 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
     }
   }
 
+  Future<void> _submitMoveOutNotice(Booking booking) async {
+    final today = DateTime.now();
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: today.add(const Duration(days: 15)),
+      firstDate: today.add(const Duration(days: 1)),
+      lastDate: today.add(const Duration(days: 365)),
+      helpText: 'Planned move-out date',
+    );
+    if (selected == null) return;
+    try {
+      final updated = await _repository.submitMoveOutNotice(booking.id, selected);
+      if (mounted) {
+        _reload();
+        final message = updated.noticeShortfallDays > 0
+            ? 'Notice submitted. It is ${updated.noticeShortfallDays} day(s) shorter than the PG policy.'
+            : 'Move-out notice submitted.';
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      }
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      }
+    }
+  }
+
+  Future<void> _payBooking(Booking booking) async {
+    try {
+      final order = await _paymentRepository.createBookingOrder(booking.id);
+      await _checkout.pay(order, description: '${booking.bookingType.label} booking at ${booking.pgName}');
+      if (mounted) {
+        _reload();
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Booking confirmed.')));
+      }
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -146,7 +198,9 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
           }
 
           final activeCount = bookings
-              .where((booking) => booking.status == BookingStatus.confirmed)
+              .where((booking) => booking.status == BookingStatus.paymentPending
+                  || booking.status == BookingStatus.confirmed
+                  || booking.status == BookingStatus.checkedIn)
               .length;
           return RefreshIndicator(
             onRefresh: _refresh,
@@ -165,8 +219,18 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
                 final booking = bookings[index - 1];
                 return _BookingCard(
                   booking: booking,
-                  onCancel: booking.status == BookingStatus.confirmed
+                  onCancel: booking.status == BookingStatus.paymentPending
+                          || booking.status == BookingStatus.confirmed
+                          || booking.status == BookingStatus.checkedIn
                       ? () => _confirmCancel(booking)
+                      : null,
+                  onNotice: booking.bookingType == BookingType.monthly
+                          && (booking.status == BookingStatus.confirmed
+                              || booking.status == BookingStatus.checkedIn)
+                      ? () => _submitMoveOutNotice(booking)
+                      : null,
+                  onPay: booking.status == BookingStatus.paymentPending
+                      ? () => _payBooking(booking)
                       : null,
                 );
               },
@@ -233,12 +297,19 @@ class _BookingOverview extends StatelessWidget {
 class _BookingCard extends StatelessWidget {
   final Booking booking;
   final VoidCallback? onCancel;
+  final VoidCallback? onNotice;
+  final VoidCallback? onPay;
 
-  const _BookingCard({required this.booking, this.onCancel});
+  const _BookingCard({required this.booking, this.onCancel, this.onNotice, this.onPay});
 
   @override
   Widget build(BuildContext context) {
-    final confirmed = booking.status == BookingStatus.confirmed;
+    final active = booking.status == BookingStatus.paymentPending
+        || booking.status == BookingStatus.confirmed
+        || booking.status == BookingStatus.checkedIn;
+    final typeColor = booking.bookingType == BookingType.monthly
+        ? const Color(0xFF7B61FF)
+        : const Color(0xFF2F80ED);
     final date = DateFormat('d MMM yyyy').format(booking.moveInDate);
 
     return Card(
@@ -250,11 +321,12 @@ class _BookingCard extends StatelessWidget {
             Row(
               children: [
                 IconTile(
-                  icon: confirmed
+                  icon: active
                       ? Icons.apartment_rounded
                       : Icons.event_busy_outlined,
                   size: 46,
-                  dark: confirmed,
+                  color: typeColor,
+                  background: typeColor.withValues(alpha: .10),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -267,7 +339,7 @@ class _BookingCard extends StatelessWidget {
                           style: Theme.of(context).textTheme.titleMedium),
                       const SizedBox(height: 2),
                       Text(
-                        'Room ${booking.roomNumber} · ${booking.bedLabel}',
+                        'Room ${booking.roomNumber} · ${booking.bedLabel} · ${booking.bookingType.label}',
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ],
@@ -275,11 +347,34 @@ class _BookingCard extends StatelessWidget {
                 ),
                 StatusPill(
                   label: booking.status.label,
-                  tone: confirmed ? StatusTone.success : StatusTone.neutral,
-                  dot: confirmed,
+                  tone: booking.status == BookingStatus.paymentPending
+                      ? StatusTone.warning
+                      : active ? StatusTone.success : StatusTone.neutral,
+                  dot: active,
                 ),
               ],
             ),
+            const SizedBox(height: 10),
+            Text(
+              'Total: ₹${booking.totalAmount.toStringAsFixed(0)}'
+              '${booking.securityDepositAmount > 0 ? ' (includes ₹${booking.securityDepositAmount.toStringAsFixed(0)} deposit)' : ''}',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            if (booking.plannedMoveOutDate != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Move-out notice: ${DateFormat('d MMM yyyy').format(booking.plannedMoveOutDate!)}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+            if (onPay != null) ...[
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: onPay,
+                icon: const Icon(Icons.account_balance_wallet_outlined),
+                label: const Text('Complete payment'),
+              ),
+            ],
             const SizedBox(height: 14),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
@@ -320,6 +415,14 @@ class _BookingCard extends StatelessWidget {
                 ),
                 icon: const Icon(Icons.close_rounded, size: 18),
                 label: const Text('Cancel booking'),
+              ),
+            ],
+            if (onNotice != null) ...[
+              const SizedBox(height: 8),
+              TextButton.icon(
+                onPressed: onNotice,
+                icon: const Icon(Icons.exit_to_app_rounded),
+                label: const Text('Submit move-out notice'),
               ),
             ],
           ],

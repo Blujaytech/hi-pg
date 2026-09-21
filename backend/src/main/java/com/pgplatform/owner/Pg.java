@@ -51,4 +51,15 @@ public class Pg extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private PgStatus status = PgStatus.ACTIVE;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_onboarding_status", nullable = false, length = 24)
+    private PaymentOnboardingStatus paymentOnboardingStatus = PaymentOnboardingStatus.NOT_STARTED;
+
+    @Column(name = "razorpay_linked_account_id", unique = true, length = 100)
+    private String razorpayLinkedAccountId;
+
+    /** Basis points retained by the platform. 1000 = 10%. */
+    @Column(name = "platform_commission_bps", nullable = false)
+    private Integer platformCommissionBps = 0;
 }

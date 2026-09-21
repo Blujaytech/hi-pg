@@ -5,6 +5,7 @@ import com.pgplatform.auth.AuthProviderType;
 import com.pgplatform.auth.Role;
 import com.pgplatform.auth.User;
 import com.pgplatform.auth.UserRepository;
+import com.pgplatform.common.ConflictException;
 import com.pgplatform.document.dto.DocumentResponse;
 import com.pgplatform.owner.GenderPreference;
 import com.pgplatform.owner.PgService;
@@ -61,5 +62,36 @@ class DocumentUploadStubTest extends AbstractIntegrationTest {
 
         List<DocumentResponse> documents = documentService.listForStudent(studentId, ownerId);
         assertThat(documents).isEmpty();
+    }
+
+    /**
+     * The stored content type is what a presigned download later serves the object as, so
+     * anything outside the image/PDF allowlist must be refused before it reaches storage.
+     */
+    @Test
+    void uploadRejectsContentTypesOutsideTheAllowlist() {
+        User owner = new User();
+        owner.setEmail("owner-" + UUID.randomUUID() + "@example.com");
+        owner.setFullName("Validation Owner");
+        owner.setRole(Role.OWNER);
+        owner.setProvider(AuthProviderType.LOCAL);
+        UUID ownerId = userRepository.save(owner).getId();
+
+        UUID pgId = pgService.create(ownerId, new PgCreateRequest("Validation PG", "9 MG Road", "Bengaluru",
+                null, null, null, null, null, GenderPreference.CO_ED)).id();
+        UUID studentId = studentService.create(pgId, ownerId, new StudentCreateRequest(
+                "Ravi Kumar", "9888888888", null, null, null, null, null, LocalDate.now(), null)).id();
+
+        assertThatThrownBy(() -> documentService.upload(
+                studentId, ownerId, DocumentType.ID_PROOF,
+                "<script>alert(1)</script>".getBytes(StandardCharsets.UTF_8), "payload.html", "text/html"))
+                .isInstanceOf(ConflictException.class);
+
+        assertThatThrownBy(() -> documentService.upload(
+                studentId, ownerId, DocumentType.ID_PROOF,
+                new byte[0], "empty.pdf", "application/pdf"))
+                .isInstanceOf(ConflictException.class);
+
+        assertThat(documentService.listForStudent(studentId, ownerId)).isEmpty();
     }
 }

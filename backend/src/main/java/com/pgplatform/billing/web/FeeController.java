@@ -4,6 +4,7 @@ import com.pgplatform.auth.UserPrincipal;
 import com.pgplatform.billing.FeeService;
 import com.pgplatform.billing.dto.FeeCreateRequest;
 import com.pgplatform.billing.dto.FeeResponse;
+import com.pgplatform.billing.dto.FeeExtensionRequest;
 import com.pgplatform.billing.dto.PaymentCreateRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -51,6 +52,12 @@ public class FeeController {
     public FeeResponse recordPayment(@AuthenticationPrincipal UserPrincipal principal, @PathVariable UUID feeId,
                                       @Valid @RequestBody PaymentCreateRequest request) {
         return feeService.recordPayment(feeId, principal.getId(), request);
+    }
+
+    @PostMapping("/api/v1/owner/fees/{feeId}/extensions")
+    public FeeResponse extend(@AuthenticationPrincipal UserPrincipal principal, @PathVariable UUID feeId,
+                              @Valid @RequestBody FeeExtensionRequest request) {
+        return feeService.extendDueDate(feeId, principal.getId(), request);
     }
 
     @DeleteMapping("/api/v1/owner/fees/{feeId}")

@@ -4,6 +4,7 @@ import com.pgplatform.auth.UserPrincipal;
 import com.pgplatform.booking.BookingService;
 import com.pgplatform.booking.dto.BookingCreateRequest;
 import com.pgplatform.booking.dto.BookingResponse;
+import com.pgplatform.booking.dto.MoveOutNoticeRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -49,5 +50,12 @@ public class StudentBookingController {
     public BookingResponse cancel(@AuthenticationPrincipal UserPrincipal principal, @PathVariable UUID bookingId,
                                    @RequestParam(required = false) String reason) {
         return bookingService.cancel(bookingId, principal.getId(), reason);
+    }
+
+    @PostMapping("/api/v1/student/bookings/{bookingId}/move-out-notice")
+    public BookingResponse submitMoveOutNotice(@AuthenticationPrincipal UserPrincipal principal,
+                                               @PathVariable UUID bookingId,
+                                               @Valid @RequestBody MoveOutNoticeRequest request) {
+        return bookingService.submitMoveOutNotice(bookingId, principal.getId(), request);
     }
 }

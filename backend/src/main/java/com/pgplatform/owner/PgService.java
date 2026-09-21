@@ -6,6 +6,10 @@ import com.pgplatform.common.NotFoundException;
 import com.pgplatform.owner.dto.PgCreateRequest;
 import com.pgplatform.owner.dto.PgResponse;
 import com.pgplatform.owner.dto.PgUpdateRequest;
+import com.pgplatform.owner.dto.PaymentOnboardingReviewRequest;
+import com.pgplatform.common.ConflictException;
+import com.pgplatform.onboarding.OwnerKycStatus;
+import com.pgplatform.onboarding.OwnerKycSubmissionRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,10 +21,13 @@ public class PgService {
 
     private final PgRepository pgRepository;
     private final UserRepository userRepository;
+    private final OwnerKycSubmissionRepository ownerKycSubmissionRepository;
 
-    public PgService(PgRepository pgRepository, UserRepository userRepository) {
+    public PgService(PgRepository pgRepository, UserRepository userRepository,
+                     OwnerKycSubmissionRepository ownerKycSubmissionRepository) {
         this.pgRepository = pgRepository;
         this.userRepository = userRepository;
+        this.ownerKycSubmissionRepository = ownerKycSubmissionRepository;
     }
 
     @Transactional
@@ -76,6 +83,50 @@ public class PgService {
         Pg pg = requireOwnedPg(pgId, ownerId);
         pg.markDeleted();
         pgRepository.save(pg);
+    }
+
+    @Transactional
+    public PgResponse requestPaymentOnboarding(UUID pgId, UUID ownerId) {
+        Pg pg = requireOwnedPg(pgId, ownerId);
+        if (!pg.getOwner().isPhoneVerified()) {
+            throw new ConflictException("Verify the owner's mobile number before payment onboarding");
+        }
+        var kyc = ownerKycSubmissionRepository.findByPgIdAndDeletedAtIsNull(pgId)
+                .orElseThrow(() -> new ConflictException("Complete the PG owner KYC profile first"));
+        if (kyc.getStatus() != OwnerKycStatus.SUBMITTED && kyc.getStatus() != OwnerKycStatus.VERIFIED) {
+            throw new ConflictException("Upload and submit all required KYC documents first");
+        }
+        if (pg.getPaymentOnboardingStatus() == PaymentOnboardingStatus.VERIFIED) {
+            throw new ConflictException("Payments are already enabled for this PG");
+        }
+        pg.setPaymentOnboardingStatus(PaymentOnboardingStatus.PENDING);
+        pg.setRazorpayLinkedAccountId(null);
+        return PgResponse.from(pgRepository.save(pg));
+    }
+
+    @Transactional(readOnly = true)
+    public List<PgResponse> listPendingPaymentOnboarding() {
+        return pgRepository.findAllByPaymentOnboardingStatusAndDeletedAtIsNullOrderByCreatedAtAsc(
+                PaymentOnboardingStatus.PENDING).stream().map(PgResponse::from).toList();
+    }
+
+    @Transactional
+    public PgResponse reviewPaymentOnboarding(UUID pgId, PaymentOnboardingReviewRequest request) {
+        Pg pg = pgRepository.findByIdAndDeletedAtIsNull(pgId)
+                .orElseThrow(() -> new NotFoundException("PG not found"));
+        if (request.status() != PaymentOnboardingStatus.VERIFIED
+                && request.status() != PaymentOnboardingStatus.REJECTED) {
+            throw new ConflictException("Admin review must verify or reject the onboarding request");
+        }
+        if (request.status() == PaymentOnboardingStatus.VERIFIED
+                && (request.razorpayLinkedAccountId() == null || request.razorpayLinkedAccountId().isBlank())) {
+            throw new ConflictException("A Razorpay linked account is required before verification");
+        }
+        pg.setPaymentOnboardingStatus(request.status());
+        pg.setRazorpayLinkedAccountId(request.status() == PaymentOnboardingStatus.VERIFIED
+                ? request.razorpayLinkedAccountId().trim() : null);
+        pg.setPlatformCommissionBps(request.platformCommissionBps());
+        return PgResponse.from(pgRepository.save(pg));
     }
 
     /** Public: FloorService/RoomService/BedService (same package) and StudentService (student package)

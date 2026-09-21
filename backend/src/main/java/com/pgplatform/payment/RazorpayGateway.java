@@ -11,4 +11,14 @@ import java.math.BigDecimal;
  */
 public interface RazorpayGateway {
     RazorpayOrderResult createOrder(BigDecimal amount, String currency, String receipt);
+
+    RazorpayTransferResult createTransfer(String paymentId, String linkedAccountId, BigDecimal amount,
+                                           boolean onHold, Long onHoldUntilEpochSeconds, String reference);
+
+    RazorpaySubscriptionResult createMonthlySubscription(BigDecimal amount, String description,
+                                                          long startAtEpochSeconds, int totalCount);
+
+    RazorpayRefundResult refund(String paymentId, BigDecimal amount, String reference);
+
+    boolean isPaymentCaptured(String paymentId);
 }

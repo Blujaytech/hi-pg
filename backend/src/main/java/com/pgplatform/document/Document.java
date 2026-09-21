@@ -15,14 +15,8 @@ import lombok.Getter;
 import lombok.Setter;
 
 /**
- * Metadata only -- technical plan §7 item 1 flags object storage as an
- * unspecified gap, and it's still unresolved (see docs/decisions.md). This
- * table and the upload/list/delete plumbing around it are real and wired up;
- * the one thing that doesn't work yet is actually writing bytes anywhere,
- * because {@link DocumentStorageGateway} has no real implementation until an
- * S3-compatible bucket + credentials exist. `storageKey` stays null until
- * then. This follows the project's explicit integration-boundary pattern rather
- * than left entirely unbuilt.
+ * Metadata only: document bytes are never stored in Postgres. The storage key
+ * points to a private S3-compatible object when storage is enabled.
  */
 @Getter
 @Setter
@@ -51,7 +45,7 @@ public class Document extends BaseEntity {
     @Column(name = "size_bytes", nullable = false)
     private long sizeBytes;
 
-    /** Object key in whatever bucket ends up backing DocumentStorageGateway. Null until real storage exists -- today, every upload fails before a row would even get this far (see DocumentService.upload). */
+    /** Private object key managed by DocumentStorageGateway. */
     @Column(name = "storage_key")
     private String storageKey;
 }

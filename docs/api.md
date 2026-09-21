@@ -214,7 +214,7 @@ Search response is `PagedResponse<PgSearchResultResponse>` -- a project-wide pag
 
 `PgDetailsResponse`: `{id, name, address, city, state, pincode, description, genderPreference, latitude, longitude, totalBeds, availableBeds, floors: [{floorId, name, floorNumber, rooms: [{roomId, roomNumber, roomType, sharingCount, rentPerBed, availableBeds}]}]}`. No photos yet -- Document storage (Phase 7b) is still stubbed, so there's nothing real to attach.
 
-There is no booking endpoint yet -- both the web and Flutter details pages say so explicitly and point the student at contacting the owner directly. Booking is Phase 11.
+Booking and strict date-range availability are now implemented; see the current-contract section below.
 
 ## Public: Live bed availability (`/public/pgs/{pgId}/availability/stream`) -- Phase 10
 
@@ -250,11 +250,11 @@ Authenticated, `hasRole('STUDENT')`. First read-only view a student has of their
 
 Same `FeeResponse` shape as the owner endpoints (`docs/api.md`'s Fees section) -- only the authorization path differs (by student identity, not PG ownership).
 
-## Student: Online payment orders (`/student/fees/{feeId}/payment-orders`) -- Phase 12, stubbed pending a Razorpay account
+## Student: Online payment orders (`/student/fees/{feeId}/payment-orders`) -- original Phase 12 contract
 
 | Method | Path | Notes |
 |---|---|---|
-| POST | `/student/fees/{feeId}/payment-orders` | `{idempotencyKey}` -- **always 501 today** (StubRazorpayGateway); 409 if the fee is already fully paid, 403 if it isn't yours |
+| POST | `/student/fees/{feeId}/payment-orders` | `{idempotencyKey}` -- creates a Razorpay order when credentials and PG onboarding are configured; otherwise 501/409 respectively |
 
 `PaymentOrderResponse`: `{id, feeId, amount, currency, status: CREATED\|PAID\|FAILED, razorpayOrderId}`. `idempotencyKey` is client-generated (one per payment attempt, e.g. a UUID) -- retrying the same attempt with the same key returns the existing order instead of creating a duplicate or calling Razorpay twice; this part works today and is tested today, independent of the stub (see `PaymentOrderServiceTest`).
 
@@ -290,3 +290,23 @@ Same single-instance caveat as the Phase 10 stream (ADR-0016): the emitter regis
 ## Not yet built
 
 WhatsApp notifications (explicitly deferred per the technical plan), production wiring for external integrations, and browser-side consumption of the live events stream (needs a cookie- or query-token-based auth path for `EventSource`, not attempted -- see ADR-0021). Add each new endpoint's contract here **before or alongside** implementation -- contract-first (CLAUDE.md).
+
+## Flexible bookings, Razorpay, KYC, and settlement (current contract)
+
+This section supersedes the older Phase 11/12 instant-booking and stub-payment descriptions above.
+
+- Rooms are `MONTHLY`, `DAY_WISE`, or `MIXED`; mixed-room beds are `MONTHLY`, `DAY_WISE`, or `FLEXIBLE`. Room create/update also accepts `dayWiseRate`, `noticePeriodDays`, and `securityDeposit`. `PATCH /owner/beds/{bedId}/booking-mode` customizes a mixed-room bed.
+- `GET /public/pgs/{pgId}?bookingType=MONTHLY|DAY_WISE&checkIn=YYYY-MM-DD&checkOut=YYYY-MM-DD` returns strict date-range availability plus booking/pricing/policy fields.
+- `POST /student/bookings` accepts `{bedId, bookingType, checkInDate, checkOutDate?}` and creates a 10-minute `PAYMENT_PENDING` hold. Day-wise stays require checkout and are limited to 27 nights; monthly stays with a checkout are at least 28 nights.
+- Booking status is `PAYMENT_PENDING|CONFIRMED|CHECKED_IN|COMPLETED|CANCELLED|EXPIRED`. A PostgreSQL exclusion constraint prevents overlapping active intervals on the same bed. Hourly stay transitions check in arrivals and complete departures.
+- `GET /owner/rooms/{roomId}/calendar?from=&to=` returns owner-only entries with bed/customer/type/status/date range. `POST /student/bookings/{bookingId}/move-out-notice` stores the planned date and notice shortfall.
+- `POST /student/bookings/{bookingId}/payment-orders` and `POST /student/fees/{feeId}/payment-orders` create/reuse Razorpay Checkout orders. `POST /student/payment-orders/{id}/verify` verifies the Checkout signature and captured state server-side. Payment response includes gateway key/order id and Route transfer status.
+- Captured payments create a Razorpay Route transfer to the PG's verified linked account after commission. Booking transfers are held until after check-in. Route failures are retained as failed settlement records without undoing the customer payment. A late capture for an invalid hold initiates and tracks a full refund.
+- `POST /student/autopay` accepts `{dueDay: 1..28}` and creates a monthly Razorpay Subscription mandate; the customer authorizes it once. Subsequent debits need no owner approval. Failure webhooks notify both parties. `GET /student/autopay` returns mandate/next-charge status.
+- `POST /owner/fees/{feeId}/extensions` accepts `{newDueDate, note?}` and writes immutable extension history. Daily reminders are deduplicated and notify owner/customer on the effective due date and day three overdue.
+- Deposit APIs: `GET /owner|student/bookings/{bookingId}/deposit`, `POST /owner/bookings/{bookingId}/deposit-deductions`, and `POST /owner/bookings/{bookingId}/deposit-refunds`. Deductions require an itemized reason; refunds use the original captured Razorpay payment.
+- Owner phone verification: `POST /owner/profile/phone/otp/request` and `/verify`. KYC: `PUT /owner/pgs/{pgId}/kyc`, multipart `POST .../documents`, `POST .../submit`, and `GET .../kyc`. Required types are PAN card, Aadhaar front/back, owner photo, and PG photo. Only last four PAN/Aadhaar characters are stored in structured columns; document bytes go through private object storage.
+- Admin KYC: `GET /admin/kyc/pending`, `PATCH /admin/kyc/{submissionId}`, and `GET /admin/kyc/documents/{documentId}/download-url`. Verification requires a Razorpay linked account and commission basis points. The web review console is `/admin/onboarding` and requires an ADMIN JWT.
+- `/webhooks/razorpay` verifies the raw-body HMAC. Malformed JSON returns 400; processing failures become 5xx for gateway retry. Payment, subscription, transfer/refund, and deposit refund processing is idempotent.
+
+Razorpay calls return 501 when API credentials are absent. KYC file operations use the private S3-compatible gateway when `S3_ENABLED=true`; with storage disabled they return 501, and metadata is never saved when byte storage fails. Downloads are exposed only through short-lived signed URLs.

@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/api_exception.dart';
 import '../../core/theme.dart';
 import '../../owner/fee/fee_models.dart';
 import '../../shared/app_states.dart';
 import 'student_fee_repository.dart';
+import '../payment/payment_repository.dart';
+import '../payment/razorpay_checkout.dart';
 
 final _money = NumberFormat.currency(
   locale: 'en_IN',
@@ -22,11 +25,14 @@ class MyFeesScreen extends StatefulWidget {
 
 class _MyFeesScreenState extends State<MyFeesScreen> {
   final _repository = StudentFeeRepository();
+  final _paymentRepository = PaymentRepository();
+  late final RazorpayCheckout _checkout;
   late Future<List<Fee>> _future;
 
   @override
   void initState() {
     super.initState();
+    _checkout = RazorpayCheckout(_paymentRepository);
     _future = _repository.listMine();
   }
 
@@ -38,6 +44,61 @@ class _MyFeesScreenState extends State<MyFeesScreen> {
       await _future;
     } catch (_) {
       // The FutureBuilder renders the error state.
+    }
+  }
+
+  Future<void> _payFee(Fee fee) async {
+    try {
+      final order = await _paymentRepository.createFeeOrder(fee.id);
+      await _checkout.pay(order, description: 'Rent for ${DateFormat('MMMM yyyy').format(DateTime(fee.periodYear, fee.periodMonth))}');
+      if (mounted) {
+        _reload();
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Payment received successfully.')));
+      }
+    } on ApiException catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+        );
+      }
+    }
+  }
+
+  Future<void> _enableAutoPay() async {
+    var dueDay = 10;
+    final accepted = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(builder: (context, setState) => AlertDialog(
+        title: const Text('Enable monthly AutoPay'),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('You authorize Razorpay to debit rent automatically each month. No owner approval is required for each debit.'),
+          const SizedBox(height: 16),
+          DropdownButtonFormField<int>(
+            initialValue: dueDay,
+            decoration: const InputDecoration(labelText: 'Monthly debit day'),
+            items: [1, 5, 10, 15, 20, 25, 28].map((day) => DropdownMenuItem(value: day, child: Text('Day $day'))).toList(),
+            onChanged: (value) { if (value != null) setState(() => dueDay = value); },
+          ),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Authorize')),
+        ],
+      )),
+    );
+    if (accepted != true) return;
+    try {
+      final mandate = await _paymentRepository.enableAutoPay(dueDay);
+      final url = mandate.authorizationUrl;
+      if (url == null || !await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication)) {
+        throw Exception('Could not open the Razorpay authorization page');
+      }
+    } on ApiException catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))));
     }
   }
 
@@ -89,8 +150,9 @@ class _MyFeesScreenState extends State<MyFeesScreen> {
               separatorBuilder: (_, __) => const SizedBox(height: 12),
               itemBuilder: (context, index) {
                 if (index == 0) return _FeeOverview(fees: fees);
-                if (index == 1) return const _PaymentNotice();
-                return _FeeCard(fee: fees[index - 2]);
+                if (index == 1) return _PaymentNotice(onEnableAutoPay: _enableAutoPay);
+                final fee = fees[index - 2];
+                return _FeeCard(fee: fee, onPay: () => _payFee(fee));
               },
             ),
           );
@@ -213,28 +275,36 @@ class _SummaryValue extends StatelessWidget {
 }
 
 class _PaymentNotice extends StatelessWidget {
-  const _PaymentNotice();
+  final VoidCallback onEnableAutoPay;
+  const _PaymentNotice({required this.onEnableAutoPay});
 
   @override
   Widget build(BuildContext context) {
-    return const AppMessageBanner(
-      icon: Icons.info_outline_rounded,
-      message:
-          'Online payment will be enabled after the payment account is connected. For now, pay the owner directly; recorded payments appear here.',
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(children: [
+          const Icon(Icons.autorenew_rounded, color: AppColors.ink),
+          const SizedBox(width: 12),
+          const Expanded(child: Text('Pay by UPI, card or netbanking, or authorize automatic monthly rent.')),
+          TextButton(onPressed: onEnableAutoPay, child: const Text('AutoPay')),
+        ]),
+      ),
     );
   }
 }
 
 class _FeeCard extends StatelessWidget {
   final Fee fee;
+  final VoidCallback onPay;
 
-  const _FeeCard({required this.fee});
+  const _FeeCard({required this.fee, required this.onPay});
 
   @override
   Widget build(BuildContext context) {
     final month = DateFormat('MMMM yyyy')
         .format(DateTime(fee.periodYear, fee.periodMonth));
-    final dueDate = DateFormat('d MMM yyyy').format(fee.dueDate);
+    final dueDate = DateFormat('d MMM yyyy').format(fee.effectiveDueDate);
     final progress =
         fee.amount <= 0 ? 0.0 : (fee.amountPaid / fee.amount).clamp(0.0, 1.0);
     final (label, tone) = fee.overdue
@@ -304,6 +374,14 @@ class _FeeCard extends StatelessWidget {
             if (fee.notes != null && fee.notes!.trim().isNotEmpty) ...[
               const SizedBox(height: 12),
               Text(fee.notes!, style: Theme.of(context).textTheme.bodySmall),
+            ],
+            if (fee.status != FeeStatus.paid) ...[
+              const SizedBox(height: 14),
+              SizedBox(width: double.infinity, child: FilledButton.icon(
+                onPressed: onPay,
+                icon: const Icon(Icons.account_balance_wallet_outlined),
+                label: const Text('Pay now'),
+              )),
             ],
           ],
         ),

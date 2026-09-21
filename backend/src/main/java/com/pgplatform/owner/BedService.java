@@ -4,6 +4,8 @@ import com.pgplatform.common.NotFoundException;
 import com.pgplatform.discovery.BedAvailabilityBroadcaster;
 import com.pgplatform.owner.dto.BedResponse;
 import com.pgplatform.owner.dto.BedStatusUpdateRequest;
+import com.pgplatform.owner.dto.BedBookingModeUpdateRequest;
+import com.pgplatform.common.ConflictException;
 import com.pgplatform.student.Student;
 import com.pgplatform.student.StudentRepository;
 import com.pgplatform.student.StudentStatus;
@@ -55,6 +57,20 @@ public class BedService {
         OwnershipGuard.requireOwns(bed, ownerId);
 
         bed.setStatus(request.status());
+        BedResponse response = BedResponse.from(bedRepository.save(bed));
+        broadcaster.notifyChanged(bed.getRoom().getFloor().getPg().getId());
+        return response;
+    }
+
+    @Transactional
+    public BedResponse updateBookingMode(UUID bedId, UUID ownerId, BedBookingModeUpdateRequest request) {
+        Bed bed = bedRepository.findByIdAndDeletedAtIsNull(bedId)
+                .orElseThrow(() -> new NotFoundException("Bed not found"));
+        OwnershipGuard.requireOwns(bed, ownerId);
+        if (bed.getRoom().getBookingMode() != RoomBookingMode.MIXED) {
+            throw new ConflictException("Individual bed modes can be changed only in a mixed room");
+        }
+        bed.setBookingMode(request.bookingMode());
         BedResponse response = BedResponse.from(bedRepository.save(bed));
         broadcaster.notifyChanged(bed.getRoom().getFloor().getPg().getId());
         return response;

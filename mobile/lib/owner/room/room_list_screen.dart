@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/api_exception.dart';
 import '../../core/theme.dart';
@@ -36,7 +37,11 @@ class _RoomListScreenState extends State<RoomListScreen> {
     final roomNumberController = TextEditingController();
     final sharingController = TextEditingController(text: '1');
     final rentController = TextEditingController();
+    final dayRateController = TextEditingController();
+    final depositController = TextEditingController(text: '0');
+    final noticeController = TextEditingController(text: '15');
     var roomType = RoomType.nonAc;
+    var bookingMode = RoomBookingMode.monthly;
     String? error;
 
     final created = await showDialog<bool>(
@@ -91,6 +96,37 @@ class _RoomListScreenState extends State<RoomListScreen> {
                     if (value != null) setDialogState(() => roomType = value);
                   },
                 ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<RoomBookingMode>(
+                  initialValue: bookingMode,
+                  decoration: const InputDecoration(labelText: 'Booking availability'),
+                  items: RoomBookingMode.values
+                      .map((mode) => DropdownMenuItem(value: mode, child: Text(mode.label)))
+                      .toList(),
+                  onChanged: (value) {
+                    if (value != null) setDialogState(() => bookingMode = value);
+                  },
+                ),
+                if (bookingMode != RoomBookingMode.monthly) ...[
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: dayRateController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(labelText: 'Day-wise rate per bed', prefixText: '₹ '),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                TextField(
+                  controller: depositController,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(labelText: 'Monthly security deposit', prefixText: '₹ '),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: noticeController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Move-out notice days'),
+                ),
               ],
             ),
           ),
@@ -109,6 +145,11 @@ class _RoomListScreenState extends State<RoomListScreen> {
                     rentPerBed:
                         double.tryParse(rentController.text.trim()) ?? 0,
                     roomType: roomType,
+                    bookingMode: bookingMode,
+                    dayWiseRate: bookingMode == RoomBookingMode.monthly
+                        ? null : double.tryParse(dayRateController.text.trim()),
+                    noticePeriodDays: int.tryParse(noticeController.text.trim()) ?? 15,
+                    securityDeposit: double.tryParse(depositController.text.trim()) ?? 0,
                   );
                   if (dialogContext.mounted) {
                     Navigator.of(dialogContext).pop(true);
@@ -141,6 +182,18 @@ class _RoomListScreenState extends State<RoomListScreen> {
     }
   }
 
+  Future<void> _setBedBookingMode(Bed bed, BedBookingMode next) async {
+    try {
+      await _bedRepository.updateBookingMode(bed.id, next);
+      if (mounted) Navigator.of(context).pop();
+      _reload();
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      }
+    }
+  }
+
   Color _bedColor(BedStatus status) {
     return switch (status) {
       BedStatus.available => AppColors.success,
@@ -157,7 +210,7 @@ class _RoomListScreenState extends State<RoomListScreen> {
     };
   }
 
-  void _openBedSheet(Bed bed) {
+  void _openBedSheet(Bed bed, Room room) {
     showModalBottomSheet(
       context: context,
       showDragHandle: true,
@@ -218,6 +271,25 @@ class _RoomListScreenState extends State<RoomListScreen> {
                     ),
                   _detailRow(Icons.calendar_today_outlined, 'Joined',
                       occupant.dateOfJoining),
+                ],
+                const Divider(height: 30),
+                Text('Booking type', style: Theme.of(context).textTheme.titleSmall),
+                const SizedBox(height: 8),
+                Text(bed.bookingMode.label, style: TextStyle(color: bed.bookingMode == BedBookingMode.monthly
+                    ? const Color(0xFF7B61FF)
+                    : bed.bookingMode == BedBookingMode.dayWise
+                        ? const Color(0xFF2F80ED)
+                        : const Color(0xFF1B998B), fontWeight: FontWeight.w700)),
+                if (room.bookingMode == RoomBookingMode.mixed) ...[
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    children: BedBookingMode.values.map((mode) => ChoiceChip(
+                      label: Text(mode.label),
+                      selected: bed.bookingMode == mode,
+                      onSelected: (_) => _setBedBookingMode(bed, mode),
+                    )).toList(),
+                  ),
                 ],
                 const SizedBox(height: 18),
                 SizedBox(
@@ -375,7 +447,7 @@ class _RoomListScreenState extends State<RoomListScreen> {
                     title: Text('Room ${room.roomNumber}',
                         style: Theme.of(context).textTheme.titleMedium),
                     subtitle: Text(
-                      '${room.roomType.label} · ${room.sharingCount}-sharing · ₹${room.rentPerBed.toStringAsFixed(0)}/bed',
+                      '${room.roomType.label} · ${room.bookingMode.label} · ₹${room.rentPerBed.toStringAsFixed(0)}/bed',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall,
@@ -395,6 +467,15 @@ class _RoomListScreenState extends State<RoomListScreen> {
                       ],
                     ),
                     children: [
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () => context.push('/owner/rooms/${room.id}/calendar', extra: room),
+                          icon: const Icon(Icons.calendar_month_rounded),
+                          label: const Text('Open booking calendar'),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
                       Align(
                         alignment: Alignment.centerLeft,
                         child: Text('Bed layout',
@@ -411,7 +492,7 @@ class _RoomListScreenState extends State<RoomListScreen> {
                               final color = _bedColor(bed.status);
                               return SizedBox(
                                 width: bedWidth,
-                                height: 82,
+                                height: 94,
                                 child: Material(
                                   color: color.withValues(alpha: 0.08),
                                   shape: RoundedRectangleBorder(
@@ -421,7 +502,7 @@ class _RoomListScreenState extends State<RoomListScreen> {
                                   ),
                                   clipBehavior: Clip.antiAlias,
                                   child: InkWell(
-                                    onTap: () => _openBedSheet(bed),
+                                    onTap: () => _openBedSheet(bed, room),
                                     child: Padding(
                                       padding: const EdgeInsets.symmetric(
                                           horizontal: 6, vertical: 8),
@@ -448,6 +529,12 @@ class _RoomListScreenState extends State<RoomListScreen> {
                                             style: const TextStyle(
                                                 fontSize: 9,
                                                 color: AppColors.muted),
+                                          ),
+                                          Text(
+                                            bed.bookingMode.label,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(fontSize: 8, color: AppColors.muted),
                                           ),
                                         ],
                                       ),

@@ -17,6 +17,8 @@ import com.pgplatform.owner.PgRepository;
 import com.pgplatform.owner.PgStatus;
 import com.pgplatform.owner.Room;
 import com.pgplatform.owner.RoomRepository;
+import com.pgplatform.owner.BedBookingMode;
+import com.pgplatform.booking.BookingType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -29,6 +31,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import java.time.LocalDate;
+import java.util.Set;
 
 /**
  * Public (unauthenticated) student-facing discovery -- technical plan §6
@@ -89,9 +93,22 @@ public class PgSearchService {
     }
 
     @Transactional(readOnly = true)
-    public PgDetailsResponse getDetails(UUID pgId) {
+    public PgDetailsResponse getDetails(UUID pgId, BookingType bookingType, LocalDate checkIn, LocalDate checkOut) {
         Pg pg = pgRepository.findByIdAndDeletedAtIsNullAndStatus(pgId, PgStatus.ACTIVE)
                 .orElseThrow(() -> new NotFoundException("PG not found"));
+
+        LocalDate requestedStart = checkIn == null ? LocalDate.now() : checkIn;
+        LocalDate requestedEnd = checkOut != null ? checkOut
+                : bookingType == BookingType.MONTHLY ? LocalDate.of(9999, 12, 31)
+                : requestedStart.plusDays(1);
+        if (!requestedEnd.isAfter(requestedStart)) {
+            throw new com.pgplatform.common.ConflictException("Checkout date must be after check-in");
+        }
+        Set<BedBookingMode> modes = bookingType == null
+                ? Set.of(BedBookingMode.MONTHLY, BedBookingMode.DAY_WISE, BedBookingMode.FLEXIBLE)
+                : bookingType == BookingType.MONTHLY
+                    ? Set.of(BedBookingMode.MONTHLY, BedBookingMode.FLEXIBLE)
+                    : Set.of(BedBookingMode.DAY_WISE, BedBookingMode.FLEXIBLE);
 
         List<Floor> floors = floorRepository.findAllByPgIdAndDeletedAtIsNullOrderByFloorNumberAsc(pgId);
         long totalBeds = bedRepository.countByPgId(pgId);
@@ -102,13 +119,15 @@ public class PgSearchService {
             List<RoomAvailabilityResponse> roomResponses = rooms.stream()
                     .map(room -> {
                         List<AvailableBedSummary> availableBedOptions = bedRepository
-                                .findAllByRoomIdAndStatusAndDeletedAtIsNull(room.getId(), BedStatus.AVAILABLE)
+                                .findAvailableForDates(room.getId(), modes, requestedStart, requestedEnd)
                                 .stream()
-                                .map(bed -> new AvailableBedSummary(bed.getId(), bed.getLabel()))
+                                .map(bed -> new AvailableBedSummary(bed.getId(), bed.getLabel(), bed.getBookingMode()))
                                 .toList();
                         return new RoomAvailabilityResponse(
                                 room.getId(), room.getRoomNumber(), room.getRoomType(), room.getSharingCount(),
-                                room.getRentPerBed(), availableBedOptions.size(), availableBedOptions
+                                room.getRentPerBed(), room.getDayWiseRate(), room.getBookingMode(),
+                                room.getNoticePeriodDays(), room.getSecurityDeposit(),
+                                availableBedOptions.size(), availableBedOptions
                         );
                     })
                     .toList();
@@ -120,6 +139,10 @@ public class PgSearchService {
                 pg.getDescription(), pg.getGenderPreference(), pg.getLatitude(), pg.getLongitude(),
                 totalBeds, availableBeds, floorResponses
         );
+    }
+
+    public PgDetailsResponse getDetails(UUID pgId) {
+        return getDetails(pgId, null, null, null);
     }
 
     private PgSearchResultResponse toSearchResult(Pg pg) {

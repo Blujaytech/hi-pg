@@ -81,14 +81,18 @@ class BookingServiceTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void bookingCreatesALinkedStudentRecordAndOccupiesTheBed() {
+    void bookingCreatesAPaymentHoldAndConfirmationOccupiesTheBedAtCheckIn() {
         setUpOwnerAndPg();
         UUID bedId = createBed("201");
         UUID userId = createStudentUser("9111111111");
 
-        BookingResponse booking = bookingService.book(userId, new BookingCreateRequest(bedId, LocalDate.now().plusDays(2)));
+        BookingResponse booking = bookingService.book(userId, new BookingCreateRequest(bedId, LocalDate.now()));
 
-        assertThat(booking.status()).isEqualTo(BookingStatus.CONFIRMED);
+        assertThat(booking.status()).isEqualTo(BookingStatus.PAYMENT_PENDING);
+        assertThat(bedRepository.findByIdAndDeletedAtIsNull(bedId).orElseThrow().getStatus()).isEqualTo(BedStatus.AVAILABLE);
+
+        Booking confirmed = bookingService.confirmAfterCapturedPayment(booking.id());
+        assertThat(confirmed.getStatus()).isEqualTo(BookingStatus.CHECKED_IN);
         assertThat(bedRepository.findByIdAndDeletedAtIsNull(bedId).orElseThrow().getStatus()).isEqualTo(BedStatus.OCCUPIED);
 
         var student = studentRepository.findByUserIdAndDeletedAtIsNull(userId).orElseThrow();
@@ -135,7 +139,7 @@ class BookingServiceTest extends AbstractIntegrationTest {
         assertThat(bedRepository.findByIdAndDeletedAtIsNull(bedId).orElseThrow().getStatus()).isEqualTo(BedStatus.AVAILABLE);
 
         BookingResponse secondBooking = bookingService.book(userB, new BookingCreateRequest(bedId, LocalDate.now().plusDays(1)));
-        assertThat(secondBooking.status()).isEqualTo(BookingStatus.CONFIRMED);
+        assertThat(secondBooking.status()).isEqualTo(BookingStatus.PAYMENT_PENDING);
     }
 
     @Test

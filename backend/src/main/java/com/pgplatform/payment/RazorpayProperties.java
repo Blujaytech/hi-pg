@@ -8,6 +8,7 @@ public class RazorpayProperties {
     private String keyId = "";
     private String keySecret = "";
     private String webhookSecret = "";
+    private String apiBaseUrl = "https://api.razorpay.com";
 
     public String getKeyId() {
         return keyId;
@@ -35,5 +36,13 @@ public class RazorpayProperties {
 
     public boolean isConfigured() {
         return !keyId.isBlank() && !keySecret.isBlank();
+    }
+
+    public String getApiBaseUrl() {
+        return apiBaseUrl;
+    }
+
+    public void setApiBaseUrl(String apiBaseUrl) {
+        this.apiBaseUrl = apiBaseUrl;
     }
 }

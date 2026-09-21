@@ -14,6 +14,9 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.math.BigDecimal;
 import java.util.UUID;
+import java.time.LocalDate;
+import com.pgplatform.booking.BookingType;
+import org.springframework.format.annotation.DateTimeFormat;
 
 /**
  * Unauthenticated -- see SecurityConfig's `/api/v1/public/**` permitAll.
@@ -44,8 +47,12 @@ public class PublicPgController {
     }
 
     @GetMapping("/api/v1/public/pgs/{pgId}")
-    public PgDetailsResponse getDetails(@PathVariable UUID pgId) {
-        return pgSearchService.getDetails(pgId);
+    public PgDetailsResponse getDetails(
+            @PathVariable UUID pgId,
+            @RequestParam(required = false) BookingType bookingType,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkIn,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkOut) {
+        return pgSearchService.getDetails(pgId, bookingType, checkIn, checkOut);
     }
 
     /**

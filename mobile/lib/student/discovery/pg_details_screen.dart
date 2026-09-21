@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:intl/intl.dart';
 
 import '../../auth/auth_models.dart';
 import '../../auth/auth_state.dart';
@@ -15,6 +16,9 @@ import '../../core/api_exception.dart';
 import '../../core/theme.dart';
 import '../../shared/api_client.dart';
 import '../booking/booking_repository.dart';
+import '../booking/booking_models.dart';
+import '../payment/payment_repository.dart';
+import '../payment/razorpay_checkout.dart';
 import 'discovery_models.dart';
 import 'discovery_repository.dart';
 
@@ -35,6 +39,8 @@ class PgDetailsScreen extends StatefulWidget {
 class _PgDetailsScreenState extends State<PgDetailsScreen> {
   final _repository = DiscoveryRepository();
   final _bookingRepository = BookingRepository();
+  final _paymentRepository = PaymentRepository();
+  late final RazorpayCheckout _checkout;
   late Future<PgDetails> _future;
   late final AuthState _auth;
 
@@ -51,6 +57,7 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
   void initState() {
     super.initState();
     _auth = context.read<AuthState>()..addListener(_resumeAfterSignIn);
+    _checkout = RazorpayCheckout(_paymentRepository);
     _loadDetails();
     _subscribeToLiveAvailability();
   }
@@ -217,6 +224,27 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
               'Beds are booked from a customer account. Sign in with Google or your mobile number to book.')));
       return;
     }
+    var bookingType = bed.bookingMode == 'DAY_WISE' ? BookingType.dayWise : BookingType.monthly;
+    if (bed.bookingMode == 'FLEXIBLE') {
+      final selected = await showModalBottomSheet<BookingType>(
+        context: context,
+        showDragHandle: true,
+        builder: (context) => SafeArea(child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Text('How long are you staying?', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 16),
+            ListTile(leading: const Icon(Icons.calendar_month_rounded), title: const Text('Monthly'),
+              subtitle: const Text('28 nights or longer'), onTap: () => Navigator.pop(context, BookingType.monthly)),
+            ListTile(leading: const Icon(Icons.today_rounded), title: const Text('Day-wise'),
+              subtitle: const Text('1 to 27 nights'), onTap: () => Navigator.pop(context, BookingType.dayWise)),
+          ]),
+        )),
+      );
+      if (selected == null || !mounted) return;
+      bookingType = selected;
+    }
+
     final now = DateTime.now();
     final moveInDate = await showDatePicker(
       context: context,
@@ -227,21 +255,34 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
     );
     if (moveInDate == null || !mounted) return;
 
+    DateTime? checkOutDate;
+    if (bookingType == BookingType.dayWise) {
+      checkOutDate = await showDatePicker(
+        context: context,
+        initialDate: moveInDate.add(const Duration(days: 1)),
+        firstDate: moveInDate.add(const Duration(days: 1)),
+        lastDate: moveInDate.add(const Duration(days: 27)),
+        helpText: 'Choose checkout date',
+      );
+      if (checkOutDate == null || !mounted) return;
+    }
+
     final formattedDate = '${moveInDate.day.toString().padLeft(2, '0')}/'
         '${moveInDate.month.toString().padLeft(2, '0')}/${moveInDate.year}';
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text('Book ${bed.label}?'),
-        content: Text(
-            'Move-in date: $formattedDate\n\nYour booking will be confirmed immediately.'),
+        content: Text('${bookingType.label} booking\nCheck-in: $formattedDate'
+            '${checkOutDate == null ? '' : '\nCheckout: ${DateFormat('d MMM yyyy').format(checkOutDate)}'}'
+            '\n\nA 10-minute bed hold will be created. Complete Razorpay payment to confirm it.'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context, false),
               child: const Text('Cancel')),
           FilledButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('Confirm booking')),
+              child: const Text('Continue to payment')),
         ],
       ),
     );
@@ -249,11 +290,18 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
 
     setState(() => _booking = true);
     try {
-      await _bookingRepository.book(bedId: bed.id, moveInDate: moveInDate);
+      final booking = await _bookingRepository.book(
+        bedId: bed.id,
+        bookingType: bookingType,
+        moveInDate: moveInDate,
+        checkOutDate: checkOutDate,
+      );
+      final order = await _paymentRepository.createBookingOrder(booking.id);
+      await _checkout.pay(order, description: '${bookingType.label} booking at ${booking.pgName}');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('${bed.label} is booked.'),
+          content: Text('${bed.label} is confirmed and paid.'),
           action: SnackBarAction(
             label: 'View',
             onPressed: () => context.go('/student/bookings'),
@@ -265,6 +313,11 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(e.message)));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))));
       }
     } finally {
       if (mounted) setState(() => _booking = false);

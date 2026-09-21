@@ -53,4 +53,10 @@ public class PgController {
         pgService.delete(pgId, principal.getId());
         return ResponseEntity.noContent().build();
     }
+
+    @PostMapping("/{pgId}/payment-onboarding")
+    public PgResponse requestPaymentOnboarding(@AuthenticationPrincipal UserPrincipal principal,
+                                               @PathVariable UUID pgId) {
+        return pgService.requestPaymentOnboarding(pgId, principal.getId());
+    }
 }

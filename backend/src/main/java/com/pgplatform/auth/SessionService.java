@@ -35,6 +35,13 @@ public class SessionService {
 
         User user = userRepository.findByIdAndDeletedAtIsNull(stored.getUser().getId())
                 .orElseThrow(() -> new ForbiddenException("Account no longer exists"));
+        // Disabling an account only bites at login unless refresh re-checks it too --
+        // otherwise a live refresh token keeps minting access tokens for its full 30-day TTL.
+        if (user.getStatus() == UserStatus.DISABLED) {
+            stored.setRevoked(true);
+            refreshTokenRepository.save(stored);
+            throw new BadCredentialsException("Account disabled");
+        }
 
         stored.setRevoked(true);
         refreshTokenRepository.save(stored);

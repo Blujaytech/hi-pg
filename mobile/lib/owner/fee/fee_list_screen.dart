@@ -66,6 +66,33 @@ class _FeeListScreenState extends State<FeeListScreen> {
     }
   }
 
+  Future<void> _extendDueDate(Fee fee) async {
+    final first = fee.effectiveDueDate.add(const Duration(days: 1));
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: first,
+      firstDate: first,
+      lastDate: first.add(const Duration(days: 90)),
+      helpText: 'Extend payment deadline',
+    );
+    if (selected == null) return;
+    try {
+      await _repository.extendDueDate(
+        feeId: fee.id,
+        newDueDate: selected,
+        note: 'Extra time approved by owner',
+      );
+      if (mounted) {
+        _reload();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Due date extended to ${DateFormat('d MMM yyyy').format(selected)}.')),
+        );
+      }
+    } on ApiException catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<List<Fee>>(
@@ -138,6 +165,7 @@ class _FeeListScreenState extends State<FeeListScreen> {
           return _FeeCard(
             fee: fee,
             onRecordPayment: () => _openRecordPaymentSheet(fee),
+            onExtend: () => _extendDueDate(fee),
           );
         },
       ),
@@ -206,8 +234,9 @@ class _BalanceSummary extends StatelessWidget {
 class _FeeCard extends StatelessWidget {
   final Fee fee;
   final VoidCallback onRecordPayment;
+  final VoidCallback onExtend;
 
-  const _FeeCard({required this.fee, required this.onRecordPayment});
+  const _FeeCard({required this.fee, required this.onRecordPayment, required this.onExtend});
 
   @override
   Widget build(BuildContext context) {
@@ -235,7 +264,7 @@ class _FeeCard extends StatelessWidget {
                           style: Theme.of(context).textTheme.titleMedium),
                       const SizedBox(height: 2),
                       Text(
-                          'Due ${DateFormat('d MMM yyyy').format(fee.dueDate)}',
+                          '${fee.extensionCount > 0 ? 'Extended to' : 'Due'} ${DateFormat('d MMM yyyy').format(fee.effectiveDueDate)}',
                           style: Theme.of(context).textTheme.bodySmall),
                     ],
                   ),
@@ -300,6 +329,12 @@ class _FeeCard extends StatelessWidget {
                 style: OutlinedButton.styleFrom(minimumSize: const Size(0, 46)),
                 icon: const Icon(Icons.payments_outlined, size: 18),
                 label: const Text('Record payment'),
+              ),
+              const SizedBox(height: 8),
+              TextButton.icon(
+                onPressed: onExtend,
+                icon: const Icon(Icons.more_time_rounded, size: 18),
+                label: const Text('Give more time'),
               ),
             ],
           ],

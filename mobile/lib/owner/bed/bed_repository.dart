@@ -15,4 +15,11 @@ class BedRepository {
     });
     return Bed.fromJson(response.data!);
   }
+
+  Future<Bed> updateBookingMode(String bedId, BedBookingMode mode) async {
+    final response = await _client.patch<Map<String, dynamic>>('/owner/beds/$bedId/booking-mode', data: {
+      'bookingMode': mode.apiValue,
+    });
+    return Bed.fromJson(response.data!);
+  }
 }

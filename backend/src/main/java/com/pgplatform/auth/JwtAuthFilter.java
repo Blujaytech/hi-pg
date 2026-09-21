@@ -43,8 +43,13 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             Role role = jwtService.extractRole(claims);
 
             if (SecurityContextHolder.getContext().getAuthentication() == null) {
-                boolean stillExists = userRepository.findByIdAndDeletedAtIsNull(userId).isPresent();
-                if (stillExists) {
+                // Re-read the account rather than trusting the token alone: a deleted or
+                // disabled account must stop being able to act immediately, not at the end
+                // of its access token's TTL.
+                boolean usable = userRepository.findByIdAndDeletedAtIsNull(userId)
+                        .filter(user -> user.getStatus() != UserStatus.DISABLED)
+                        .isPresent();
+                if (usable) {
                     String username = claims.get("email", String.class) != null
                             ? claims.get("email", String.class)
                             : claims.get("phone", String.class);

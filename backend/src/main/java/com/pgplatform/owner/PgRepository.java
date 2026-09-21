@@ -44,4 +44,6 @@ public interface PgRepository extends JpaRepository<Pg, UUID> {
                      Pageable pageable);
 
     Optional<Pg> findByIdAndDeletedAtIsNullAndStatus(UUID id, PgStatus status);
+    List<Pg> findAllByPaymentOnboardingStatusAndDeletedAtIsNullOrderByCreatedAtAsc(
+            PaymentOnboardingStatus paymentOnboardingStatus);
 }

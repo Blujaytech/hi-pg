@@ -1,6 +1,7 @@
 package com.pgplatform.document;
 
 import org.springframework.stereotype.Component;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 import java.time.Duration;
 
@@ -14,6 +15,7 @@ import java.time.Duration;
  * infra/.env.example's S3_* placeholders and docs/decisions.md.
  */
 @Component
+@ConditionalOnProperty(name = "app.storage.s3.enabled", havingValue = "false", matchIfMissing = true)
 public class StubDocumentStorageGateway implements DocumentStorageGateway {
 
     private static final String NOT_CONFIGURED =

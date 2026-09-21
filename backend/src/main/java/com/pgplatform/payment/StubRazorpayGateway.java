@@ -1,7 +1,5 @@
 package com.pgplatform.payment;
 
-import org.springframework.stereotype.Component;
-
 import java.math.BigDecimal;
 
 /**
@@ -13,11 +11,36 @@ import java.math.BigDecimal;
  * implementation once RazorpayProperties.isConfigured() -- no other code
  * needs to change.
  */
-@Component
 public class StubRazorpayGateway implements RazorpayGateway {
 
     @Override
     public RazorpayOrderResult createOrder(BigDecimal amount, String currency, String receipt) {
+        throw notConfigured();
+    }
+
+    @Override
+    public RazorpayTransferResult createTransfer(String paymentId, String linkedAccountId, BigDecimal amount,
+                                                  boolean onHold, Long onHoldUntilEpochSeconds, String reference) {
+        throw notConfigured();
+    }
+
+    @Override
+    public RazorpaySubscriptionResult createMonthlySubscription(BigDecimal amount, String description,
+                                                                 long startAtEpochSeconds, int totalCount) {
+        throw notConfigured();
+    }
+
+    @Override
+    public RazorpayRefundResult refund(String paymentId, BigDecimal amount, String reference) {
+        throw notConfigured();
+    }
+
+    @Override
+    public boolean isPaymentCaptured(String paymentId) {
+        throw notConfigured();
+    }
+
+    private UnsupportedOperationException notConfigured() {
         throw new UnsupportedOperationException(
                 "Razorpay is not configured yet (no API key). See RazorpayGateway and docs/decisions.md.");
     }

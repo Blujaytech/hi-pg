@@ -10,6 +10,8 @@ import jakarta.persistence.LockModeType;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.time.LocalDate;
+import java.util.Set;
 
 public interface BedRepository extends JpaRepository<Bed, UUID> {
     Optional<Bed> findByIdAndDeletedAtIsNull(UUID id);
@@ -42,4 +44,15 @@ public interface BedRepository extends JpaRepository<Bed, UUID> {
 
     @Query("select count(b) from Bed b where b.room.floor.pg.owner.id = :ownerId and b.status = :status and b.deletedAt is null")
     long countByOwnerIdAndStatus(@Param("ownerId") UUID ownerId, @Param("status") BedStatus status);
+
+    @Query("select b from Bed b where b.room.id = :roomId and b.deletedAt is null " +
+           "and b.status <> 'MAINTENANCE' and b.bookingMode in :modes " +
+           "and not exists (select bk.id from Booking bk where bk.bed = b and bk.deletedAt is null " +
+           "and bk.status in ('PAYMENT_PENDING', 'CONFIRMED', 'CHECKED_IN') " +
+           "and bk.moveInDate < :requestedEnd and (bk.checkOutDate is null or bk.checkOutDate > :requestedStart)) " +
+           "order by b.label")
+    List<Bed> findAvailableForDates(@Param("roomId") UUID roomId,
+                                    @Param("modes") Set<BedBookingMode> modes,
+                                    @Param("requestedStart") LocalDate requestedStart,
+                                    @Param("requestedEnd") LocalDate requestedEnd);
 }

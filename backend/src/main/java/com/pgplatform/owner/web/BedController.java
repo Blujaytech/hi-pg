@@ -4,6 +4,7 @@ import com.pgplatform.auth.UserPrincipal;
 import com.pgplatform.owner.BedService;
 import com.pgplatform.owner.dto.BedResponse;
 import com.pgplatform.owner.dto.BedStatusUpdateRequest;
+import com.pgplatform.owner.dto.BedBookingModeUpdateRequest;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -31,5 +32,11 @@ public class BedController {
     public BedResponse updateStatus(@AuthenticationPrincipal UserPrincipal principal, @PathVariable UUID bedId,
                                      @Valid @RequestBody BedStatusUpdateRequest request) {
         return bedService.updateStatus(bedId, principal.getId(), request);
+    }
+
+    @PatchMapping("/api/v1/owner/beds/{bedId}/booking-mode")
+    public BedResponse updateBookingMode(@AuthenticationPrincipal UserPrincipal principal, @PathVariable UUID bedId,
+                                         @Valid @RequestBody BedBookingModeUpdateRequest request) {
+        return bedService.updateBookingMode(bedId, principal.getId(), request);
     }
 }

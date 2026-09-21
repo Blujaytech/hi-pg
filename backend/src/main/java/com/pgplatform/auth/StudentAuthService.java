@@ -4,6 +4,7 @@ import com.pgplatform.auth.dto.AuthResponse;
 import com.pgplatform.auth.dto.StudentOtpRequestRequest;
 import com.pgplatform.auth.dto.StudentOtpVerifyRequest;
 import com.pgplatform.common.ConflictException;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,6 +39,17 @@ public class StudentAuthService {
 
         User user = userRepository.findByPhoneAndDeletedAtIsNull(request.phone())
                 .orElseGet(() -> createStudent(request));
+
+        // Same two guards GoogleAuthService applies to the other student login path.
+        // Without them this endpoint issues a token carrying whatever role the phone's
+        // account happens to have -- an owner/admin session from the student OTP flow --
+        // and keeps working for accounts an admin has disabled.
+        if (user.getRole() != Role.STUDENT) {
+            throw new ConflictException("This number belongs to a PG owner. Use owner login instead.");
+        }
+        if (user.getStatus() == UserStatus.DISABLED) {
+            throw new BadCredentialsException("Account disabled");
+        }
 
         if (!user.isPhoneVerified()) {
             user.setPhoneVerified(true);

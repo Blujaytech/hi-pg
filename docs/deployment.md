@@ -80,10 +80,10 @@ reverse proxy (nginx, Traefik), confirm it does the same before relying on the r
 | `JWT_SECRET` | Yes | `application-prod.yml` has no dev fallback -- startup fails fast if unset. Generate with `openssl rand -base64 48`. Rotating it invalidates every existing access/refresh token (forces re-login) -- plan for that if you ever need to rotate it. |
 | `CORS_ALLOWED_ORIGINS` | Yes | Comma-separated, no wildcard. Set to your deployed web app's real origin(s) only -- see `docs/security.md`. |
 | `SPRING_PROFILES_ACTIVE` | Yes | Set to `prod`; the Render Blueprint sets this automatically. |
-| `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` / `RAZORPAY_WEBHOOK_SECRET` | Only once you provision a Razorpay account | Blank = every payment endpoint that needs them returns 501 (ADR-0019). Not needed for a pilot that only records offline payments. |
+| `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` / `RAZORPAY_WEBHOOK_SECRET` | Yes for online payments | Enables the real Checkout, Route, refund, and Subscription integrations. Blank credentials keep external payment calls disabled with 501. Register `/api/v1/webhooks/razorpay` in both Razorpay test and live modes; see ADR-0027. |
 | `GOOGLE_MAPS_API_KEY` | Mobile map builds only | Put the Android Maps SDK key in uncommitted `mobile/android/local.properties` (or a CI environment variable); restrict it to Android package `com.example.mobile` and every signing-certificate SHA-1. Release builds fail when it is missing. It is not a Render/backend variable. |
 | `GOOGLE_OAUTH_CLIENT_ID` | Yes when Google student sign-in is enabled | The **Web application** OAuth client ID. It is the expected ID-token audience and is also passed to Flutter as `GOOGLE_OAUTH_WEB_CLIENT_ID`. No client secret is used by this native ID-token flow. |
-| `S3_ENDPOINT` / `S3_BUCKET` / `S3_ACCESS_KEY` / `S3_SECRET_KEY` | Only once Phase 7b's `DocumentStorageGateway` gets a real implementation | Document upload/download return 501 until then -- see ADR for Phase 7b. |
+| `S3_ENABLED` / `S3_ENDPOINT` / `S3_REGION` / `S3_BUCKET` / `S3_ACCESS_KEY` / `S3_SECRET_KEY` / `S3_PATH_STYLE_ACCESS` | Yes for document/KYC uploads | Set `S3_ENABLED=true` for the real private S3-compatible gateway. Keep the bucket non-public; clients receive only time-limited signed GET URLs. Endpoint is optional for AWS S3 and required for most compatible providers. |
 | `NEXT_PUBLIC_API_BASE_URL` (web app) | Recommended | Your deployed backend's public URL + `/api/v1`; the web app currently falls back to `https://pg-platform-api.onrender.com/api/v1` in production and to localhost during development. Set this explicitly in the web host so a future backend-domain change does not require a code change. |
 | `API_BASE_URL` (mobile, via `--dart-define`) | Optional for the current Render service | Flutter defaults to `https://pg-platform-api.onrender.com/api/v1`. Override with `--dart-define=API_BASE_URL=...` for local development or a future domain. It is baked into the binary; a URL change needs a rebuild. |
 | `GOOGLE_OAUTH_WEB_CLIENT_ID` (mobile, via `--dart-define`) | Yes when using a different Google Cloud project | Must match the backend's `GOOGLE_OAUTH_CLIENT_ID`. The checked-in development default points at the Hi PG project and is a public identifier, not a secret. |
@@ -141,13 +141,12 @@ that's cheap to check before launch and expensive after:
       confirm `RateLimitFilter` is seeing real client IPs, not all traffic collapsing onto one
       bucket (or being trivially spoofable) -- see `docs/security.md`.
 - [ ] A Postgres backup has been taken and a **restore has been test-run** at least once.
-- [ ] `mvn verify` and `flutter analyze` have both been run for real (nothing in this project has
-      been compiler-verified in the environment it was built in -- see every phase's own notes).
+- [ ] `mvn verify` and `flutter analyze` have both been rerun for the exact release candidate.
 - [ ] Dependency versions reviewed (`mvn versions:display-dependency-updates`) -- Spring Boot was
       pinned at 3.2.5 as of Phase 15 with no verified bump since; see `docs/security.md`.
 - [ ] If launching with real payments: a Razorpay account is provisioned, `RAZORPAY_*` env vars
       are set, and the webhook URL is registered with Razorpay pointing at
       `https://<your-domain>/api/v1/webhooks/razorpay`.
 - [ ] If launching with document uploads: an S3-compatible bucket is provisioned (private, no
-      public read), `S3_*` env vars are set, and `StubDocumentStorageGateway` has been replaced
-      with a real implementation (it isn't yet -- see the Phase 7b entry in `docs/decisions.md`).
+      public read), `S3_ENABLED=true`, and all required `S3_*` values are set. Verify upload and
+      signed-download behavior against the chosen provider before accepting production KYC.

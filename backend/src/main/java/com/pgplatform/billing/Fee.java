@@ -56,4 +56,17 @@ public class Fee extends BaseEntity {
 
     @Column(columnDefinition = "text")
     private String notes;
+
+    @Column(name = "extended_due_date")
+    private LocalDate extendedDueDate;
+
+    @Column(name = "extension_count", nullable = false)
+    private Integer extensionCount = 0;
+
+    @Column(name = "extension_note", columnDefinition = "text")
+    private String extensionNote;
+
+    public LocalDate effectiveDueDate() {
+        return extendedDueDate == null ? dueDate : extendedDueDate;
+    }
 }

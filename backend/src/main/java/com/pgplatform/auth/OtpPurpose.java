@@ -1,5 +1,6 @@
 package com.pgplatform.auth;
 
 public enum OtpPurpose {
-    STUDENT_SIGNUP_OR_LOGIN
+    STUDENT_SIGNUP_OR_LOGIN,
+    OWNER_PHONE_VERIFICATION
 }

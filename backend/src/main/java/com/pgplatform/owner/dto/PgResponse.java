@@ -3,6 +3,7 @@ package com.pgplatform.owner.dto;
 import com.pgplatform.owner.GenderPreference;
 import com.pgplatform.owner.Pg;
 import com.pgplatform.owner.PgStatus;
+import com.pgplatform.owner.PaymentOnboardingStatus;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -19,13 +20,15 @@ public record PgResponse(
         String description,
         GenderPreference genderPreference,
         PgStatus status,
+        PaymentOnboardingStatus paymentOnboardingStatus,
+        Integer platformCommissionBps,
         Instant createdAt
 ) {
     public static PgResponse from(Pg pg) {
         return new PgResponse(
                 pg.getId(), pg.getName(), pg.getAddress(), pg.getCity(), pg.getState(), pg.getPincode(),
                 pg.getLatitude(), pg.getLongitude(), pg.getDescription(), pg.getGenderPreference(),
-                pg.getStatus(), pg.getCreatedAt()
+                pg.getStatus(), pg.getPaymentOnboardingStatus(), pg.getPlatformCommissionBps(), pg.getCreatedAt()
         );
     }
 }

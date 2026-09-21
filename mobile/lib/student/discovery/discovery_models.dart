@@ -73,11 +73,13 @@ class PagedResult<T> {
 class AvailableBedOption {
   final String id;
   final String label;
+  final String bookingMode;
 
-  AvailableBedOption({required this.id, required this.label});
+  AvailableBedOption({required this.id, required this.label, required this.bookingMode});
 
   factory AvailableBedOption.fromJson(Map<String, dynamic> json) =>
-      AvailableBedOption(id: json['id'] as String, label: json['label'] as String);
+      AvailableBedOption(id: json['id'] as String, label: json['label'] as String,
+        bookingMode: json['bookingMode'] as String? ?? 'MONTHLY');
 }
 
 class RoomAvailability {
@@ -86,6 +88,10 @@ class RoomAvailability {
   final String roomType;
   final int sharingCount;
   final double rentPerBed;
+  final double? dayWiseRate;
+  final String bookingMode;
+  final int noticePeriodDays;
+  final double securityDeposit;
   final int availableBeds;
   final List<AvailableBedOption> availableBedOptions;
 
@@ -95,6 +101,10 @@ class RoomAvailability {
     required this.roomType,
     required this.sharingCount,
     required this.rentPerBed,
+    required this.dayWiseRate,
+    required this.bookingMode,
+    required this.noticePeriodDays,
+    required this.securityDeposit,
     required this.availableBeds,
     required this.availableBedOptions,
   });
@@ -105,6 +115,10 @@ class RoomAvailability {
         roomType: json['roomType'] as String,
         sharingCount: json['sharingCount'] as int,
         rentPerBed: (json['rentPerBed'] as num).toDouble(),
+        dayWiseRate: (json['dayWiseRate'] as num?)?.toDouble(),
+        bookingMode: json['bookingMode'] as String? ?? 'MONTHLY',
+        noticePeriodDays: json['noticePeriodDays'] as int? ?? 15,
+        securityDeposit: (json['securityDeposit'] as num? ?? 0).toDouble(),
         availableBeds: json['availableBeds'] as int,
         availableBedOptions: (json['availableBedOptions'] as List<dynamic>? ?? [])
             .map((b) => AvailableBedOption.fromJson(b as Map<String, dynamic>))

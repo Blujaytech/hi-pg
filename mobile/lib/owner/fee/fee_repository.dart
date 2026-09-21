@@ -44,4 +44,12 @@ class FeeRepository {
     });
     return Fee.fromJson(response.data!);
   }
+
+  Future<Fee> extendDueDate({required String feeId, required DateTime newDueDate, String? note}) async {
+    final response = await _client.post<Map<String, dynamic>>('/owner/fees/$feeId/extensions', data: {
+      'newDueDate': newDueDate.toIso8601String().substring(0, 10),
+      'note': note,
+    });
+    return Fee.fromJson(response.data!);
+  }
 }

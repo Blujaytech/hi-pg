@@ -1,5 +1,25 @@
 enum BedStatus { available, occupied, maintenance }
 
+enum BedBookingMode { monthly, dayWise, flexible }
+
+extension BedBookingModeX on BedBookingMode {
+  String get apiValue => switch (this) {
+    BedBookingMode.monthly => 'MONTHLY',
+    BedBookingMode.dayWise => 'DAY_WISE',
+    BedBookingMode.flexible => 'FLEXIBLE',
+  };
+  String get label => switch (this) {
+    BedBookingMode.monthly => 'Monthly',
+    BedBookingMode.dayWise => 'Day-wise',
+    BedBookingMode.flexible => 'Flexible',
+  };
+  static BedBookingMode fromApi(String value) => switch (value) {
+    'DAY_WISE' => BedBookingMode.dayWise,
+    'FLEXIBLE' => BedBookingMode.flexible,
+    _ => BedBookingMode.monthly,
+  };
+}
+
 extension BedStatusX on BedStatus {
   String get apiValue => switch (this) {
         BedStatus.available => 'AVAILABLE',
@@ -52,15 +72,18 @@ class Bed {
   final String roomId;
   final String label;
   final BedStatus status;
+  final BedBookingMode bookingMode;
   final BedOccupant? occupant;
 
-  Bed({required this.id, required this.roomId, required this.label, required this.status, this.occupant});
+  Bed({required this.id, required this.roomId, required this.label, required this.status,
+    required this.bookingMode, this.occupant});
 
   factory Bed.fromJson(Map<String, dynamic> json) => Bed(
         id: json['id'] as String,
         roomId: json['roomId'] as String,
         label: json['label'] as String,
         status: BedStatusX.fromApi(json['status'] as String),
+        bookingMode: BedBookingModeX.fromApi(json['bookingMode'] as String? ?? 'MONTHLY'),
         occupant: json['occupant'] != null ? BedOccupant.fromJson(json['occupant'] as Map<String, dynamic>) : null,
       );
 }

@@ -62,6 +62,9 @@ class Fee {
   final double amountPaid;
   final double balance;
   final DateTime dueDate;
+  final DateTime effectiveDueDate;
+  final int extensionCount;
+  final String? extensionNote;
   final FeeStatus status;
   final bool overdue;
   final String? notes;
@@ -77,6 +80,9 @@ class Fee {
     required this.amountPaid,
     required this.balance,
     required this.dueDate,
+    required this.effectiveDueDate,
+    required this.extensionCount,
+    required this.extensionNote,
     required this.status,
     required this.overdue,
     this.notes,
@@ -93,6 +99,9 @@ class Fee {
         amountPaid: (json['amountPaid'] as num).toDouble(),
         balance: (json['balance'] as num).toDouble(),
         dueDate: DateTime.parse(json['dueDate'] as String),
+        effectiveDueDate: DateTime.parse((json['effectiveDueDate'] ?? json['dueDate']) as String),
+        extensionCount: json['extensionCount'] as int? ?? 0,
+        extensionNote: json['extensionNote'] as String?,
         status: FeeStatusX.fromApi(json['status'] as String),
         overdue: json['overdue'] as bool,
         notes: json['notes'] as String?,

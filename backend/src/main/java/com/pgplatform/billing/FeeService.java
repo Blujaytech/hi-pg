@@ -2,18 +2,22 @@ package com.pgplatform.billing;
 
 import com.pgplatform.billing.dto.FeeCreateRequest;
 import com.pgplatform.billing.dto.FeeResponse;
+import com.pgplatform.billing.dto.FeeExtensionRequest;
+import com.pgplatform.auth.UserRepository;
 import com.pgplatform.billing.dto.PaymentCreateRequest;
 import com.pgplatform.billing.dto.PaymentResponse;
 import com.pgplatform.common.ConflictException;
 import com.pgplatform.common.ForbiddenException;
 import com.pgplatform.common.NotFoundException;
 import com.pgplatform.owner.PgService;
+import com.pgplatform.notification.NotificationService;
 import com.pgplatform.student.Student;
 import com.pgplatform.student.StudentService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -25,14 +29,22 @@ public class FeeService {
     private final StudentService studentService;
     private final PgService pgService;
     private final ReceiptService receiptService;
+    private final FeeExtensionRepository feeExtensionRepository;
+    private final UserRepository userRepository;
+    private final NotificationService notificationService;
 
     public FeeService(FeeRepository feeRepository, PaymentRepository paymentRepository,
-                       StudentService studentService, PgService pgService, ReceiptService receiptService) {
+                       StudentService studentService, PgService pgService, ReceiptService receiptService,
+                       FeeExtensionRepository feeExtensionRepository, UserRepository userRepository,
+                       NotificationService notificationService) {
         this.feeRepository = feeRepository;
         this.paymentRepository = paymentRepository;
         this.studentService = studentService;
         this.pgService = pgService;
         this.receiptService = receiptService;
+        this.feeExtensionRepository = feeExtensionRepository;
+        this.userRepository = userRepository;
+        this.notificationService = notificationService;
     }
 
     @Transactional
@@ -80,6 +92,38 @@ public class FeeService {
     public FeeResponse recordPayment(UUID feeId, UUID ownerId, PaymentCreateRequest request) {
         Fee fee = requireOwnedFee(feeId, ownerId);
         return recordPaymentInternal(fee, request);
+    }
+
+    @Transactional
+    public FeeResponse extendDueDate(UUID feeId, UUID ownerId, FeeExtensionRequest request) {
+        Fee fee = requireOwnedFee(feeId, ownerId);
+        if (fee.getStatus() == FeeStatus.PAID) {
+            throw new ConflictException("A paid fee cannot be extended");
+        }
+        LocalDate previous = fee.effectiveDueDate();
+        if (!request.newDueDate().isAfter(previous)) {
+            throw new ConflictException("The new due date must be after the current due date");
+        }
+
+        FeeExtension history = new FeeExtension();
+        history.setFee(fee);
+        history.setOwner(userRepository.findByIdAndDeletedAtIsNull(ownerId)
+                .orElseThrow(() -> new NotFoundException("Owner account not found")));
+        history.setPreviousDueDate(previous);
+        history.setNewDueDate(request.newDueDate());
+        history.setNote(request.note());
+        feeExtensionRepository.save(history);
+
+        fee.setExtendedDueDate(request.newDueDate());
+        fee.setExtensionCount(fee.getExtensionCount() + 1);
+        fee.setExtensionNote(request.note());
+        feeRepository.save(fee);
+
+        if (fee.getStudent().getUser() != null) {
+            notificationService.notifyUser(fee.getStudent().getUser().getId(), "Payment date extended",
+                    "Your owner extended the payment date to " + request.newDueDate() + ".");
+        }
+        return toResponse(fee);
     }
 
     /**

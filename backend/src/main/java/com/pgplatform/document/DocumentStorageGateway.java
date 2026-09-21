@@ -8,12 +8,9 @@ import java.time.Duration;
  * §7 item 1 (never a public bucket; access via signed URL so Spring Boot
  * controls who can fetch a given document).
  *
- * {@link StubDocumentStorageGateway} is the only implementation right now
- * and deliberately fails loudly (see its javadoc) -- there is no S3
- * endpoint/bucket/credentials configured. When there is, add a real
- * implementation (e.g. using the AWS S3 SDK against any S3-compatible
- * endpoint) and switch the bean, without touching DocumentService or the
- * controller.
+ * {@link S3DocumentStorageGateway} is enabled in configured environments;
+ * {@link StubDocumentStorageGateway} deliberately returns 501 in local
+ * environments where private storage is disabled.
  */
 public interface DocumentStorageGateway {
     /** @return the storage key the bytes were written under. */

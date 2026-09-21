@@ -1,6 +1,10 @@
 package com.pgplatform.booking;
 
 public enum BookingStatus {
+    PAYMENT_PENDING,
     CONFIRMED,
-    CANCELLED
+    CHECKED_IN,
+    COMPLETED,
+    CANCELLED,
+    EXPIRED
 }

@@ -17,6 +17,7 @@ import lombok.Setter;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.math.BigDecimal;
 
 /**
  * A confirmed (or later cancelled) claim on one bed by one student
@@ -50,12 +51,46 @@ public class Booking extends BaseEntity {
     @Column(name = "move_in_date", nullable = false)
     private LocalDate moveInDate;
 
-    @Column(name = "confirmed_at", nullable = false)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "booking_type", nullable = false, length = 20)
+    private BookingType bookingType = BookingType.MONTHLY;
+
+    @Column(name = "check_out_date")
+    private LocalDate checkOutDate;
+
+    @Column(name = "rent_amount", nullable = false, precision = 10, scale = 2)
+    private BigDecimal rentAmount = BigDecimal.ZERO;
+
+    @Column(name = "security_deposit_amount", nullable = false, precision = 10, scale = 2)
+    private BigDecimal securityDepositAmount = BigDecimal.ZERO;
+
+    @Column(name = "total_amount", nullable = false, precision = 10, scale = 2)
+    private BigDecimal totalAmount = BigDecimal.ZERO;
+
+    @Column(name = "payment_expires_at")
+    private Instant paymentExpiresAt;
+
+    @Column(name = "confirmed_at")
     private Instant confirmedAt;
+
+    @Column(name = "checked_in_at")
+    private Instant checkedInAt;
+
+    @Column(name = "completed_at")
+    private Instant completedAt;
 
     @Column(name = "cancelled_at")
     private Instant cancelledAt;
 
     @Column(name = "cancellation_reason", columnDefinition = "text")
     private String cancellationReason;
+
+    @Column(name = "notice_given_at")
+    private Instant noticeGivenAt;
+
+    @Column(name = "planned_move_out_date")
+    private LocalDate plannedMoveOutDate;
+
+    @Column(name = "notice_shortfall_days", nullable = false)
+    private Integer noticeShortfallDays = 0;
 }

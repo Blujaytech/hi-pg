@@ -34,8 +34,12 @@ class DiscoveryRepository {
     );
   }
 
-  Future<PgDetails> getDetails(String pgId) async {
-    final response = await _client.get<Map<String, dynamic>>('/public/pgs/$pgId');
+  Future<PgDetails> getDetails(String pgId, {String? bookingType, DateTime? checkIn, DateTime? checkOut}) async {
+    final params = <String, dynamic>{};
+    if (bookingType != null) params['bookingType'] = bookingType;
+    if (checkIn != null) params['checkIn'] = checkIn.toIso8601String().substring(0, 10);
+    if (checkOut != null) params['checkOut'] = checkOut.toIso8601String().substring(0, 10);
+    final response = await _client.get<Map<String, dynamic>>('/public/pgs/$pgId', queryParameters: params);
     return PgDetails.fromJson(response.data!);
   }
 }

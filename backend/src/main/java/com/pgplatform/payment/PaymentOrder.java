@@ -1,6 +1,7 @@
 package com.pgplatform.payment;
 
 import com.pgplatform.billing.Fee;
+import com.pgplatform.booking.Booking;
 import com.pgplatform.common.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -30,9 +31,17 @@ import java.math.BigDecimal;
 @Table(name = "payment_orders")
 public class PaymentOrder extends BaseEntity {
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "fee_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "fee_id")
     private Fee fee;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "booking_id")
+    private Booking booking;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 24)
+    private PaymentPurpose purpose = PaymentPurpose.FEE;
 
     @Column(name = "idempotency_key", nullable = false, unique = true, length = 100)
     private String idempotencyKey;
@@ -55,4 +64,17 @@ public class PaymentOrder extends BaseEntity {
 
     @Column(name = "failure_reason", columnDefinition = "text")
     private String failureReason;
+
+    @Column(name = "razorpay_transfer_id", unique = true, length = 100)
+    private String razorpayTransferId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "transfer_status", nullable = false, length = 24)
+    private TransferStatus transferStatus = TransferStatus.NOT_CREATED;
+
+    @Column(name = "owner_amount", precision = 10, scale = 2)
+    private BigDecimal ownerAmount;
+
+    @Column(name = "razorpay_refund_id", unique = true, length = 100)
+    private String razorpayRefundId;
 }

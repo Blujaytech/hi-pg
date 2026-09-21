@@ -19,6 +19,9 @@ public record FeeResponse(
         BigDecimal amountPaid,
         BigDecimal balance,
         LocalDate dueDate,
+        LocalDate effectiveDueDate,
+        Integer extensionCount,
+        String extensionNote,
         FeeStatus status,
         boolean overdue,
         String notes,
@@ -26,11 +29,12 @@ public record FeeResponse(
 ) {
     public static FeeResponse from(Fee fee, BigDecimal amountPaid, List<PaymentResponse> payments) {
         BigDecimal balance = fee.getAmount().subtract(amountPaid);
-        boolean overdue = fee.getStatus() != FeeStatus.PAID && fee.getDueDate().isBefore(LocalDate.now());
+        boolean overdue = fee.getStatus() != FeeStatus.PAID && fee.effectiveDueDate().isBefore(LocalDate.now());
         return new FeeResponse(
                 fee.getId(), fee.getStudent().getId(), fee.getStudent().getFullName(), fee.getPg().getId(),
                 fee.getPeriodMonth(), fee.getPeriodYear(), fee.getAmount(), amountPaid, balance,
-                fee.getDueDate(), fee.getStatus(), overdue, fee.getNotes(), payments
+                fee.getDueDate(), fee.effectiveDueDate(), fee.getExtensionCount(), fee.getExtensionNote(),
+                fee.getStatus(), overdue, fee.getNotes(), payments
         );
     }
 }

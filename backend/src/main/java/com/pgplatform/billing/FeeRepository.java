@@ -11,6 +11,7 @@ import java.util.UUID;
 
 public interface FeeRepository extends JpaRepository<Fee, UUID> {
     Optional<Fee> findByIdAndDeletedAtIsNull(UUID id);
+    List<Fee> findAllByStatusNotAndDeletedAtIsNull(FeeStatus status);
     boolean existsByStudentIdAndPeriodYearAndPeriodMonthAndDeletedAtIsNull(UUID studentId, Integer periodYear, Integer periodMonth);
     List<Fee> findAllByStudentIdAndDeletedAtIsNullOrderByPeriodYearDescPeriodMonthDesc(UUID studentId);
     List<Fee> findAllByPgIdAndDeletedAtIsNullOrderByDueDateDesc(UUID pgId);

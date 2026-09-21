@@ -104,12 +104,14 @@ class BookingConcurrencyTest extends AbstractIntegrationTest {
         assertThat(successes).as("exactly one booking must succeed").isEqualTo(1);
         assertThat(conflicts).as("the other must fail with a clean 409, not corrupt state").isEqualTo(1);
 
-        long confirmedBookingsOnThisBed = bookingRepository.findAll().stream()
+        long activeHoldsOnThisBed = bookingRepository.findAll().stream()
                 .filter(b -> b.getBed().getId().equals(bedId))
-                .filter(b -> b.getStatus() == BookingStatus.CONFIRMED)
+                .filter(b -> b.getStatus() == BookingStatus.PAYMENT_PENDING
+                        || b.getStatus() == BookingStatus.CONFIRMED
+                        || b.getStatus() == BookingStatus.CHECKED_IN)
                 .filter(b -> b.getDeletedAt() == null)
                 .count();
-        assertThat(confirmedBookingsOnThisBed).as("never more than one CONFIRMED booking on the same bed").isEqualTo(1);
+        assertThat(activeHoldsOnThisBed).as("never more than one active calendar claim on the same bed").isEqualTo(1);
     }
 
     private Callable<Object> bookingAttempt(UUID userId, UUID bedId, CountDownLatch readyLatch, CountDownLatch startLatch) {

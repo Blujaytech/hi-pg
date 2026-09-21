@@ -19,6 +19,8 @@ import 'owner/pg/pg_models.dart';
 import 'owner/receipt/receipt_list_screen.dart';
 import 'owner/report/report_screen.dart';
 import 'owner/room/room_list_screen.dart';
+import 'owner/calendar/booking_calendar_screen.dart';
+import 'owner/room/room_models.dart';
 import 'owner/student/student_list_screen.dart';
 import 'shared/account/account_screen.dart';
 import 'shared/app_shell.dart';
@@ -219,6 +221,13 @@ GoRouter buildRouter(AuthState authState) {
         builder: (context, state) => RoomListScreen(
           floorId: state.pathParameters['floorId']!,
           floor: state.extra as Floor?,
+        ),
+      ),
+      GoRoute(
+        path: '/owner/rooms/:roomId/calendar',
+        builder: (context, state) => BookingCalendarScreen(
+          roomId: state.pathParameters['roomId']!,
+          room: state.extra as Room?,
         ),
       ),
       GoRoute(

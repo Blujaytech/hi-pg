@@ -15,12 +15,20 @@ class RoomRepository {
     required int sharingCount,
     required double rentPerBed,
     required RoomType roomType,
+    required RoomBookingMode bookingMode,
+    double? dayWiseRate,
+    int noticePeriodDays = 15,
+    double securityDeposit = 0,
   }) async {
     final response = await _client.post<Map<String, dynamic>>('/owner/floors/$floorId/rooms', data: {
       'roomNumber': roomNumber,
       'sharingCount': sharingCount,
       'rentPerBed': rentPerBed,
       'roomType': roomType.apiValue,
+      'bookingMode': bookingMode.apiValue,
+      'dayWiseRate': dayWiseRate,
+      'noticePeriodDays': noticePeriodDays,
+      'securityDeposit': securityDeposit,
     });
     return Room.fromJson(response.data!);
   }
@@ -31,6 +39,10 @@ class RoomRepository {
       'sharingCount': sharingCount,
       'rentPerBed': room.rentPerBed,
       'roomType': room.roomType.apiValue,
+      'bookingMode': room.bookingMode.apiValue,
+      'dayWiseRate': room.dayWiseRate,
+      'noticePeriodDays': room.noticePeriodDays,
+      'securityDeposit': room.securityDeposit,
     });
     return Room.fromJson(response.data!);
   }

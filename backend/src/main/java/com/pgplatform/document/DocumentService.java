@@ -1,5 +1,6 @@
 package com.pgplatform.document;
 
+import com.pgplatform.common.ConflictException;
 import com.pgplatform.common.ForbiddenException;
 import com.pgplatform.common.NotFoundException;
 import com.pgplatform.document.dto.DocumentResponse;
@@ -28,6 +29,8 @@ public class DocumentService {
      */
     private static final Logger AUDIT = LoggerFactory.getLogger("AUDIT.document");
 
+    private static final long MAX_FILE_BYTES = 10L * 1024 * 1024;
+
     private final DocumentRepository documentRepository;
     private final DocumentStorageGateway storageGateway;
     private final StudentService studentService;
@@ -42,16 +45,15 @@ public class DocumentService {
     }
 
     /**
-     * Calls the storage gateway BEFORE persisting any metadata, on purpose:
-     * with only StubDocumentStorageGateway wired up, this always throws
-     * (surfacing as 501 -- see GlobalExceptionHandler), and nothing should
-     * end up half-recorded (a Document row pointing at a storageKey that was
-     * never actually written) when that happens.
+     * Stores bytes before metadata so a failed object write cannot leave a
+     * Document row pointing at a missing object. Disabled local storage fails
+     * closed through StubDocumentStorageGateway before persistence.
      */
     @Transactional
     public DocumentResponse upload(UUID studentId, UUID ownerId, DocumentType documentType,
                                     byte[] content, String fileName, String contentType) {
         Student student = studentService.requireOwnedStudent(studentId, ownerId);
+        validateFile(content, fileName, contentType);
 
         String storageKey = storageGateway.store(content, fileName, contentType);
 
@@ -92,6 +94,25 @@ public class DocumentService {
         }
         document.markDeleted();
         documentRepository.save(document);
+    }
+
+    /**
+     * Student documents went in unvalidated while OwnerKycService validated its own
+     * uploads. The stored content type is what a presigned GET later serves the file
+     * as, so an uploaded `text/html` came back as a live page on the storage origin --
+     * an arbitrary-content host attached to the PG's own bucket. Same allowlist and
+     * ceiling as the KYC path.
+     */
+    private void validateFile(byte[] content, String fileName, String contentType) {
+        if (content == null || content.length == 0 || content.length > MAX_FILE_BYTES) {
+            throw new ConflictException("Documents must be between 1 byte and 10 MB");
+        }
+        if (fileName == null || fileName.isBlank()) {
+            throw new ConflictException("File name is required");
+        }
+        if (contentType == null || !(contentType.startsWith("image/") || "application/pdf".equals(contentType))) {
+            throw new ConflictException("Documents must be an image or a PDF");
+        }
     }
 
     private Document requireOwnedDocument(UUID documentId, UUID ownerId) {

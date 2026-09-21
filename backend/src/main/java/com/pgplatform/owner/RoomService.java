@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
+import java.math.BigDecimal;
 
 /**
  * Owns the Room <-> Bed relationship, in particular auto-creating/removing
@@ -43,6 +44,7 @@ public class RoomService {
     @Transactional
     public RoomResponse create(UUID floorId, UUID ownerId, RoomCreateRequest request) {
         Floor floor = floorService.requireOwnedFloor(floorId, ownerId);
+        validatePricing(request.bookingMode(), request.dayWiseRate());
 
         Room room = new Room();
         room.setFloor(floor);
@@ -50,6 +52,10 @@ public class RoomService {
         room.setSharingCount(request.sharingCount());
         room.setRentPerBed(request.rentPerBed());
         room.setRoomType(request.roomType());
+        room.setBookingMode(request.bookingMode());
+        room.setDayWiseRate(request.dayWiseRate());
+        room.setNoticePeriodDays(request.noticePeriodDays());
+        room.setSecurityDeposit(request.securityDeposit());
         room = roomRepository.save(room);
 
         List<Bed> beds = createBeds(room, 1, request.sharingCount());
@@ -68,15 +74,28 @@ public class RoomService {
     @Transactional
     public RoomResponse update(UUID roomId, UUID ownerId, RoomUpdateRequest request) {
         Room room = requireOwnedRoom(roomId, ownerId);
+        validatePricing(request.bookingMode(), request.dayWiseRate());
+        RoomBookingMode previousMode = room.getBookingMode();
         room.setRoomNumber(request.roomNumber());
         room.setRentPerBed(request.rentPerBed());
         room.setRoomType(request.roomType());
+        room.setBookingMode(request.bookingMode());
+        room.setDayWiseRate(request.dayWiseRate());
+        room.setNoticePeriodDays(request.noticePeriodDays());
+        room.setSecurityDeposit(request.securityDeposit());
 
         int previousSharingCount = room.getSharingCount();
         room.setSharingCount(request.sharingCount());
         room = roomRepository.save(room);
 
         List<Bed> beds = syncBedsToSharingCount(room, previousSharingCount, request.sharingCount());
+        if (request.bookingMode() != RoomBookingMode.MIXED || previousMode != RoomBookingMode.MIXED) {
+            BedBookingMode inherited = inheritedBedMode(request.bookingMode());
+            beds.forEach(bed -> {
+                bed.setBookingMode(inherited);
+                bedRepository.save(bed);
+            });
+        }
         broadcaster.notifyChanged(room.getFloor().getPg().getId());
         return toResponse(room, beds);
     }
@@ -94,7 +113,7 @@ public class RoomService {
         broadcaster.notifyChanged(room.getFloor().getPg().getId());
     }
 
-    Room requireOwnedRoom(UUID roomId, UUID ownerId) {
+    public Room requireOwnedRoom(UUID roomId, UUID ownerId) {
         Room room = roomRepository.findByIdAndDeletedAtIsNull(roomId)
                 .orElseThrow(() -> new NotFoundException("Room not found"));
         OwnershipGuard.requireOwns(room, ownerId);
@@ -107,6 +126,7 @@ public class RoomService {
             bed.setRoom(room);
             bed.setLabel("Bed " + i);
             bed.setStatus(BedStatus.AVAILABLE);
+            bed.setBookingMode(inheritedBedMode(room.getBookingMode()));
             bedRepository.save(bed);
         }
         return bedRepository.findAllByRoomIdAndDeletedAtIsNullOrderByLabelAsc(room.getId());
@@ -156,5 +176,20 @@ public class RoomService {
             return BedResponse.from(bed, occupant);
         }).toList();
         return RoomResponse.from(room, bedResponses);
+    }
+
+    private void validatePricing(RoomBookingMode mode, BigDecimal dayWiseRate) {
+        if ((mode == RoomBookingMode.DAY_WISE || mode == RoomBookingMode.MIXED)
+                && (dayWiseRate == null || dayWiseRate.compareTo(BigDecimal.ZERO) <= 0)) {
+            throw new ConflictException("A positive day-wise rate is required for day-wise or mixed rooms");
+        }
+    }
+
+    private BedBookingMode inheritedBedMode(RoomBookingMode mode) {
+        return switch (mode) {
+            case MONTHLY -> BedBookingMode.MONTHLY;
+            case DAY_WISE -> BedBookingMode.DAY_WISE;
+            case MIXED -> BedBookingMode.FLEXIBLE;
+        };
     }
 }

@@ -29,4 +29,8 @@ public class Bed extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private BedStatus status = BedStatus.AVAILABLE;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "booking_mode", nullable = false, length = 20)
+    private BedBookingMode bookingMode = BedBookingMode.MONTHLY;
 }

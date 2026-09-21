@@ -5,6 +5,7 @@ import com.pgplatform.common.NotFoundException;
 import com.pgplatform.payment.PaymentOrderService;
 import com.pgplatform.payment.dto.PaymentOrderCreateRequest;
 import com.pgplatform.payment.dto.PaymentOrderResponse;
+import com.pgplatform.payment.dto.CheckoutVerificationRequest;
 import com.pgplatform.student.StudentRepository;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -42,5 +43,20 @@ public class StudentPaymentOrderController {
                 .orElseThrow(() -> new NotFoundException("You don't have a student profile yet -- book a bed first"))
                 .getId();
         return ResponseEntity.status(HttpStatus.CREATED).body(paymentOrderService.createOrder(feeId, studentId, request));
+    }
+
+    @PostMapping("/api/v1/student/bookings/{bookingId}/payment-orders")
+    public ResponseEntity<PaymentOrderResponse> createBookingOrder(
+            @AuthenticationPrincipal UserPrincipal principal, @PathVariable UUID bookingId,
+            @Valid @RequestBody PaymentOrderCreateRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(paymentOrderService.createBookingOrder(bookingId, principal.getId(), request));
+    }
+
+    @PostMapping("/api/v1/student/payment-orders/{paymentOrderId}/verify")
+    public PaymentOrderResponse verify(@AuthenticationPrincipal UserPrincipal principal,
+                                       @PathVariable UUID paymentOrderId,
+                                       @Valid @RequestBody CheckoutVerificationRequest request) {
+        return paymentOrderService.verifyCheckout(paymentOrderId, principal.getId(), request);
     }
 }

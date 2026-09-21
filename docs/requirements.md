@@ -18,15 +18,15 @@ Source of truth for *what* the platform must do: `PG_PLATFORM_TECHNICAL_PLAN.md`
 | Owner PG/Floor/Room/Bed management, bed auto-creation | **Built** (Phase 2) |
 | Owner dashboard | **Built** (Phase 3, thin: counts + occupancy %) |
 | Student management (owner-side manual add) | **Built** (Phase 4, incl. bed assign/reassign/move-out) |
-| Fee management / Expense management | **Built** (Phase 5/5b, offline payment recording only -- Razorpay is Phase 12) |
+| Fee management / Expense management | **Built** (offline recording plus Razorpay online payment, due-date extensions, reminders, and AutoPay) |
 | Complaint management | **Built** (owner lifecycle management + student self-service filing/tracking) |
-| Documents (Aadhaar/photo) | **Stubbed** (Phase 7b -- API contract + DB table built, object storage not provisioned; every upload/download call returns 501) |
+| Documents (Aadhaar/photo) | **Implemented, credential-gated** (private S3-compatible storage and signed URLs; disabled local environments fail closed with 501) |
 | Receipts | **Built** (Phase 7a -- auto-generated per payment, snapshot-based, sequential numbering) |
 | Reports (revenue, occupancy, outstanding dues) | **Built** (Phase 8, computed at read time -- see ADR-0013) |
 | Student discovery (search, PG details, maps) | **Built** (Phase 9, public/unauthenticated -- Next.js web + Flutter; "maps" is a link out to Google Maps by lat/long, not an embedded map) |
 | Live bed availability (SSE) | **Built** (Phase 10, PG-level granularity, single-instance in-memory broadcaster -- see ADR-0016) |
 | Student registration & bed booking (concurrency-safe) | **Built** (Phase 11, Flutter-only client -- see ADR-0018; concurrency guarantee proven by `BookingConcurrencyTest`, ADR-0017) |
-| Payment gateway (Razorpay) | **Stubbed** (Phase 12 -- idempotency mechanism and webhook signature verification/processing are fully built and tested; outbound order creation returns 501 until a Razorpay account is configured; see ADR-0019) |
+| Payment gateway (Razorpay) | **Implemented, credential-gated** -- Checkout, signature/capture verification, webhooks, Route settlements, refunds, and Subscription AutoPay are active when Razorpay credentials are configured; see ADR-0027. |
 | Notifications (push/email/WhatsApp) | **Stubbed** (Phase 13 -- fan-out/wiring to 4 real trigger points is built and tested; delivery is logged only, no FCM/email-provider credentials configured; WhatsApp explicitly deferred per the plan; see ADR-0020) |
 | Real-time sync beyond bed availability | **Built** (Phase 14 -- per-user authenticated SSE stream, `/me/events/stream`, echoes all 4 of Phase 13's notification trigger points; Flutter-only client, same auth-header limitation as web `EventSource` noted in ADR-0021) |
 
@@ -35,7 +35,7 @@ Source of truth for *what* the platform must do: `PG_PLATFORM_TECHNICAL_PLAN.md`
 - No student bed can ever be double-booked -- the core trust guarantee, tested explicitly once booking exists (§8).
 - Student records are never hard-deleted (soft-delete + audit trail, §7 item 5) -- implemented now via `BaseEntity`.
 - An owner can only ever see/touch their own PGs' data; a student only their own private data (§7 item 6) -- implemented now via `OwnershipGuard` + per-request checks, tested in `OwnershipGuardIntegrationTest`.
-- Payments must be idempotent (webhooks can be redelivered) -- **built** (Phase 12, `PaymentOrder.idempotencyKey` + idempotent webhook processing, see ADR-0019); a cross-student authorization gap in the idempotency-key-reuse path was found and fixed in the Phase 15 audit, see ADR-0022.
+- Payments must be idempotent (webhooks can be redelivered) -- **built** (`PaymentOrder.idempotencyKey`, database uniqueness, and pessimistic locking across Checkout callbacks/webhooks; see ADR-0027).
 - OTP/auth endpoints need abuse/rate-limit protection (§7 item 7) -- implemented: `OtpService` per-phone-per-hour cap (Phase 1) plus a Phase 15 addition, per-IP rate limiting (`RateLimitFilter`) on all `/api/v1/auth/**` endpoints, since the per-phone cap alone didn't stop login brute-forcing, password-reset spam, or cycling through many phone numbers -- see ADR-0022.
 
 ## Phase 15 -- Testing & security hardening (audit pass, not new features)

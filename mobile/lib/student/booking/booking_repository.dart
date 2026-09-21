@@ -8,10 +8,17 @@ import 'booking_models.dart';
 class BookingRepository {
   final ApiClient _client = ApiClient.instance;
 
-  Future<Booking> book({required String bedId, required DateTime moveInDate}) async {
+  Future<Booking> book({
+    required String bedId,
+    required BookingType bookingType,
+    required DateTime moveInDate,
+    DateTime? checkOutDate,
+  }) async {
     final response = await _client.post<Map<String, dynamic>>('/student/bookings', data: {
       'bedId': bedId,
-      'moveInDate': moveInDate.toIso8601String().substring(0, 10),
+      'bookingType': bookingType.apiValue,
+      'checkInDate': moveInDate.toIso8601String().substring(0, 10),
+      'checkOutDate': checkOutDate?.toIso8601String().substring(0, 10),
     });
     return Booking.fromJson(response.data!);
   }
@@ -24,6 +31,14 @@ class BookingRepository {
   Future<Booking> cancel(String bookingId, {String? reason}) async {
     final response = await _client.post<Map<String, dynamic>>(
       '/student/bookings/$bookingId/cancel${reason != null ? '?reason=${Uri.encodeQueryComponent(reason)}' : ''}',
+    );
+    return Booking.fromJson(response.data!);
+  }
+
+  Future<Booking> submitMoveOutNotice(String bookingId, DateTime moveOutDate) async {
+    final response = await _client.post<Map<String, dynamic>>(
+      '/student/bookings/$bookingId/move-out-notice',
+      data: {'plannedMoveOutDate': moveOutDate.toIso8601String().substring(0, 10)},
     );
     return Booking.fromJson(response.data!);
   }
