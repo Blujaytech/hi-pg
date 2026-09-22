@@ -5,26 +5,27 @@ import { searchPgs, type GenderPreference, type PgSearchResult } from '@/lib/dis
 export const dynamic = 'force-dynamic';
 
 type SearchPageProps = {
-  searchParams: {
+  searchParams: Promise<{
     city?: string;
     genderPreference?: GenderPreference;
     minRent?: string;
     maxRent?: string;
     page?: string;
-  };
+  }>;
 };
 
 export default async function SearchPage({ searchParams }: SearchPageProps) {
-  const page = Number.parseInt(searchParams.page ?? '0', 10) || 0;
+  const filters = await searchParams;
+  const page = Number.parseInt(filters.page ?? '0', 10) || 0;
 
   let results;
   let errorMessage: string | null = null;
   try {
     results = await searchPgs({
-      city: searchParams.city,
-      genderPreference: searchParams.genderPreference,
-      minRent: searchParams.minRent,
-      maxRent: searchParams.maxRent,
+      city: filters.city,
+      genderPreference: filters.genderPreference,
+      minRent: filters.minRent,
+      maxRent: filters.maxRent,
       page,
     });
   } catch (error) {
@@ -44,12 +45,12 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           type="text"
           name="city"
           placeholder="City"
-          defaultValue={searchParams.city ?? ''}
+          defaultValue={filters.city ?? ''}
           className="w-40 rounded-md border border-slate-300 px-3 py-2 text-sm"
         />
         <select
           name="genderPreference"
-          defaultValue={searchParams.genderPreference ?? ''}
+          defaultValue={filters.genderPreference ?? ''}
           className="rounded-md border border-slate-300 px-3 py-2 text-sm"
         >
           <option value="">Any gender preference</option>
@@ -61,14 +62,14 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           type="number"
           name="minRent"
           placeholder="Min rent"
-          defaultValue={searchParams.minRent ?? ''}
+          defaultValue={filters.minRent ?? ''}
           className="w-32 rounded-md border border-slate-300 px-3 py-2 text-sm"
         />
         <input
           type="number"
           name="maxRent"
           placeholder="Max rent"
-          defaultValue={searchParams.maxRent ?? ''}
+          defaultValue={filters.maxRent ?? ''}
           className="w-32 rounded-md border border-slate-300 px-3 py-2 text-sm"
         />
         <button type="submit" className="rounded-md bg-brand px-5 py-2 text-sm font-medium text-white">
@@ -92,7 +93,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           <Pagination
             page={results.page}
             totalPages={results.totalPages}
-            searchParams={searchParams}
+            searchParams={filters}
           />
         </>
       )}
@@ -141,7 +142,7 @@ function Pagination({
 }: {
   page: number;
   totalPages: number;
-  searchParams: SearchPageProps['searchParams'];
+  searchParams: Awaited<SearchPageProps['searchParams']>;
 }) {
   if (totalPages <= 1) return null;
 

@@ -265,3 +265,15 @@ Test-profile override: `application-test.yml` raises `max-requests` to 100000 so
 **Bed hold is visible**: `BookingService` holds a bed for ten minutes and `paymentExpiresAt` was already on the client model, but nothing rendered it. A customer had no way to know the hold they were paying against was about to expire. The booking card now counts it down.
 
 **Android release identity (see `docs/deployment.md`)**: the app shipped `applicationId com.example.mobile` and a release build type using `signingConfigs.debug` -- `apksigner` confirmed the release APK was signed `CN=Android Debug`. Play rejects both, and a debug-signed upload can never be updated by the real key. The id is now `com.hipg.app` and release/bundle builds read an upload key from git-ignored `key.properties` (or CI environment variables), failing with an explanatory error when it is absent instead of falling back to the debug key. R8 remains off deliberately: Razorpay and Google Sign-In resolve classes reflectively, so enabling it needs keep rules verified against a real payment on a real device.
+
+## 2026-09-22 -- ADR-0030: Web release moves to the supported Next.js line before deployment
+
+**Decision**: the web app moves from the end-of-life Next.js 14.2 line to Next.js 16.3.5, with
+the matching ESLint flat configuration and the framework's asynchronous `params` / `searchParams`
+contract. PostCSS is also updated to its patched release. The release candidate is required to pass
+a clean lockfile install, zero-warning lint, production compilation, and `npm audit` before merge.
+
+**Why**: the old exact pins reported critical production vulnerabilities. A 14.x patch would still
+leave the App Router on an unsupported line with newer advisories unpatched. The upgrade keeps the
+existing React 18 application code (supported by this Next.js release), while removing all known
+advisories from both production and development dependency trees at the time of the release check.

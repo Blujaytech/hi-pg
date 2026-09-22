@@ -45,6 +45,11 @@ health check. To use it:
 4. Deploy. Flyway runs the migrations on application startup. Verify
    `https://<service>.onrender.com/api/v1/health` and `/actuator/health` after the first deploy.
 
+The checked-in Blueprint uses Render's Free compute plans for a pilot. As of September 2026,
+Free Postgres instances expire after 30 days and do not include backups. Use a paid database plan
+before storing production data, or upgrade it before the expiry window and maintain an external
+backup from day one.
+
 The Blueprint uses separate `DB_*` variables because Render's Postgres connection string is a
 `postgresql://...` URL while the PostgreSQL JDBC driver requires a `jdbc:postgresql://...` URL.
 If you connect to an existing database instead, set `SPRING_DATASOURCE_URL`,

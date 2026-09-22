@@ -6,10 +6,11 @@ import { LiveAvailabilityBadge } from '@/components/LiveAvailabilityBadge';
 
 export const dynamic = 'force-dynamic';
 
-export default async function PgDetailsPage({ params }: { params: { pgId: string } }) {
+export default async function PgDetailsPage({ params }: { params: Promise<{ pgId: string }> }) {
+  const { pgId } = await params;
   let pg;
   try {
-    pg = await getPgDetails(params.pgId);
+    pg = await getPgDetails(pgId);
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) {
       notFound();
