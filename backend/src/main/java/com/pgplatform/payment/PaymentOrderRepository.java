@@ -8,6 +8,8 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
 import java.util.UUID;
+import java.math.BigDecimal;
+import java.time.Instant;
 
 public interface PaymentOrderRepository extends JpaRepository<PaymentOrder, UUID> {
     Optional<PaymentOrder> findByIdAndDeletedAtIsNull(UUID id);
@@ -32,4 +34,16 @@ public interface PaymentOrderRepository extends JpaRepository<PaymentOrder, UUID
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select p from PaymentOrder p where p.razorpayPaymentId = :razorpayPaymentId and p.deletedAt is null")
     Optional<PaymentOrder> findByRazorpayPaymentIdForUpdate(@Param("razorpayPaymentId") String razorpayPaymentId);
+
+    @Query("select coalesce(sum(p.amount), 0) from PaymentOrder p " +
+            "where p.booking.pg.owner.id = :ownerId and p.purpose = 'BOOKING' and p.status = 'PAID' " +
+            "and p.paidAt >= :from and p.paidAt < :to and p.deletedAt is null")
+    BigDecimal sumPaidBookingOrdersForOwner(@Param("ownerId") UUID ownerId,
+                                            @Param("from") Instant from, @Param("to") Instant to);
+
+    @Query("select coalesce(sum(p.amount), 0) from PaymentOrder p " +
+            "where p.booking.pg.id = :pgId and p.purpose = 'BOOKING' and p.status = 'PAID' " +
+            "and p.paidAt >= :from and p.paidAt < :to and p.deletedAt is null")
+    BigDecimal sumPaidBookingOrdersForPg(@Param("pgId") UUID pgId,
+                                         @Param("from") Instant from, @Param("to") Instant to);
 }

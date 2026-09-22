@@ -45,7 +45,7 @@ public class Booking extends BaseEntity {
     private Pg pg;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(nullable = false, length = 32)
     private BookingStatus status = BookingStatus.CONFIRMED;
 
     @Column(name = "move_in_date", nullable = false)
@@ -54,6 +54,10 @@ public class Booking extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "booking_type", nullable = false, length = 20)
     private BookingType bookingType = BookingType.MONTHLY;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_channel", nullable = false, length = 20)
+    private BookingPaymentChannel paymentChannel = BookingPaymentChannel.UNSELECTED;
 
     @Column(name = "check_out_date")
     private LocalDate checkOutDate;

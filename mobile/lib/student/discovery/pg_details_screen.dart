@@ -18,7 +18,10 @@ import '../../shared/api_client.dart';
 import '../booking/booking_repository.dart';
 import '../booking/booking_models.dart';
 import '../payment/payment_repository.dart';
+import '../payment/payment_choice_sheet.dart';
 import '../payment/razorpay_checkout.dart';
+import '../profile/customer_profile_repository.dart';
+import '../profile/customer_profile_models.dart';
 import 'discovery_models.dart';
 import 'discovery_repository.dart';
 
@@ -40,6 +43,7 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
   final _repository = DiscoveryRepository();
   final _bookingRepository = BookingRepository();
   final _paymentRepository = PaymentRepository();
+  final _profileRepository = CustomerProfileRepository();
   late final RazorpayCheckout _checkout;
   late Future<PgDetails> _future;
   late final AuthState _auth;
@@ -224,26 +228,41 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
               'Beds are booked from a customer account. Sign in with Google or your mobile number to book.')));
       return;
     }
-    var bookingType = bed.bookingMode == 'DAY_WISE' ? BookingType.dayWise : BookingType.monthly;
+    var bookingType = bed.bookingMode == 'DAY_WISE'
+        ? BookingType.dayWise
+        : BookingType.monthly;
     if (bed.bookingMode == 'FLEXIBLE') {
       final selected = await showModalBottomSheet<BookingType>(
         context: context,
         showDragHandle: true,
-        builder: (context) => SafeArea(child: Padding(
+        builder: (context) => SafeArea(
+            child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Text('How long are you staying?', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 16),
-            ListTile(leading: const Icon(Icons.calendar_month_rounded), title: const Text('Monthly'),
-              subtitle: const Text('28 nights or longer'), onTap: () => Navigator.pop(context, BookingType.monthly)),
-            ListTile(leading: const Icon(Icons.today_rounded), title: const Text('Day-wise'),
-              subtitle: const Text('1 to 27 nights'), onTap: () => Navigator.pop(context, BookingType.dayWise)),
-          ]),
+          child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('How long are you staying?',
+                    style: Theme.of(context).textTheme.titleLarge),
+                const SizedBox(height: 16),
+                ListTile(
+                    leading: const Icon(Icons.calendar_month_rounded),
+                    title: const Text('Monthly'),
+                    subtitle: const Text('28 nights or longer'),
+                    onTap: () => Navigator.pop(context, BookingType.monthly)),
+                ListTile(
+                    leading: const Icon(Icons.today_rounded),
+                    title: const Text('Day-wise'),
+                    subtitle: const Text('1 to 27 nights'),
+                    onTap: () => Navigator.pop(context, BookingType.dayWise)),
+              ]),
         )),
       );
       if (selected == null || !mounted) return;
       bookingType = selected;
     }
+
+    if (!await _ensureBookingEligible(bookingType) || !mounted) return;
 
     final now = DateTime.now();
     final moveInDate = await showDatePicker(
@@ -275,7 +294,7 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
         title: Text('Book ${bed.label}?'),
         content: Text('${bookingType.label} booking\nCheck-in: $formattedDate'
             '${checkOutDate == null ? '' : '\nCheckout: ${DateFormat('d MMM yyyy').format(checkOutDate)}'}'
-            '\n\nA 10-minute bed hold will be created. Complete Razorpay payment to confirm it.'),
+            '\n\nA temporary bed hold will be created. Choose secure online payment or pay the owner directly.'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context, false),
@@ -288,6 +307,9 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
     );
     if (confirmed != true || !mounted) return;
 
+    final paymentChoice = await showBookingPaymentChoice(context);
+    if (paymentChoice == null || !mounted) return;
+
     setState(() => _booking = true);
     try {
       final booking = await _bookingRepository.book(
@@ -296,8 +318,27 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
         moveInDate: moveInDate,
         checkOutDate: checkOutDate,
       );
-      final order = await _paymentRepository.createBookingOrder(booking.id);
-      await _checkout.pay(order, description: '${bookingType.label} booking at ${booking.pgName}');
+      if (!mounted) return;
+      if (paymentChoice == BookingPaymentChoice.online) {
+        final order = await _paymentRepository.createBookingOrder(booking.id);
+        await _checkout.pay(order,
+            description: '${bookingType.label} booking at ${booking.pgName}');
+      } else {
+        setState(() => _booking = false);
+        final informed = await context.push<bool>(
+            '/student/bookings/${booking.id}/direct-payment?select=true');
+        if (!mounted) return;
+        if (informed == true) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                  'Payment sent for owner verification. The bed is not allocated until approval.'),
+            ),
+          );
+        }
+        _reload();
+        return;
+      }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -316,9 +357,48 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(e.toString().replaceFirst('Exception: ', ''))));
       }
+    } finally {
+      if (mounted) setState(() => _booking = false);
+    }
+  }
+
+  Future<bool> _ensureBookingEligible(BookingType bookingType) async {
+    setState(() => _booking = true);
+    try {
+      var eligibility = await _profileRepository.eligibility(bookingType);
+      if (!mounted) return false;
+      if (eligibility.eligible) return true;
+
+      setState(() => _booking = false);
+      final completed = await context.push<bool>(
+        Uri(
+          path: '/student/profile',
+          queryParameters: {'requiredFor': bookingType.apiValue},
+        ).toString(),
+      );
+      if (completed != true || !mounted) return false;
+
+      eligibility = await _profileRepository.eligibility(bookingType);
+      if (eligibility.eligible) return true;
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(eligibility.missingRequirements
+                .map((requirement) => requirement.label)
+                .join(' · ')),
+          ),
+        );
+      }
+      return false;
+    } on ApiException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(error.message)));
+      }
+      return false;
     } finally {
       if (mounted) setState(() => _booking = false);
     }

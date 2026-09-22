@@ -4,11 +4,16 @@ import com.pgplatform.billing.FeeRepository;
 import com.pgplatform.complaint.ComplaintRepository;
 import com.pgplatform.expense.ExpenseRepository;
 import com.pgplatform.owner.dto.DashboardSummaryResponse;
+import com.pgplatform.payment.DirectPaymentRequestRepository;
+import com.pgplatform.payment.PaymentOrderRepository;
 import com.pgplatform.student.StudentRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.math.BigDecimal;
 import java.util.UUID;
 
 /**
@@ -20,6 +25,8 @@ import java.util.UUID;
 @Service
 public class DashboardService {
 
+    private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Kolkata");
+
     private final PgRepository pgRepository;
     private final FloorRepository floorRepository;
     private final RoomRepository roomRepository;
@@ -29,11 +36,15 @@ public class DashboardService {
     private final ExpenseRepository expenseRepository;
     private final ComplaintRepository complaintRepository;
     private final PgService pgService;
+    private final DirectPaymentRequestRepository directPaymentRepository;
+    private final PaymentOrderRepository paymentOrderRepository;
 
     public DashboardService(PgRepository pgRepository, FloorRepository floorRepository, RoomRepository roomRepository,
                              BedRepository bedRepository, StudentRepository studentRepository,
                              FeeRepository feeRepository, ExpenseRepository expenseRepository,
-                             ComplaintRepository complaintRepository, PgService pgService) {
+                             ComplaintRepository complaintRepository, PgService pgService,
+                             DirectPaymentRequestRepository directPaymentRepository,
+                             PaymentOrderRepository paymentOrderRepository) {
         this.pgRepository = pgRepository;
         this.floorRepository = floorRepository;
         this.roomRepository = roomRepository;
@@ -43,12 +54,19 @@ public class DashboardService {
         this.expenseRepository = expenseRepository;
         this.complaintRepository = complaintRepository;
         this.pgService = pgService;
+        this.directPaymentRepository = directPaymentRepository;
+        this.paymentOrderRepository = paymentOrderRepository;
     }
 
     @Transactional(readOnly = true)
     public DashboardSummaryResponse forOwner(UUID ownerId) {
         LocalDate monthStart = LocalDate.now().withDayOfMonth(1);
         LocalDate today = LocalDate.now();
+        Instant from = monthStart.atStartOfDay(BUSINESS_ZONE).toInstant();
+        Instant to = today.plusDays(1).atStartOfDay(BUSINESS_ZONE).toInstant();
+        BigDecimal collected = feeRepository.sumCollectedByOwnerIdBetween(ownerId, monthStart, today)
+                .add(paymentOrderRepository.sumPaidBookingOrdersForOwner(ownerId, from, to))
+                .add(directPaymentRepository.sumApprovedForOwner(ownerId, from, to));
 
         return DashboardSummaryResponse.of(
                 pgRepository.countByOwnerIdAndDeletedAtIsNull(ownerId),
@@ -59,7 +77,7 @@ public class DashboardService {
                 bedRepository.countByOwnerIdAndStatus(ownerId, BedStatus.MAINTENANCE),
                 studentRepository.countActiveByOwnerId(ownerId),
                 feeRepository.sumPendingDuesByOwnerId(ownerId),
-                feeRepository.sumCollectedByOwnerIdBetween(ownerId, monthStart, today),
+                collected,
                 expenseRepository.sumByOwnerIdBetween(ownerId, monthStart, today),
                 complaintRepository.countOpenByOwnerId(ownerId)
         );
@@ -70,6 +88,11 @@ public class DashboardService {
         pgService.requireOwnedPg(pgId, ownerId);
         LocalDate monthStart = LocalDate.now().withDayOfMonth(1);
         LocalDate today = LocalDate.now();
+        Instant from = monthStart.atStartOfDay(BUSINESS_ZONE).toInstant();
+        Instant to = today.plusDays(1).atStartOfDay(BUSINESS_ZONE).toInstant();
+        BigDecimal collected = feeRepository.sumCollectedByPgIdBetween(pgId, monthStart, today)
+                .add(paymentOrderRepository.sumPaidBookingOrdersForPg(pgId, from, to))
+                .add(directPaymentRepository.sumApprovedForPg(pgId, from, to));
 
         return DashboardSummaryResponse.of(
                 1,
@@ -80,7 +103,7 @@ public class DashboardService {
                 bedRepository.countByPgIdAndStatus(pgId, BedStatus.MAINTENANCE),
                 studentRepository.countActiveByPgId(pgId),
                 feeRepository.sumPendingDuesByPgId(pgId),
-                feeRepository.sumCollectedByPgIdBetween(pgId, monthStart, today),
+                collected,
                 expenseRepository.sumByPgIdBetween(pgId, monthStart, today),
                 complaintRepository.countOpenByPgId(pgId)
         );

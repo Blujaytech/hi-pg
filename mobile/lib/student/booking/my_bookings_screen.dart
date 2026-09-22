@@ -8,6 +8,7 @@ import '../../shared/app_states.dart';
 import 'booking_models.dart';
 import 'booking_repository.dart';
 import '../payment/payment_repository.dart';
+import '../payment/payment_choice_sheet.dart';
 import '../payment/razorpay_checkout.dart';
 
 class MyBookingsScreen extends StatefulWidget {
@@ -132,32 +133,64 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
     );
     if (selected == null) return;
     try {
-      final updated = await _repository.submitMoveOutNotice(booking.id, selected);
+      final updated =
+          await _repository.submitMoveOutNotice(booking.id, selected);
       if (mounted) {
         _reload();
         final message = updated.noticeShortfallDays > 0
             ? 'Notice submitted. It is ${updated.noticeShortfallDays} day(s) shorter than the PG policy.'
             : 'Move-out notice submitted.';
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(message)));
       }
     } on ApiException catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.message)));
       }
     }
   }
 
-  Future<void> _payBooking(Booking booking) async {
+  Future<void> _completePayment(Booking booking) async {
     try {
+      if (booking.status == BookingStatus.directPaymentReview ||
+          booking.paymentChannel == BookingPaymentChannel.directUpi) {
+        await context
+            .push<bool>('/student/bookings/${booking.id}/direct-payment');
+        if (mounted) _reload();
+        return;
+      }
+
+      var choice = BookingPaymentChoice.online;
+      if (booking.paymentChannel == BookingPaymentChannel.unselected) {
+        final selected = await showBookingPaymentChoice(
+          context,
+          propertyName: booking.pgName,
+        );
+        if (selected == null || !mounted) return;
+        choice = selected;
+      }
+
+      if (choice == BookingPaymentChoice.directOwner) {
+        await context.push<bool>(
+            '/student/bookings/${booking.id}/direct-payment?select=true');
+        if (mounted) _reload();
+        return;
+      }
+
       final order = await _paymentRepository.createBookingOrder(booking.id);
-      await _checkout.pay(order, description: '${booking.bookingType.label} booking at ${booking.pgName}');
+      await _checkout.pay(order,
+          description:
+              '${booking.bookingType.label} booking at ${booking.pgName}');
       if (mounted) {
         _reload();
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Booking confirmed.')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Booking confirmed.')));
       }
     } on ApiException catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.message)));
       }
     } catch (e) {
       if (mounted) {
@@ -198,9 +231,11 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
           }
 
           final activeCount = bookings
-              .where((booking) => booking.status == BookingStatus.paymentPending
-                  || booking.status == BookingStatus.confirmed
-                  || booking.status == BookingStatus.checkedIn)
+              .where((booking) =>
+                  booking.status == BookingStatus.paymentPending ||
+                  booking.status == BookingStatus.directPaymentReview ||
+                  booking.status == BookingStatus.confirmed ||
+                  booking.status == BookingStatus.checkedIn)
               .length;
           return RefreshIndicator(
             onRefresh: _refresh,
@@ -219,18 +254,19 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
                 final booking = bookings[index - 1];
                 return _BookingCard(
                   booking: booking,
-                  onCancel: booking.status == BookingStatus.paymentPending
-                          || booking.status == BookingStatus.confirmed
-                          || booking.status == BookingStatus.checkedIn
+                  onCancel: booking.status == BookingStatus.paymentPending ||
+                          booking.status == BookingStatus.confirmed ||
+                          booking.status == BookingStatus.checkedIn
                       ? () => _confirmCancel(booking)
                       : null,
-                  onNotice: booking.bookingType == BookingType.monthly
-                          && (booking.status == BookingStatus.confirmed
-                              || booking.status == BookingStatus.checkedIn)
+                  onNotice: booking.bookingType == BookingType.monthly &&
+                          (booking.status == BookingStatus.confirmed ||
+                              booking.status == BookingStatus.checkedIn)
                       ? () => _submitMoveOutNotice(booking)
                       : null,
-                  onPay: booking.status == BookingStatus.paymentPending
-                      ? () => _payBooking(booking)
+                  onPay: booking.status == BookingStatus.paymentPending ||
+                          booking.status == BookingStatus.directPaymentReview
+                      ? () => _completePayment(booking)
                       : null,
                 );
               },
@@ -300,13 +336,15 @@ class _BookingCard extends StatelessWidget {
   final VoidCallback? onNotice;
   final VoidCallback? onPay;
 
-  const _BookingCard({required this.booking, this.onCancel, this.onNotice, this.onPay});
+  const _BookingCard(
+      {required this.booking, this.onCancel, this.onNotice, this.onPay});
 
   @override
   Widget build(BuildContext context) {
-    final active = booking.status == BookingStatus.paymentPending
-        || booking.status == BookingStatus.confirmed
-        || booking.status == BookingStatus.checkedIn;
+    final active = booking.status == BookingStatus.paymentPending ||
+        booking.status == BookingStatus.directPaymentReview ||
+        booking.status == BookingStatus.confirmed ||
+        booking.status == BookingStatus.checkedIn;
     final typeColor = booking.bookingType == BookingType.monthly
         ? const Color(0xFF7B61FF)
         : const Color(0xFF2F80ED);
@@ -347,9 +385,12 @@ class _BookingCard extends StatelessWidget {
                 ),
                 StatusPill(
                   label: booking.status.label,
-                  tone: booking.status == BookingStatus.paymentPending
+                  tone: booking.status == BookingStatus.paymentPending ||
+                          booking.status == BookingStatus.directPaymentReview
                       ? StatusTone.warning
-                      : active ? StatusTone.success : StatusTone.neutral,
+                      : active
+                          ? StatusTone.success
+                          : StatusTone.neutral,
                   dot: active,
                 ),
               ],
@@ -372,7 +413,13 @@ class _BookingCard extends StatelessWidget {
               FilledButton.icon(
                 onPressed: onPay,
                 icon: const Icon(Icons.account_balance_wallet_outlined),
-                label: const Text('Complete payment'),
+                label: Text(
+                  booking.status == BookingStatus.directPaymentReview ||
+                          booking.paymentChannel ==
+                              BookingPaymentChannel.directUpi
+                      ? 'View owner verification'
+                      : 'Complete payment',
+                ),
               ),
             ],
             const SizedBox(height: 14),
@@ -411,7 +458,8 @@ class _BookingCard extends StatelessWidget {
                 style: OutlinedButton.styleFrom(
                   minimumSize: const Size(0, 46),
                   foregroundColor: AppColors.danger,
-                  side: const BorderSide(color: AppColors.dangerSoft, width: 1.4),
+                  side:
+                      const BorderSide(color: AppColors.dangerSoft, width: 1.4),
                 ),
                 icon: const Icon(Icons.close_rounded, size: 18),
                 label: const Text('Cancel booking'),

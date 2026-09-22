@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/api_exception.dart';
 import '../../core/theme.dart';
 import '../../shared/app_states.dart';
+import '../../shared/direct_payment/direct_payment_models.dart';
 import 'dashboard_models.dart';
 import 'dashboard_repository.dart';
+import '../direct_payment/direct_payment_repository.dart';
 
 final _money = NumberFormat.currency(
   locale: 'en_IN',
@@ -25,20 +28,35 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   final _repository = DashboardRepository();
+  final _directPaymentRepository = OwnerDirectPaymentRepository();
   late Future<DashboardSummary> _future;
+  late Future<int> _pendingDirectPayments;
 
   @override
   void initState() {
     super.initState();
     _future = _repository.forOwner();
+    _pendingDirectPayments = _loadPendingDirectPayments();
   }
 
-  void _reload() => setState(() => _future = _repository.forOwner());
+  Future<int> _loadPendingDirectPayments() async {
+    final results = await Future.wait([
+      _directPaymentRepository.list(),
+      _directPaymentRepository.list(
+          status: DirectPaymentRequestStatus.reviewOverdue),
+    ]);
+    return results[0].length + results[1].length;
+  }
+
+  void _reload() => setState(() {
+        _future = _repository.forOwner();
+        _pendingDirectPayments = _loadPendingDirectPayments();
+      });
 
   Future<void> _refresh() async {
     _reload();
     try {
-      await _future;
+      await Future.wait([_future, _pendingDirectPayments]);
     } catch (_) {
       // The FutureBuilder renders the error state.
     }
@@ -68,6 +86,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
               padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
               children: [
                 _OccupancyHero(summary: summary),
+                const SizedBox(height: 16),
+                FutureBuilder<int>(
+                  future: _pendingDirectPayments,
+                  builder: (context, pendingSnapshot) =>
+                      _DirectPaymentReviewCard(
+                    pending: pendingSnapshot.data,
+                    loading: pendingSnapshot.connectionState ==
+                        ConnectionState.waiting,
+                    onTap: () => context.push('/owner/payment-requests'),
+                  ),
+                ),
                 const SizedBox(height: 28),
                 const SectionHeader(title: 'This month'),
                 const SizedBox(height: 12),
@@ -132,6 +161,67 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+class _DirectPaymentReviewCard extends StatelessWidget {
+  final int? pending;
+  final bool loading;
+  final VoidCallback onTap;
+
+  const _DirectPaymentReviewCard({
+    required this.pending,
+    required this.loading,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final count = pending ?? 0;
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(17),
+          child: Row(
+            children: [
+              IconTile(
+                icon: Icons.verified_user_outlined,
+                size: 46,
+                color: count > 0 ? AppColors.warning : AppColors.success,
+                background:
+                    count > 0 ? AppColors.warningSoft : AppColors.successSoft,
+              ),
+              const SizedBox(width: 13),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Direct payment reviews',
+                        style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: 3),
+                    Text(
+                      loading
+                          ? 'Checking for new requests...'
+                          : count == 0
+                              ? 'No payments awaiting verification'
+                              : '$count ${count == 1 ? 'payment needs' : 'payments need'} verification',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+              if (!loading && count > 0)
+                StatusPill(label: '$count pending', tone: StatusTone.warning)
+              else
+                const Icon(Icons.chevron_right_rounded,
+                    color: AppColors.subtle),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -319,12 +409,21 @@ class _MetricTile extends StatelessWidget {
     final (iconColor, iconBackground, valueColor) = switch (tone) {
       StatusTone.neutral => (AppColors.ink, AppColors.fill, AppColors.ink),
       StatusTone.dark => (Colors.white, AppColors.ink, AppColors.ink),
-      StatusTone.success =>
-        (AppColors.success, AppColors.successSoft, AppColors.ink),
-      StatusTone.warning =>
-        (AppColors.warning, AppColors.warningSoft, AppColors.warning),
-      StatusTone.danger =>
-        (AppColors.danger, AppColors.dangerSoft, AppColors.danger),
+      StatusTone.success => (
+          AppColors.success,
+          AppColors.successSoft,
+          AppColors.ink
+        ),
+      StatusTone.warning => (
+          AppColors.warning,
+          AppColors.warningSoft,
+          AppColors.warning
+        ),
+      StatusTone.danger => (
+          AppColors.danger,
+          AppColors.dangerSoft,
+          AppColors.danger
+        ),
     };
     return Container(
       padding: const EdgeInsets.all(16),

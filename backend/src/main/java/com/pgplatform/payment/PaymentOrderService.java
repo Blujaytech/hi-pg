@@ -28,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.UUID;
 
@@ -107,13 +108,9 @@ public class PaymentOrderService {
             return response(existing);
         }
 
-        Booking booking = bookingService.requireBooking(bookingId);
-        if (booking.getStudent().getUser() == null || !booking.getStudent().getUser().getId().equals(userId)) {
-            throw new ForbiddenException("This booking does not belong to you");
-        }
-        if (booking.getStatus() != BookingStatus.PAYMENT_PENDING) {
-            throw new ConflictException("This booking is not awaiting payment");
-        }
+        // The booking row lock makes RAZORPAY and DIRECT_UPI mutually exclusive,
+        // even when the two buttons are tapped concurrently on different devices.
+        Booking booking = bookingService.claimOnlinePaymentChannel(bookingId, userId);
         PaymentOrder openBookingOrder = paymentOrderRepository
                 .findFirstByBookingIdAndStatusInAndDeletedAtIsNullOrderByCreatedAtDesc(bookingId,
                         java.util.List.of(PaymentOrderStatus.CREATED, PaymentOrderStatus.PAID))
@@ -192,6 +189,7 @@ public class PaymentOrderService {
         order.setFee(fee);
         order.setPurpose(PaymentPurpose.AUTOPAY);
         order.setStatus(PaymentOrderStatus.PAID);
+        order.setPaidAt(Instant.now());
         order.setRazorpayPaymentId(razorpayPaymentId);
         order = paymentOrderRepository.save(order);
 
@@ -250,6 +248,7 @@ public class PaymentOrderService {
         }
 
         order.setStatus(PaymentOrderStatus.PAID);
+        if (order.getPaidAt() == null) order.setPaidAt(Instant.now());
         order.setFailureReason(null);
         paymentOrderRepository.save(order);
         createOwnerTransfer(order);

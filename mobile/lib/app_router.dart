@@ -10,6 +10,8 @@ import 'auth/splash_screen.dart';
 import 'auth/student_otp_screen.dart';
 import 'owner/complaint/complaint_list_screen.dart';
 import 'owner/dashboard/dashboard_screen.dart';
+import 'owner/direct_payment/direct_payment_requests_screen.dart';
+import 'owner/direct_payment/direct_payment_settings_screen.dart';
 import 'owner/expense/expense_list_screen.dart';
 import 'owner/fee/fee_list_screen.dart';
 import 'owner/floor/floor_list_screen.dart';
@@ -25,10 +27,13 @@ import 'owner/student/student_list_screen.dart';
 import 'shared/account/account_screen.dart';
 import 'shared/app_shell.dart';
 import 'student/booking/my_bookings_screen.dart';
+import 'student/booking/booking_models.dart';
 import 'student/complaint/my_complaints_screen.dart';
 import 'student/discovery/pg_details_screen.dart';
 import 'student/discovery/pg_search_screen.dart';
 import 'student/fee/my_fees_screen.dart';
+import 'student/payment/direct_owner_payment_screen.dart';
+import 'student/profile/customer_profile_screen.dart';
 import 'student/student_home_screen.dart';
 
 const _ownerTabs = [
@@ -265,6 +270,24 @@ GoRouter buildRouter(AuthState authState) {
           studentName: state.extra as String?,
         ),
       ),
+      GoRoute(
+        path: '/owner/payment-requests',
+        builder: (context, state) => const DirectPaymentRequestsScreen(),
+      ),
+      GoRoute(
+        path: '/owner/pgs/:pgId/payment-requests',
+        builder: (context, state) => DirectPaymentRequestsScreen(
+          pgId: state.pathParameters['pgId']!,
+          pg: state.extra as Pg?,
+        ),
+      ),
+      GoRoute(
+        path: '/owner/pgs/:pgId/direct-payment-settings',
+        builder: (context, state) => DirectPaymentSettingsScreen(
+          pgId: state.pathParameters['pgId']!,
+          pg: state.extra as Pg?,
+        ),
+      ),
 
       // Student mode: bottom tabs.
       StatefulShellRoute.indexedStack(
@@ -307,6 +330,26 @@ GoRouter buildRouter(AuthState authState) {
       GoRoute(
           path: '/student/complaints',
           builder: (context, state) => const MyComplaintsScreen()),
+      GoRoute(
+        path: '/student/profile',
+        builder: (context, state) {
+          final requiredFor = state.uri.queryParameters['requiredFor'];
+          return CustomerProfileScreen(
+            requiredFor: requiredFor == 'MONTHLY'
+                ? BookingType.monthly
+                : requiredFor == 'DAY_WISE'
+                    ? BookingType.dayWise
+                    : null,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/student/bookings/:bookingId/direct-payment',
+        builder: (context, state) => DirectOwnerPaymentScreen(
+          bookingId: state.pathParameters['bookingId']!,
+          selectBeforeLoad: state.uri.queryParameters['select'] == 'true',
+        ),
+      ),
     ],
   );
 }

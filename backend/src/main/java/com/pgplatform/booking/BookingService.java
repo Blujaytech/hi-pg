@@ -20,6 +20,7 @@ import com.pgplatform.owner.Room;
 import com.pgplatform.owner.RoomBookingMode;
 import com.pgplatform.owner.RoomService;
 import com.pgplatform.student.Student;
+import com.pgplatform.student.CustomerProfileService;
 import com.pgplatform.student.StudentRepository;
 import com.pgplatform.student.StudentStatus;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -48,11 +49,13 @@ public class BookingService {
     private final RoomService roomService;
     private final BedAvailabilityBroadcaster broadcaster;
     private final NotificationService notificationService;
+    private final CustomerProfileService customerProfileService;
 
     public BookingService(BookingRepository bookingRepository, BedRepository bedRepository,
                           StudentRepository studentRepository, UserRepository userRepository,
                           RoomService roomService, BedAvailabilityBroadcaster broadcaster,
-                          NotificationService notificationService) {
+                          NotificationService notificationService,
+                          CustomerProfileService customerProfileService) {
         this.bookingRepository = bookingRepository;
         this.bedRepository = bedRepository;
         this.studentRepository = studentRepository;
@@ -60,6 +63,7 @@ public class BookingService {
         this.roomService = roomService;
         this.broadcaster = broadcaster;
         this.notificationService = notificationService;
+        this.customerProfileService = customerProfileService;
     }
 
     /**
@@ -68,6 +72,7 @@ public class BookingService {
      */
     @Transactional
     public BookingResponse book(UUID userId, BookingCreateRequest request) {
+        customerProfileService.requireEligible(userId, request.bookingType());
         expirePaymentHoldsInternal(Instant.now());
 
         Bed bed = bedRepository.findByIdForUpdate(request.bedId())
@@ -104,6 +109,7 @@ public class BookingService {
         booking.setPg(pg);
         booking.setStatus(BookingStatus.PAYMENT_PENDING);
         booking.setBookingType(request.bookingType());
+        booking.setPaymentChannel(BookingPaymentChannel.UNSELECTED);
         booking.setMoveInDate(request.checkInDate());
         booking.setCheckOutDate(request.checkOutDate());
         booking.setRentAmount(rent);
@@ -118,14 +124,35 @@ public class BookingService {
 
     @Transactional
     public Booking confirmAfterCapturedPayment(UUID bookingId) {
-        Booking booking = requireBooking(bookingId);
+        return confirmAfterPayment(bookingId, BookingPaymentChannel.RAZORPAY);
+    }
+
+    @Transactional
+    public Booking confirmAfterDirectPayment(UUID bookingId) {
+        return confirmAfterPayment(bookingId, BookingPaymentChannel.DIRECT_UPI);
+    }
+
+    private Booking confirmAfterPayment(UUID bookingId, BookingPaymentChannel expectedChannel) {
+        Booking booking = requireBookingForUpdate(bookingId);
         if (booking.getStatus() == BookingStatus.CONFIRMED || booking.getStatus() == BookingStatus.CHECKED_IN) {
+            if (booking.getPaymentChannel() != expectedChannel) {
+                throw new ConflictException("This booking was confirmed through another payment channel");
+            }
             return booking;
         }
-        if (booking.getStatus() != BookingStatus.PAYMENT_PENDING) {
+        BookingStatus expectedStatus = expectedChannel == BookingPaymentChannel.DIRECT_UPI
+                ? BookingStatus.DIRECT_PAYMENT_REVIEW : BookingStatus.PAYMENT_PENDING;
+        if (booking.getStatus() != expectedStatus) {
             throw new ConflictException("This booking can no longer be confirmed");
         }
-        if (booking.getPaymentExpiresAt() != null && booking.getPaymentExpiresAt().isBefore(Instant.now())) {
+        if (booking.getPaymentChannel() == BookingPaymentChannel.UNSELECTED) {
+            booking.setPaymentChannel(expectedChannel);
+        } else if (booking.getPaymentChannel() != expectedChannel) {
+            throw new ConflictException("This booking is using another payment channel");
+        }
+        if (expectedChannel == BookingPaymentChannel.RAZORPAY
+                && booking.getPaymentExpiresAt() != null
+                && booking.getPaymentExpiresAt().isBefore(Instant.now())) {
             booking.setStatus(BookingStatus.EXPIRED);
             bookingRepository.save(booking);
             throw new ConflictException("The booking hold expired before payment confirmation");
@@ -156,6 +183,67 @@ public class BookingService {
                         ". Check-in: " + booking.getMoveInDate() + ".");
         notificationService.notifyUser(booking.getPg().getOwner().getId(), "New paid booking",
                 student.getFullName() + " booked " + bed.getLabel() + " at " + booking.getPg().getName() + ".");
+        return booking;
+    }
+
+    @Transactional
+    public Booking claimOnlinePaymentChannel(UUID bookingId, UUID userId) {
+        Booking booking = requireOwnedBookingForUpdate(bookingId, userId);
+        requireLivePaymentHold(booking);
+        if (booking.getPaymentChannel() == BookingPaymentChannel.DIRECT_UPI) {
+            throw new ConflictException("Direct owner payment is already selected for this booking");
+        }
+        if (booking.getPaymentChannel() == BookingPaymentChannel.UNSELECTED) {
+            booking.setPaymentChannel(BookingPaymentChannel.RAZORPAY);
+            bookingRepository.save(booking);
+        }
+        return booking;
+    }
+
+    @Transactional
+    public Booking claimDirectPaymentReview(UUID bookingId, UUID userId) {
+        Booking booking = requireOwnedBookingForUpdate(bookingId, userId);
+        requireLivePaymentHold(booking);
+        if (booking.getPaymentChannel() != BookingPaymentChannel.DIRECT_UPI) {
+            throw new ConflictException("Select direct owner payment before submitting a payment reference");
+        }
+        booking.setStatus(BookingStatus.DIRECT_PAYMENT_REVIEW);
+        booking.setPaymentExpiresAt(null);
+        return bookingRepository.save(booking);
+    }
+
+    @Transactional
+    public Booking claimDirectPaymentChannel(UUID bookingId, UUID userId) {
+        Booking booking = requireOwnedBookingForUpdate(bookingId, userId);
+        requireLivePaymentHold(booking);
+        if (booking.getPaymentChannel() == BookingPaymentChannel.RAZORPAY) {
+            throw new ConflictException("Online payment is already selected for this booking");
+        }
+        if (booking.getPaymentChannel() == BookingPaymentChannel.UNSELECTED) {
+            booking.setPaymentChannel(BookingPaymentChannel.DIRECT_UPI);
+            bookingRepository.save(booking);
+        }
+        return booking;
+    }
+
+    @Transactional
+    public Booking rejectDirectPayment(UUID bookingId, UUID ownerId, String reason) {
+        Booking booking = requireBookingForUpdate(bookingId);
+        if (!booking.getPg().getOwner().getId().equals(ownerId)) {
+            throw new ForbiddenException("You do not have access to this booking");
+        }
+        if (booking.getStatus() != BookingStatus.DIRECT_PAYMENT_REVIEW
+                || booking.getPaymentChannel() != BookingPaymentChannel.DIRECT_UPI) {
+            throw new ConflictException("This booking is not awaiting direct-payment review");
+        }
+        booking.setStatus(BookingStatus.CANCELLED);
+        booking.setCancelledAt(Instant.now());
+        booking.setCancellationReason(reason);
+        booking = bookingRepository.save(booking);
+        broadcaster.notifyChanged(booking.getPg().getId());
+        notificationService.notifyUser(booking.getStudent().getUser() == null ? null
+                        : booking.getStudent().getUser().getId(),
+                "Direct payment not approved", reason);
         return booking;
     }
 
@@ -209,10 +297,13 @@ public class BookingService {
 
     @Transactional
     public BookingResponse cancel(UUID bookingId, UUID userId, String reason) {
-        Booking booking = requireOwnedByUser(bookingId, userId);
+        Booking booking = requireOwnedBookingForUpdate(bookingId, userId);
         if (booking.getStatus() == BookingStatus.CANCELLED || booking.getStatus() == BookingStatus.EXPIRED
                 || booking.getStatus() == BookingStatus.COMPLETED) {
             throw new ConflictException("This booking is no longer active");
+        }
+        if (booking.getStatus() == BookingStatus.DIRECT_PAYMENT_REVIEW) {
+            throw new ConflictException("A claimed direct payment must be reviewed by the owner before cancellation");
         }
 
         Bed bed = bedRepository.findByIdForUpdate(booking.getBed().getId())
@@ -266,11 +357,16 @@ public class BookingService {
     private void expirePaymentHoldsInternal(Instant now) {
         List<Booking> expired = bookingRepository
                 .findAllByStatusAndPaymentExpiresAtBeforeAndDeletedAtIsNull(BookingStatus.PAYMENT_PENDING, now);
-        expired.forEach(booking -> {
-            booking.setStatus(BookingStatus.EXPIRED);
-            bookingRepository.save(booking);
-            broadcaster.notifyChanged(booking.getPg().getId());
-        });
+        expired.forEach(candidate -> expirePaymentHold(candidate.getId(), now));
+    }
+
+    private void expirePaymentHold(UUID bookingId, Instant now) {
+        Booking booking = bookingRepository.findByIdForUpdate(bookingId).orElse(null);
+        if (booking == null || booking.getStatus() != BookingStatus.PAYMENT_PENDING
+                || booking.getPaymentExpiresAt() == null || !booking.getPaymentExpiresAt().isBefore(now)) return;
+        booking.setStatus(BookingStatus.EXPIRED);
+        bookingRepository.save(booking);
+        broadcaster.notifyChanged(booking.getPg().getId());
     }
 
     private void completeStay(Booking booking) {
@@ -369,6 +465,29 @@ public class BookingService {
             throw new ForbiddenException("This booking does not belong to you");
         }
         return booking;
+    }
+
+    public Booking requireOwnedBooking(UUID bookingId, UUID userId) {
+        return requireOwnedByUser(bookingId, userId);
+    }
+
+    public Booking requireOwnedBookingForUpdate(UUID bookingId, UUID userId) {
+        Booking booking = requireBookingForUpdate(bookingId);
+        if (booking.getStudent().getUser() == null || !booking.getStudent().getUser().getId().equals(userId)) {
+            throw new ForbiddenException("This booking does not belong to you");
+        }
+        return booking;
+    }
+
+    private void requireLivePaymentHold(Booking booking) {
+        if (booking.getStatus() != BookingStatus.PAYMENT_PENDING) {
+            throw new ConflictException("This booking is not awaiting payment");
+        }
+        if (booking.getPaymentExpiresAt() != null && booking.getPaymentExpiresAt().isBefore(Instant.now())) {
+            booking.setStatus(BookingStatus.EXPIRED);
+            bookingRepository.save(booking);
+            throw new ConflictException("The booking payment hold has expired");
+        }
     }
 
     public Booking requireBooking(UUID bookingId) {

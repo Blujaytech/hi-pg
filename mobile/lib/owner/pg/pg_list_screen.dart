@@ -490,6 +490,12 @@ class _PropertyCard extends StatelessWidget {
                   label: 'Expenses',
                   onTap: () => onOpen('expenses'),
                 ),
+                const VerticalDivider(width: 1),
+                _CardAction(
+                  icon: Icons.account_balance_wallet_outlined,
+                  label: 'Payments',
+                  onTap: () => onOpen('direct-payment-settings'),
+                ),
               ],
             ),
           ),

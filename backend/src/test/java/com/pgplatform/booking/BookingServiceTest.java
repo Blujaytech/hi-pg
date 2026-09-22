@@ -65,7 +65,9 @@ class BookingServiceTest extends AbstractIntegrationTest {
         user.setRole(Role.STUDENT);
         user.setProvider(AuthProviderType.LOCAL);
         user.setPhoneVerified(true);
-        return userRepository.save(user).getId();
+        UUID userId = userRepository.save(user).getId();
+        completeMonthlyCustomerProfile(userId);
+        return userId;
     }
 
     private void setUpOwnerAndPg() {

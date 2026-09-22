@@ -60,6 +60,12 @@ class AccountScreen extends StatelessWidget {
             const _GroupLabel('Your stay'),
             _LinkGroup(children: [
               _LinkTile(
+                icon: Icons.badge_outlined,
+                title: 'Profile & verification',
+                subtitle: 'Booking details, mobile and government ID',
+                onTap: () => context.push('/student/profile'),
+              ),
+              _LinkTile(
                 icon: Icons.event_available_outlined,
                 title: 'My bookings',
                 subtitle: 'Current and past stays',

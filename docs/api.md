@@ -310,3 +310,49 @@ This section supersedes the older Phase 11/12 instant-booking and stub-payment d
 - `/webhooks/razorpay` verifies the raw-body HMAC. Malformed JSON returns 400; processing failures become 5xx for gateway retry. Payment, subscription, transfer/refund, and deposit refund processing is idempotent.
 
 Razorpay calls return 501 when API credentials are absent. KYC file operations use the private S3-compatible gateway when `S3_ENABLED=true`; with storage disabled they return 501, and metadata is never saved when byte storage fails. Downloads are exposed only through short-lived signed URLs.
+
+## Customer profiles and direct-owner UPI (current contract)
+
+All endpoints below require the role shown in the path. They use the authenticated principal; clients never submit an owner or customer user id.
+
+### Customer profile and eligibility
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/student/profile` | Returns the customer's profile, verified-phone state, versioned legal acceptances, identity type, and identity last four characters. |
+| PUT | `/student/profile` | `{fullName, occupation, permanentAddress?, identityType?, identityLast4?, acceptTerms, acceptPrivacy, acceptAadhaarConsent}`. `identityLast4` is exactly four characters; a full Aadhaar number is rejected. Aadhaar consent is separate and required only when `identityType=AADHAAR`. |
+| POST | `/student/profile/phone/otp/request` | `{phone}`; requests verification for the profile mobile number. |
+| POST | `/student/profile/phone/otp/verify` | `{phone, otp}`; verifies that number for the authenticated customer. |
+| GET | `/student/profile/booking-eligibility?bookingType=DAY_WISE\|MONTHLY` | Returns `{bookingType, eligible, missingRequirements}`. |
+
+Both booking types require full name, occupation, verified mobile, current Terms acceptance, and current Privacy Notice acceptance. Monthly bookings additionally require a permanent address, identity type, and four-character identity suffix. Booking creation enforces these rules server-side; the Flutter eligibility screen is not the security boundary.
+
+### Owner direct-payment settings
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/owner/pgs/{pgId}/direct-payment-settings` | Returns `{pgId, enabled, beneficiaryName, upiId, mobileNumber, verified, verifiedAt}`. Unconfigured PGs return a disabled default. |
+| PUT | `/owner/pgs/{pgId}/direct-payment-settings` | `{enabled, beneficiaryName, upiId, mobileNumber}`. Enabling requires the caller to own the PG, an approved PG KYC record, and an OTP-verified owner phone. |
+
+The `verified` field means the platform's owner/KYC/phone prerequisites passed. It does not mean a bank or PSP independently verified the VPA. Direct payment is disabled by default.
+
+### Customer direct-payment flow
+
+| Method | Path | Notes |
+|---|---|---|
+| POST | `/student/bookings/{bookingId}/direct-payment-details` | Atomically selects `DIRECT_UPI` for the payment-pending booking, preventing a competing Razorpay order, and returns a no-store destination snapshot: `{bookingId, ownerName, upiId, maskedMobile, amount, currency, upiUri, paymentHoldExpiresAt}`. |
+| GET | `/student/bookings/{bookingId}/direct-payment-details` | Recovers details only after direct payment was selected; it cannot be used to reveal an owner VPA before selection. |
+| POST | `/student/bookings/{bookingId}/direct-payment-requests` | `{idempotencyKey, transactionReference, paymentConfirmed:true}`. Records the customer's claim and moves the booking to `DIRECT_PAYMENT_REVIEW`; it does not allocate or confirm the bed. |
+| GET | `/student/bookings/{bookingId}/direct-payment-request` | Returns the authenticated customer's current request. `/direct-payment-requests/current` is an equivalent recovery route. |
+
+`transactionReference` must be 6-100 characters containing only letters, digits, `.`, `_`, `/`, or `-`. The booking response exposes `paymentChannel: UNSELECTED|RAZORPAY|DIRECT_UPI`; direct-review bookings use status `DIRECT_PAYMENT_REVIEW`. All destination and amount values shown after selection are immutable request/booking snapshots.
+
+### Owner review
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/owner/direct-payment-requests?pgId=&status=` | Lists only requests belonging to the authenticated owner. Status is `PENDING`, `APPROVED`, `REJECTED`, `REVIEW_OVERDUE`, or `CANCELLED`. |
+| POST | `/owner/direct-payment-requests/{requestId}/approve` | `{amountReceived, idempotencyKey, note?}`. The amount must exactly equal the immutable quoted amount. Approval rechecks ownership, request state, hold, and bed overlap and confirms the booking in the same transaction. |
+| POST | `/owner/direct-payment-requests/{requestId}/reject` | `{idempotencyKey, reason}`. Records an auditable rejection and releases the held booking. |
+
+Customer submission never proves receipt. Only owner approval allocates the bed. Repeated decisions with the same idempotency key are safe, cross-owner access is rejected, and approved direct payments are included in owner dashboard/report collection totals by review time. Because funds bypass Razorpay, gateway reconciliation and automated gateway refunds are unavailable for this channel; production disputes and refunds must follow the operational policy in `direct-owner-payment-and-profile.md`.

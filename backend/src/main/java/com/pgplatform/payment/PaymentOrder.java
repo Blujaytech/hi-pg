@@ -15,6 +15,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 
 /**
  * Tracks one attempt to pay a Fee online via Razorpay (technical plan §6
@@ -77,4 +78,8 @@ public class PaymentOrder extends BaseEntity {
 
     @Column(name = "razorpay_refund_id", unique = true, length = 100)
     private String razorpayRefundId;
+
+    /** Immutable accounting time for a successfully captured order. */
+    @Column(name = "paid_at")
+    private Instant paidAt;
 }

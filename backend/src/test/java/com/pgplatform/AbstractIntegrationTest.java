@@ -9,13 +9,15 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.ActiveProfiles;
 import org.testcontainers.containers.PostgreSQLContainer;
 
+import java.util.UUID;
+
 /** Base for backend integration tests: a real Postgres via Testcontainers, not H2/mocks (see CLAUDE.md). */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
 public abstract class AbstractIntegrationTest {
 
     @Autowired
-    private JdbcTemplate jdbcTemplate;
+    protected JdbcTemplate jdbcTemplate;
 
     /**
      * One database for the complete Maven test JVM. A JUnit {@code @Container}
@@ -53,5 +55,31 @@ public abstract class AbstractIntegrationTest {
         if (tables != null && !tables.isBlank()) {
             jdbcTemplate.execute("truncate table " + tables + " restart identity cascade");
         }
+    }
+
+    /**
+     * Existing booking tests predate the customer-profile gate. Give their test
+     * users a complete monthly profile without coupling every booking fixture to
+     * CustomerProfileService's controller-shaped request objects.
+     */
+    protected void completeMonthlyCustomerProfile(UUID userId) {
+        String fullName = jdbcTemplate.queryForObject(
+                "select full_name from users where id = ?", String.class, userId);
+        jdbcTemplate.update("""
+                insert into customer_profiles
+                    (id, user_id, full_name, occupation, permanent_address,
+                     identity_type, identity_last_four, created_at, updated_at)
+                values (?, ?, ?, 'Student', '1 Test Address', 'VOTER_ID', 'A1B2', now(), now())
+                """, UUID.randomUUID(), userId, fullName);
+        insertLegalAcceptance(userId, "TERMS");
+        insertLegalAcceptance(userId, "PRIVACY");
+    }
+
+    private void insertLegalAcceptance(UUID userId, String documentType) {
+        jdbcTemplate.update("""
+                insert into legal_acceptances
+                    (id, user_id, document_type, document_version, accepted_at, created_at, updated_at)
+                values (?, ?, ?, '2026-09-22', now(), now(), now())
+                """, UUID.randomUUID(), userId, documentType);
     }
 }

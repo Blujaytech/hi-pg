@@ -10,6 +10,8 @@ import com.pgplatform.owner.BedStatus;
 import com.pgplatform.owner.Pg;
 import com.pgplatform.owner.PgRepository;
 import com.pgplatform.owner.PgService;
+import com.pgplatform.payment.DirectPaymentRequestRepository;
+import com.pgplatform.payment.PaymentOrderRepository;
 import com.pgplatform.report.dto.MonthlyFinancialSummary;
 import com.pgplatform.report.dto.OccupancyReportResponse;
 import com.pgplatform.report.dto.OutstandingDueResponse;
@@ -18,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.YearMonth;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -34,6 +37,7 @@ import java.util.UUID;
 public class ReportService {
 
     private static final int MAX_MONTHS = 24;
+    private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Kolkata");
 
     private final FeeRepository feeRepository;
     private final ExpenseRepository expenseRepository;
@@ -41,22 +45,34 @@ public class ReportService {
     private final BedRepository bedRepository;
     private final PgRepository pgRepository;
     private final PgService pgService;
+    private final DirectPaymentRequestRepository directPaymentRepository;
+    private final PaymentOrderRepository paymentOrderRepository;
 
     public ReportService(FeeRepository feeRepository, ExpenseRepository expenseRepository,
                           PaymentRepository paymentRepository, BedRepository bedRepository,
-                          PgRepository pgRepository, PgService pgService) {
+                          PgRepository pgRepository, PgService pgService,
+                          DirectPaymentRequestRepository directPaymentRepository,
+                          PaymentOrderRepository paymentOrderRepository) {
         this.feeRepository = feeRepository;
         this.expenseRepository = expenseRepository;
         this.paymentRepository = paymentRepository;
         this.bedRepository = bedRepository;
         this.pgRepository = pgRepository;
         this.pgService = pgService;
+        this.directPaymentRepository = directPaymentRepository;
+        this.paymentOrderRepository = paymentOrderRepository;
     }
 
     @Transactional(readOnly = true)
     public List<MonthlyFinancialSummary> revenueForOwner(UUID ownerId, int months) {
         return buildRevenueSeries(months,
-                (from, to) -> feeRepository.sumCollectedByOwnerIdBetween(ownerId, from, to),
+                (from, to) -> feeRepository.sumCollectedByOwnerIdBetween(ownerId, from, to)
+                        .add(paymentOrderRepository.sumPaidBookingOrdersForOwner(ownerId,
+                                from.atStartOfDay(BUSINESS_ZONE).toInstant(),
+                                to.plusDays(1).atStartOfDay(BUSINESS_ZONE).toInstant()))
+                        .add(directPaymentRepository.sumApprovedForOwner(ownerId,
+                                from.atStartOfDay(BUSINESS_ZONE).toInstant(),
+                                to.plusDays(1).atStartOfDay(BUSINESS_ZONE).toInstant())),
                 (from, to) -> expenseRepository.sumByOwnerIdBetween(ownerId, from, to));
     }
 
@@ -64,7 +80,13 @@ public class ReportService {
     public List<MonthlyFinancialSummary> revenueForPg(UUID pgId, UUID ownerId, int months) {
         pgService.requireOwnedPg(pgId, ownerId);
         return buildRevenueSeries(months,
-                (from, to) -> feeRepository.sumCollectedByPgIdBetween(pgId, from, to),
+                (from, to) -> feeRepository.sumCollectedByPgIdBetween(pgId, from, to)
+                        .add(paymentOrderRepository.sumPaidBookingOrdersForPg(pgId,
+                                from.atStartOfDay(BUSINESS_ZONE).toInstant(),
+                                to.plusDays(1).atStartOfDay(BUSINESS_ZONE).toInstant()))
+                        .add(directPaymentRepository.sumApprovedForPg(pgId,
+                                from.atStartOfDay(BUSINESS_ZONE).toInstant(),
+                                to.plusDays(1).atStartOfDay(BUSINESS_ZONE).toInstant())),
                 (from, to) -> expenseRepository.sumByPgIdBetween(pgId, from, to));
     }
 
