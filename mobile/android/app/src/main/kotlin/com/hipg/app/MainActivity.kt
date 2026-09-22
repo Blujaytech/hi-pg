@@ -1,4 +1,4 @@
-package com.example.mobile
+package com.hipg.app
 
 import android.os.Build
 import android.os.Bundle

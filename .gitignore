@@ -25,6 +25,12 @@ web/out/
 *.env
 !*.env.example
 
+# Android release signing. The keystore and its passwords must never be
+# committed -- android/key.properties.example is the template.
+mobile/android/key.properties
+*.jks
+*.keystore
+
 # IDE / OS
 .vscode/
 .idea/

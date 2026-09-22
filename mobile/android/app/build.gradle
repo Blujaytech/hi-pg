@@ -21,8 +21,36 @@ if (isReleaseBuild && googleMapsApiKey.trim().isEmpty()) {
     )
 }
 
+// Upload-key material. Never committed -- see android/key.properties.example
+// and docs/deployment.md. Environment variables are the CI path.
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file("key.properties")
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
+}
+def releaseStoreFile = keystoreProperties.getProperty("storeFile") ?: System.getenv("ANDROID_KEYSTORE_FILE")
+def releaseStorePassword = keystoreProperties.getProperty("storePassword") ?: System.getenv("ANDROID_KEYSTORE_PASSWORD")
+def releaseKeyAlias = keystoreProperties.getProperty("keyAlias") ?: System.getenv("ANDROID_KEY_ALIAS")
+def releaseKeyPassword = keystoreProperties.getProperty("keyPassword") ?: System.getenv("ANDROID_KEY_PASSWORD")
+def hasReleaseSigning = releaseStoreFile?.trim() && releaseStorePassword?.trim() &&
+        releaseKeyAlias?.trim() && releaseKeyPassword?.trim()
+
+// Releasing with the debug key is not a degraded build, it is a rejected
+// upload (Play: "You uploaded an APK signed in debug mode"), and it silently
+// produces an artifact that can never be updated by the real key. Fail here
+// instead of at the Play Console.
+if (isReleaseBuild && !hasReleaseSigning) {
+    throw new GradleException(
+        "A release signing key is required for release/bundle builds. " +
+        "Copy android/key.properties.example to android/key.properties and fill it in " +
+        "(or set ANDROID_KEYSTORE_FILE / ANDROID_KEYSTORE_PASSWORD / ANDROID_KEY_ALIAS / " +
+        "ANDROID_KEY_PASSWORD in CI). See docs/deployment.md. " +
+        "Use `flutter build apk --debug` or `flutter run` for day-to-day builds."
+    )
+}
+
 android {
-    namespace = "com.example.mobile"
+    namespace = "com.hipg.app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -36,8 +64,10 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.mobile"
+        // Permanent Play Store identity: it cannot be changed after the first
+        // upload, and the Google Maps key restriction and the Google Sign-In
+        // OAuth client are both registered against it plus the signing SHA-1.
+        applicationId = "com.hipg.app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         // google_maps_flutter 2.18 supports Android API 24 and newer.
@@ -48,11 +78,27 @@ android {
         manifestPlaceholders["GOOGLE_MAPS_API_KEY"] = googleMapsApiKey
     }
 
+    signingConfigs {
+        if (hasReleaseSigning) {
+            release {
+                storeFile = rootProject.file(releaseStoreFile)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.debug
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.release
+            }
+            // R8/resource shrinking is deliberately still off: Razorpay
+            // Checkout and Google Sign-In both resolve classes reflectively,
+            // so enabling it needs keep rules verified on a real device
+            // against a real payment. Tracked as a pre-launch task in
+            // docs/deployment.md rather than switched on untested.
         }
     }
 }
