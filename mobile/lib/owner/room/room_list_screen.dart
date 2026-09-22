@@ -9,6 +9,45 @@ import '../floor/floor_models.dart';
 import 'room_models.dart';
 import 'room_repository.dart';
 
+/// Rent, sharing count and deposit used to fall back to a default when the
+/// field could not be parsed, so a blank rent silently created a room
+/// priced at Rs 0 that customers could then book. Refuse instead.
+String? validateRoomForm({
+  required String roomNumber,
+  required String sharing,
+  required String rent,
+  required String dayRate,
+  required String deposit,
+  required String notice,
+  required RoomBookingMode bookingMode,
+}) {
+  if (roomNumber.trim().isEmpty) return 'Enter a room number.';
+  final sharingCount = int.tryParse(sharing.trim());
+  if (sharingCount == null || sharingCount < 1) {
+    return 'Number of beds must be a whole number of 1 or more.';
+  }
+  if (sharingCount > 50) return 'A room cannot have more than 50 beds.';
+  final rentPerBed = double.tryParse(rent.trim());
+  if (rentPerBed == null || rentPerBed <= 0) {
+    return 'Enter the monthly rent per bed.';
+  }
+  if (bookingMode != RoomBookingMode.monthly) {
+    final rate = double.tryParse(dayRate.trim());
+    if (rate == null || rate <= 0) {
+      return 'Enter the day-wise rate per bed for this booking mode.';
+    }
+  }
+  if (double.tryParse(deposit.trim()) == null ||
+      double.parse(deposit.trim()) < 0) {
+    return 'Enter a security deposit of 0 or more.';
+  }
+  final noticeDays = int.tryParse(notice.trim());
+  if (noticeDays == null || noticeDays < 0) {
+    return 'Move-out notice days must be 0 or more.';
+  }
+  return null;
+}
+
 class RoomListScreen extends StatefulWidget {
   final String floorId;
   final Floor? floor;
@@ -43,6 +82,7 @@ class _RoomListScreenState extends State<RoomListScreen> {
     var roomType = RoomType.nonAc;
     var bookingMode = RoomBookingMode.monthly;
     String? error;
+    var saving = false;
 
     final created = await showDialog<bool>(
       context: context,
@@ -132,40 +172,89 @@ class _RoomListScreenState extends State<RoomListScreen> {
           ),
           actions: [
             TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(false),
+                onPressed: saving
+                    ? null
+                    : () => Navigator.of(dialogContext).pop(false),
                 child: const Text('Cancel')),
             FilledButton(
-              onPressed: () async {
-                try {
-                  await _roomRepository.create(
-                    floorId: widget.floorId,
-                    roomNumber: roomNumberController.text.trim(),
-                    sharingCount:
-                        int.tryParse(sharingController.text.trim()) ?? 1,
-                    rentPerBed:
-                        double.tryParse(rentController.text.trim()) ?? 0,
-                    roomType: roomType,
-                    bookingMode: bookingMode,
-                    dayWiseRate: bookingMode == RoomBookingMode.monthly
-                        ? null : double.tryParse(dayRateController.text.trim()),
-                    noticePeriodDays: int.tryParse(noticeController.text.trim()) ?? 15,
-                    securityDeposit: double.tryParse(depositController.text.trim()) ?? 0,
-                  );
-                  if (dialogContext.mounted) {
-                    Navigator.of(dialogContext).pop(true);
-                  }
-                } on ApiException catch (e) {
-                  setDialogState(() => error = e.message);
-                }
-              },
-              child: const Text('Create room'),
+              // Creating a room also creates its beds, and nothing in the
+              // schema makes (floor, room_number) unique -- an unguarded
+              // second tap while the first call is still in flight produces a
+              // duplicate room and a duplicate set of beds.
+              onPressed: saving
+                  ? null
+                  : () async {
+                      final validationError = validateRoomForm(
+                        roomNumber: roomNumberController.text,
+                        sharing: sharingController.text,
+                        rent: rentController.text,
+                        dayRate: dayRateController.text,
+                        deposit: depositController.text,
+                        notice: noticeController.text,
+                        bookingMode: bookingMode,
+                      );
+                      if (validationError != null) {
+                        setDialogState(() => error = validationError);
+                        return;
+                      }
+                      setDialogState(() {
+                        saving = true;
+                        error = null;
+                      });
+                      try {
+                        await _roomRepository.create(
+                          floorId: widget.floorId,
+                          roomNumber: roomNumberController.text.trim(),
+                          sharingCount:
+                              int.parse(sharingController.text.trim()),
+                          rentPerBed: double.parse(rentController.text.trim()),
+                          roomType: roomType,
+                          bookingMode: bookingMode,
+                          dayWiseRate: bookingMode == RoomBookingMode.monthly
+                              ? null
+                              : double.parse(dayRateController.text.trim()),
+                          noticePeriodDays:
+                              int.parse(noticeController.text.trim()),
+                          securityDeposit:
+                              double.parse(depositController.text.trim()),
+                        );
+                        if (dialogContext.mounted) {
+                          Navigator.of(dialogContext).pop(true);
+                        }
+                      } on ApiException catch (e) {
+                        setDialogState(() {
+                          saving = false;
+                          error = e.message;
+                        });
+                      } catch (_) {
+                        setDialogState(() {
+                          saving = false;
+                          error = 'The room could not be created. Try again.';
+                        });
+                      }
+                    },
+              child: saving
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Text('Create room'),
             ),
           ],
         ),
       ),
     );
+    roomNumberController.dispose();
+    sharingController.dispose();
+    rentController.dispose();
+    dayRateController.dispose();
+    depositController.dispose();
+    noticeController.dispose();
     if (created == true) _reload();
   }
+
 
   Future<void> _setBedStatus(Bed bed, BedStatus next) async {
     try {

@@ -29,6 +29,12 @@ class _MyFeesScreenState extends State<MyFeesScreen> {
   late final RazorpayCheckout _checkout;
   late Future<List<Fee>> _future;
 
+  /// The fee whose checkout is currently open, if any. "Pay now" is a money
+  /// action, so every pay button is disabled while one is in flight -- a
+  /// double tap would otherwise open two Razorpay checkouts for the same rent.
+  String? _payingFeeId;
+  bool _enablingAutoPay = false;
+
   @override
   void initState() {
     super.initState();
@@ -48,6 +54,8 @@ class _MyFeesScreenState extends State<MyFeesScreen> {
   }
 
   Future<void> _payFee(Fee fee) async {
+    if (_payingFeeId != null) return;
+    setState(() => _payingFeeId = fee.id);
     try {
       final order = await _paymentRepository.createFeeOrder(fee.id);
       await _checkout.pay(order, description: 'Rent for ${DateFormat('MMMM yyyy').format(DateTime(fee.periodYear, fee.periodMonth))}');
@@ -63,10 +71,13 @@ class _MyFeesScreenState extends State<MyFeesScreen> {
           SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
         );
       }
+    } finally {
+      if (mounted) setState(() => _payingFeeId = null);
     }
   }
 
   Future<void> _enableAutoPay() async {
+    if (_enablingAutoPay) return;
     var dueDay = 10;
     final accepted = await showDialog<bool>(
       context: context,
@@ -88,7 +99,8 @@ class _MyFeesScreenState extends State<MyFeesScreen> {
         ],
       )),
     );
-    if (accepted != true) return;
+    if (accepted != true || !mounted) return;
+    setState(() => _enablingAutoPay = true);
     try {
       final mandate = await _paymentRepository.enableAutoPay(dueDay);
       final url = mandate.authorizationUrl;
@@ -99,6 +111,8 @@ class _MyFeesScreenState extends State<MyFeesScreen> {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))));
+    } finally {
+      if (mounted) setState(() => _enablingAutoPay = false);
     }
   }
 
@@ -150,9 +164,17 @@ class _MyFeesScreenState extends State<MyFeesScreen> {
               separatorBuilder: (_, __) => const SizedBox(height: 12),
               itemBuilder: (context, index) {
                 if (index == 0) return _FeeOverview(fees: fees);
-                if (index == 1) return _PaymentNotice(onEnableAutoPay: _enableAutoPay);
+                if (index == 1) {
+                  return _PaymentNotice(
+                    onEnableAutoPay: _enablingAutoPay ? null : _enableAutoPay,
+                  );
+                }
                 final fee = fees[index - 2];
-                return _FeeCard(fee: fee, onPay: () => _payFee(fee));
+                return _FeeCard(
+                  fee: fee,
+                  onPay: _payingFeeId == null ? () => _payFee(fee) : null,
+                  paying: _payingFeeId == fee.id,
+                );
               },
             ),
           );
@@ -275,7 +297,7 @@ class _SummaryValue extends StatelessWidget {
 }
 
 class _PaymentNotice extends StatelessWidget {
-  final VoidCallback onEnableAutoPay;
+  final VoidCallback? onEnableAutoPay;
   const _PaymentNotice({required this.onEnableAutoPay});
 
   @override
@@ -296,9 +318,10 @@ class _PaymentNotice extends StatelessWidget {
 
 class _FeeCard extends StatelessWidget {
   final Fee fee;
-  final VoidCallback onPay;
+  final VoidCallback? onPay;
+  final bool paying;
 
-  const _FeeCard({required this.fee, required this.onPay});
+  const _FeeCard({required this.fee, required this.onPay, this.paying = false});
 
   @override
   Widget build(BuildContext context) {
@@ -379,8 +402,15 @@ class _FeeCard extends StatelessWidget {
               const SizedBox(height: 14),
               SizedBox(width: double.infinity, child: FilledButton.icon(
                 onPressed: onPay,
-                icon: const Icon(Icons.account_balance_wallet_outlined),
-                label: const Text('Pay now'),
+                icon: paying
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Icon(Icons.account_balance_wallet_outlined),
+                label: Text(paying ? 'Opening checkout...' : 'Pay now'),
               )),
             ],
           ],

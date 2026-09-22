@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../core/secure_storage.dart';
+import '../shared/api_client.dart';
 import 'auth_models.dart';
 import 'auth_repository.dart';
 import 'google_student_sign_in.dart';
@@ -11,6 +12,13 @@ enum AuthStatus { unknown, authenticated, unauthenticated }
 /// the root (see main.dart) via ChangeNotifierProvider; screens read it with
 /// context.watch/read<AuthState>() rather than each holding their own copy.
 class AuthState extends ChangeNotifier {
+  AuthState() {
+    // The shared client clears the session when a refresh token is rejected;
+    // without this hook the router would keep the user on signed-in screens
+    // that can no longer load anything.
+    ApiClient.instance.onSessionExpired = _onSessionExpired;
+  }
+
   final AuthRepository _repository = AuthRepository();
 
   AuthStatus status = AuthStatus.unknown;
@@ -98,20 +106,36 @@ class AuthState extends ChangeNotifier {
     await _persist(session);
   }
 
-  Future<void> logout() async {
-    if (_refreshToken != null) {
-      try {
-        await _repository.logout(refreshToken: _refreshToken!);
-      } catch (_) {
-        // best-effort server-side revoke; local session is cleared regardless
-      }
-    }
-    await SecureStorage.instance.clear();
+  /// The stored session is already gone by the time this runs -- only the
+  /// in-memory copy has to catch up so the router redirects to sign-in.
+  Future<void> _onSessionExpired() async {
+    if (status == AuthStatus.unauthenticated) return;
+    _clearSession();
+  }
+
+  void _clearSession() {
     role = null;
     fullName = null;
     userId = null;
     _refreshToken = null;
     status = AuthStatus.unauthenticated;
     notifyListeners();
+  }
+
+  Future<void> logout() async {
+    // ApiClient rotates the refresh token on every silent refresh, so the
+    // copy captured at sign-in can be stale -- read the live one back so the
+    // server-side revoke actually revokes something.
+    final refreshToken =
+        await SecureStorage.instance.refreshToken ?? _refreshToken;
+    if (refreshToken != null) {
+      try {
+        await _repository.logout(refreshToken: refreshToken);
+      } catch (_) {
+        // best-effort server-side revoke; local session is cleared regardless
+      }
+    }
+    await SecureStorage.instance.clear();
+    _clearSession();
   }
 }

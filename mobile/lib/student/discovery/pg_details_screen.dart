@@ -200,7 +200,16 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
 
   void _subscribeToLiveAvailability() {
     _availabilitySubscription = ApiClient.instance
-        .sseStream('/public/pgs/${widget.pgId}/availability/stream')
+        .sseStream(
+      '/public/pgs/${widget.pgId}/availability/stream',
+      // Without this the "Live" badge stayed lit after the stream died,
+      // presenting a stale bed count as up-to-the-second on a screen people
+      // book from. The client reconnects on its own; the badge just has to
+      // tell the truth in between.
+      onConnected: (connected) {
+        if (mounted && _live != connected) setState(() => _live = connected);
+      },
+    )
         .listen(
       (event) {
         if (!mounted) return;

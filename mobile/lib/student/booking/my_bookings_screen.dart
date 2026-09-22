@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -24,6 +26,13 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
   late final RazorpayCheckout _checkout;
   late Future<List<Booking>> _future;
 
+  /// The booking whose payment flow is open, if any. Money actions get a
+  /// single-flight guard: "Complete payment" goes straight to
+  /// createBookingOrder when a channel is already chosen, with no modal in
+  /// between, so an unguarded double tap opens two Razorpay checkouts.
+  String? _payingBookingId;
+  String? _cancellingBookingId;
+
   @override
   void initState() {
     super.initState();
@@ -43,6 +52,7 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
   }
 
   Future<void> _confirmCancel(Booking booking) async {
+    if (_cancellingBookingId != null) return;
     final reasonController = TextEditingController();
     final confirmed = await showDialog<bool>(
       context: context,
@@ -104,6 +114,7 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
 
     final reason = reasonController.text.trim();
     reasonController.dispose();
+    setState(() => _cancellingBookingId = booking.id);
     try {
       await _repository.cancel(
         booking.id,
@@ -119,6 +130,8 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(error.message)));
       }
+    } finally {
+      if (mounted) setState(() => _cancellingBookingId = null);
     }
   }
 
@@ -152,6 +165,8 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
   }
 
   Future<void> _completePayment(Booking booking) async {
+    if (_payingBookingId != null) return;
+    setState(() => _payingBookingId = booking.id);
     try {
       if (booking.status == BookingStatus.directPaymentReview ||
           booking.paymentChannel == BookingPaymentChannel.directUpi) {
@@ -198,6 +213,8 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
           SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
         );
       }
+    } finally {
+      if (mounted) setState(() => _payingBookingId = null);
     }
   }
 
@@ -252,11 +269,16 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
                   );
                 }
                 final booking = bookings[index - 1];
+                final busy = _payingBookingId != null ||
+                    _cancellingBookingId != null;
                 return _BookingCard(
                   booking: booking,
-                  onCancel: booking.status == BookingStatus.paymentPending ||
-                          booking.status == BookingStatus.confirmed ||
-                          booking.status == BookingStatus.checkedIn
+                  paying: _payingBookingId == booking.id,
+                  cancelling: _cancellingBookingId == booking.id,
+                  onCancel: !busy &&
+                          (booking.status == BookingStatus.paymentPending ||
+                              booking.status == BookingStatus.confirmed ||
+                              booking.status == BookingStatus.checkedIn)
                       ? () => _confirmCancel(booking)
                       : null,
                   onNotice: booking.bookingType == BookingType.monthly &&
@@ -264,8 +286,10 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
                               booking.status == BookingStatus.checkedIn)
                       ? () => _submitMoveOutNotice(booking)
                       : null,
-                  onPay: booking.status == BookingStatus.paymentPending ||
-                          booking.status == BookingStatus.directPaymentReview
+                  onPay: !busy &&
+                          (booking.status == BookingStatus.paymentPending ||
+                              booking.status ==
+                                  BookingStatus.directPaymentReview)
                       ? () => _completePayment(booking)
                       : null,
                 );
@@ -273,6 +297,76 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+/// BookingService holds a bed for ten minutes (PAYMENT_HOLD_MINUTES) and then
+/// expires it. The deadline was already on the model but never shown, so a
+/// customer had no way to know the bed they are paying for is about to be
+/// released.
+class _HoldCountdown extends StatefulWidget {
+  final DateTime expiresAt;
+
+  const _HoldCountdown({required this.expiresAt});
+
+  @override
+  State<_HoldCountdown> createState() => _HoldCountdownState();
+}
+
+class _HoldCountdownState extends State<_HoldCountdown> {
+  Timer? _ticker;
+
+  @override
+  void initState() {
+    super.initState();
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // paymentExpiresAt arrives as an instant; compare in the same zone rather
+    // than mixing a UTC deadline with a local now.
+    final remaining = widget.expiresAt.difference(DateTime.now());
+    final expired = remaining.isNegative;
+    final minutes = remaining.inMinutes.clamp(0, 59);
+    final seconds = (remaining.inSeconds % 60).clamp(0, 59);
+
+    return Container(
+      margin: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: expired ? AppColors.dangerSoft : AppColors.fill,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Icon(expired ? Icons.timer_off_outlined : Icons.timer_outlined,
+              size: 17, color: expired ? AppColors.danger : AppColors.ink),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              expired
+                  ? 'This bed hold has expired. Refresh to see the current status.'
+                  : 'Bed held for ${minutes.toString().padLeft(2, '0')}:'
+                      '${seconds.toString().padLeft(2, '0')} more',
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                color: expired ? AppColors.danger : AppColors.ink,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -335,9 +429,16 @@ class _BookingCard extends StatelessWidget {
   final VoidCallback? onCancel;
   final VoidCallback? onNotice;
   final VoidCallback? onPay;
+  final bool paying;
+  final bool cancelling;
 
   const _BookingCard(
-      {required this.booking, this.onCancel, this.onNotice, this.onPay});
+      {required this.booking,
+      this.onCancel,
+      this.onNotice,
+      this.onPay,
+      this.paying = false,
+      this.cancelling = false});
 
   @override
   Widget build(BuildContext context) {
@@ -408,17 +509,29 @@ class _BookingCard extends StatelessWidget {
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ],
+            if (booking.status == BookingStatus.paymentPending &&
+                booking.paymentExpiresAt != null)
+              _HoldCountdown(expiresAt: booking.paymentExpiresAt!),
             if (onPay != null) ...[
               const SizedBox(height: 12),
               FilledButton.icon(
                 onPressed: onPay,
-                icon: const Icon(Icons.account_balance_wallet_outlined),
+                icon: paying
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Icon(Icons.account_balance_wallet_outlined),
                 label: Text(
-                  booking.status == BookingStatus.directPaymentReview ||
-                          booking.paymentChannel ==
-                              BookingPaymentChannel.directUpi
-                      ? 'View owner verification'
-                      : 'Complete payment',
+                  paying
+                      ? 'Opening checkout...'
+                      : booking.status == BookingStatus.directPaymentReview ||
+                              booking.paymentChannel ==
+                                  BookingPaymentChannel.directUpi
+                          ? 'View owner verification'
+                          : 'Complete payment',
                 ),
               ),
             ],
@@ -461,8 +574,15 @@ class _BookingCard extends StatelessWidget {
                   side:
                       const BorderSide(color: AppColors.dangerSoft, width: 1.4),
                 ),
-                icon: const Icon(Icons.close_rounded, size: 18),
-                label: const Text('Cancel booking'),
+                icon: cancelling
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: AppColors.danger),
+                      )
+                    : const Icon(Icons.close_rounded, size: 18),
+                label: Text(cancelling ? 'Cancelling...' : 'Cancel booking'),
               ),
             ],
             if (onNotice != null) ...[

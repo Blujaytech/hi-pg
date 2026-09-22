@@ -58,9 +58,27 @@ class ApiClient {
   static final ApiClient instance = ApiClient._internal();
   late final Dio _dio;
 
+  /// Called once when the refresh token is rejected and the stored session
+  /// has been cleared. AuthState registers here so the router can send the
+  /// user back to sign-in; without it the app keeps rendering signed-in
+  /// screens whose every request now 401s, with no way out but a restart.
+  Future<void> Function()? onSessionExpired;
+
+  /// The refresh in flight, if any. Several screens load in parallel, so a
+  /// stale access token produces several simultaneous 401s; letting each one
+  /// refresh separately means the second call presents an already-rotated
+  /// refresh token, is rejected, and signs the user out mid-session.
+  Future<bool>? _refreshInFlight;
+
   bool _isRetry(RequestOptions options) => options.extra['retried'] == true;
 
-  Future<bool> _tryRefresh() async {
+  Future<bool> _tryRefresh() {
+    return _refreshInFlight ??= _refreshOnce().whenComplete(() {
+      _refreshInFlight = null;
+    });
+  }
+
+  Future<bool> _refreshOnce() async {
     final refreshToken = await SecureStorage.instance.refreshToken;
     if (refreshToken == null) return false;
     try {
@@ -72,10 +90,26 @@ class ApiClient {
         refreshToken: data['refreshToken'] as String,
       );
       return true;
+    } on DioException catch (e) {
+      // Only the server actually rejecting the token ends the session. A
+      // transport failure (no network, server asleep) or a 5xx is a bad
+      // moment, not an expired session -- keep the tokens so the next
+      // attempt can still refresh, instead of signing everyone out whenever
+      // the backend hiccups.
+      final status = e.response?.statusCode;
+      if (status != 401 && status != 403) return false;
+      await _endSession();
+      return false;
     } catch (_) {
-      await SecureStorage.instance.clear();
+      // A malformed refresh response means we have no usable token either.
+      await _endSession();
       return false;
     }
+  }
+
+  Future<void> _endSession() async {
+    await SecureStorage.instance.clear();
+    await onSessionExpired?.call();
   }
 
   Future<Response<T>> get<T>(String path,
@@ -99,12 +133,54 @@ class ApiClient {
     return _wrap(() => _dio.delete<T>(path));
   }
 
+  /// Backoff between reconnect attempts. A phone changes network constantly
+  /// (wifi to mobile data, tunnel, screen off), and a free-tier backend
+  /// recycles connections, so an SSE stream that gives up on the first drop
+  /// is dead for the rest of the session.
+  static const _sseBackoff = [
+    Duration(seconds: 2),
+    Duration(seconds: 5),
+    Duration(seconds: 10),
+    Duration(seconds: 20),
+    Duration(seconds: 30),
+  ];
+
   /// Phase 10 -- subscribes to a backend Server-Sent Events endpoint and
-  /// yields decoded JSON payloads from each `data:` block. Deliberately a
-  /// minimal hand-rolled SSE parser (event/data/blank-line framing, `:`
-  /// comment lines ignored) rather than a new pub dependency -- this app
-  /// only needs one SSE consumer today (live bed availability).
-  Stream<Map<String, dynamic>> sseStream(String path) async* {
+  /// yields decoded JSON payloads from each `data:` block, reconnecting with
+  /// backoff whenever the connection drops until the caller cancels.
+  ///
+  /// [onConnected] reports the live/stale transition so callers can stop
+  /// presenting the last snapshot as live once the stream is down.
+  Stream<Map<String, dynamic>> sseStream(
+    String path, {
+    void Function(bool connected)? onConnected,
+  }) async* {
+    var attempt = 0;
+    while (true) {
+      var announced = false;
+      try {
+        await for (final event in _sseConnection(path)) {
+          attempt = 0;
+          if (!announced) {
+            announced = true;
+            onConnected?.call(true);
+          }
+          yield event;
+        }
+      } catch (_) {
+        // Any transport failure is retried below, same as a clean close.
+      }
+      onConnected?.call(false);
+      await Future<void>.delayed(
+          _sseBackoff[attempt < _sseBackoff.length ? attempt : _sseBackoff.length - 1]);
+      attempt++;
+    }
+  }
+
+  /// One SSE connection, ending when the server closes it. Deliberately a
+  /// minimal hand-rolled parser (event/data/blank-line framing, `:` comment
+  /// lines ignored) rather than a new pub dependency.
+  Stream<Map<String, dynamic>> _sseConnection(String path) async* {
     final response = await _dio.get<ResponseBody>(
       path,
       // Unlike regular API calls, an SSE connection is meant to stay open
