@@ -73,7 +73,12 @@ public class PaymentOrderService {
             return response(existing);
         }
 
-        Fee fee = feeRepository.findByIdAndDeletedAtIsNull(feeId)
+        // Lock the fee row first, exactly as createBookingOrder locks the booking
+        // (claimOnlinePaymentChannel). Two concurrent "Pay now" taps would
+        // otherwise both read "no open order" below and create two payable
+        // Razorpay orders for the same fee -- see V20 for the matching
+        // unique index that backstops this.
+        Fee fee = feeRepository.findByIdForUpdate(feeId)
                 .orElseThrow(() -> new NotFoundException("Fee not found"));
         if (!fee.getStudent().getId().equals(studentId)) {
             throw new ForbiddenException("This fee does not belong to you");

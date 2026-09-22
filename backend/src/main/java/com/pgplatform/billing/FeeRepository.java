@@ -1,6 +1,8 @@
 package com.pgplatform.billing;
 
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -11,6 +13,15 @@ import java.util.UUID;
 
 public interface FeeRepository extends JpaRepository<Fee, UUID> {
     Optional<Fee> findByIdAndDeletedAtIsNull(UUID id);
+
+    /**
+     * Serializes concurrent checkout creation for one fee. Without it two
+     * simultaneous "Pay now" taps can both read "no open order" and create
+     * two payable Razorpay orders for the same fee (see V20).
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select f from Fee f where f.id = :id and f.deletedAt is null")
+    Optional<Fee> findByIdForUpdate(@Param("id") UUID id);
     List<Fee> findAllByStatusNotAndDeletedAtIsNull(FeeStatus status);
     boolean existsByStudentIdAndPeriodYearAndPeriodMonthAndDeletedAtIsNull(UUID studentId, Integer periodYear, Integer periodMonth);
     List<Fee> findAllByStudentIdAndDeletedAtIsNullOrderByPeriodYearDescPeriodMonthDesc(UUID studentId);
