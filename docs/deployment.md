@@ -81,7 +81,7 @@ reverse proxy (nginx, Traefik), confirm it does the same before relying on the r
 | `CORS_ALLOWED_ORIGINS` | Yes | Comma-separated, no wildcard. Set to your deployed web app's real origin(s) only -- see `docs/security.md`. |
 | `SPRING_PROFILES_ACTIVE` | Yes | Set to `prod`; the Render Blueprint sets this automatically. |
 | `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` / `RAZORPAY_WEBHOOK_SECRET` | Yes for online payments | Enables the real Checkout, Route, refund, and Subscription integrations. Blank credentials keep external payment calls disabled with 501. Register `/api/v1/webhooks/razorpay` in both Razorpay test and live modes; see ADR-0027. |
-| `GOOGLE_MAPS_API_KEY` | Mobile map builds only | Put the Android Maps SDK key in uncommitted `mobile/android/local.properties` (or a CI environment variable); restrict it to Android package `com.example.mobile` and every signing-certificate SHA-1. Release builds fail when it is missing. It is not a Render/backend variable. |
+| `GOOGLE_MAPS_API_KEY` | Mobile map builds only | Put the Android Maps SDK key in uncommitted `mobile/android/local.properties` (or a CI environment variable); restrict it to Android package `com.hipg.app` and every signing-certificate SHA-1 (debug *and* upload key). Release builds fail when it is missing. It is not a Render/backend variable. |
 | `GOOGLE_OAUTH_CLIENT_ID` | Yes when Google student sign-in is enabled | The **Web application** OAuth client ID. It is the expected ID-token audience and is also passed to Flutter as `GOOGLE_OAUTH_WEB_CLIENT_ID`. No client secret is used by this native ID-token flow. |
 | `S3_ENABLED` / `S3_ENDPOINT` / `S3_REGION` / `S3_BUCKET` / `S3_ACCESS_KEY` / `S3_SECRET_KEY` / `S3_PATH_STYLE_ACCESS` | Yes for document/KYC uploads | Set `S3_ENABLED=true` for the real private S3-compatible gateway. Keep the bucket non-public; clients receive only time-limited signed GET URLs. Endpoint is optional for AWS S3 and required for most compatible providers. |
 | `NEXT_PUBLIC_API_BASE_URL` (web app) | Recommended | Your deployed backend's public URL + `/api/v1`; the web app currently falls back to `https://pg-platform-api.onrender.com/api/v1` in production and to localhost during development. Set this explicitly in the web host so a future backend-domain change does not require a code change. |
@@ -130,6 +130,66 @@ self-hosted Path B, a simple cron'd `pg_dump` to off-VM storage (S3/R2) is the m
   `AUDIT.document` / `AUDIT.payment` structured lines (Phase 15) and `GlobalExceptionHandler`'s
   now-logged unhandled exceptions. No separate log shipping setup exists in this repo.
 
+## Android release build (mobile)
+
+Until the QA pass on 2026-09-22 the app declared `applicationId com.example.mobile` and its
+release build type used `signingConfig signingConfigs.debug`, so `flutter build apk --release`
+produced an artifact signed `CN=Android Debug`. Google Play rejects both outright, and a
+debug-signed upload can never be updated by the real key afterwards. Both are now fixed in
+`mobile/android/app/build.gradle`:
+
+- `applicationId` / `namespace` are `com.hipg.app`. **This is permanent once the first build is
+  uploaded to Play.** Change it before the first upload if you want a different id, not after.
+- Release and bundle builds read the upload key from `mobile/android/key.properties` (or
+  `ANDROID_KEYSTORE_FILE` / `ANDROID_KEYSTORE_PASSWORD` / `ANDROID_KEY_ALIAS` /
+  `ANDROID_KEY_PASSWORD` in CI) and **fail with an explanatory error** when it is absent, rather
+  than silently falling back to the debug key. Debug builds and `flutter run` need no key.
+
+### One-time setup
+
+```bash
+cd mobile/android
+cp key.properties.example key.properties
+
+# Create the upload key. Back the .jks up somewhere durable -- losing it means
+# you can never ship an update to an existing Play listing.
+keytool -genkey -v -keystore upload-keystore.jks -storetype JKS   -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+
+# Fill storePassword / keyPassword in key.properties, then read off the
+# fingerprints you must register elsewhere:
+keytool -list -v -keystore upload-keystore.jks -alias upload
+```
+
+`key.properties`, `*.jks` and `*.keystore` are git-ignored. Only `key.properties.example` belongs
+in the repo.
+
+### Register the new identity
+
+Changing the package name invalidates anything registered against the old one. After creating the
+key, in Google Cloud Console:
+
+- **Maps SDK for Android key** -- update the Android restriction to package `com.hipg.app` plus the
+  SHA-1 of *both* the debug key (`~/.android/debug.keystore`, for local runs) and the upload key.
+- **OAuth client for Google Sign-In** -- same: package `com.hipg.app` plus both SHA-1s, or the
+  customer Google sign-in path fails at runtime with a `10:` developer error.
+
+Verify a build before uploading:
+
+```bash
+flutter build apk --release
+apksigner verify --print-certs build/app/outputs/flutter-apk/app-release.apk   # not "CN=Android Debug"
+aapt2 dump packagename build/app/outputs/flutter-apk/app-release.apk           # com.hipg.app
+```
+
+### Known follow-ups
+
+- **R8 / resource shrinking is still off.** Razorpay Checkout and Google Sign-In both resolve
+  classes reflectively, so turning it on needs keep rules verified on a real device against a real
+  payment. Enabling it untested is the classic way to ship a release that crashes only in
+  production. The release APK is ~56 MB because of this and because it is a universal APK -- use
+  `flutter build appbundle` for Play, which splits per-ABI.
+- **No iOS project exists** (`mobile/ios/` is absent). The app is Android-only today.
+
 ## Pre-launch checklist
 
 Carry these over from what Phase 15's audit flagged, since they're exactly the kind of thing
@@ -150,3 +210,11 @@ that's cheap to check before launch and expensive after:
 - [ ] If launching with document uploads: an S3-compatible bucket is provisioned (private, no
       public read), `S3_ENABLED=true`, and all required `S3_*` values are set. Verify upload and
       signed-download behavior against the chosen provider before accepting production KYC.
+- [ ] Android upload keystore created and backed up; `apksigner verify --print-certs` on the
+      release artifact shows your key, **not** `CN=Android Debug` (see "Android release build").
+- [ ] Maps API key and Google Sign-In OAuth client both re-registered against package
+      `com.hipg.app` and the upload key's SHA-1 -- otherwise maps render blank and customer
+      Google sign-in fails only in the release build.
+- [ ] `mvn test` has actually been run against a working Docker daemon. The Testcontainers suite
+      is the only thing that exercises `BookingConcurrencyTest` and
+      `FeePaymentOrderUniquenessTest`, and it is silently skipped-by-hanging when Docker is down.
