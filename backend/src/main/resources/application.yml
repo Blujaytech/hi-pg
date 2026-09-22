@@ -43,7 +43,11 @@ app:
     ttl-minutes: 5
     max-attempts-per-hour: 5
   google:
-    oauth-client-id: ${GOOGLE_OAUTH_CLIENT_ID:}
+    # OAuth client IDs are public identifiers. Keeping the same fallback used
+    # by the mobile app and production profile makes Google sign-in work for
+    # the local emulator even when Docker Compose is started without an env
+    # file. Deployments can still override it through the environment.
+    oauth-client-id: ${GOOGLE_OAUTH_CLIENT_ID:83954662324-8tsednfctojp1stj3o7rc7fvs02m1lds.apps.googleusercontent.com}
   razorpay:
     key-id: ${RAZORPAY_KEY_ID:}
     key-secret: ${RAZORPAY_KEY_SECRET:}

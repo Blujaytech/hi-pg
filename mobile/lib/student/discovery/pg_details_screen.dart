@@ -53,6 +53,7 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
   int? _liveTotalBeds;
   bool _live = false;
   bool _booking = false;
+  bool _googleSignInInProgress = false;
 
   /// Bed a guest chose before signing in; booked once they are back.
   AvailableBedOption? _pendingBed;
@@ -68,7 +69,11 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
 
   void _resumeAfterSignIn() {
     final bed = _pendingBed;
-    if (bed == null || _auth.status != AuthStatus.authenticated) return;
+    if (bed == null ||
+        _googleSignInInProgress ||
+        _auth.status != AuthStatus.authenticated) {
+      return;
+    }
     _pendingBed = null;
     // Let the sign-in screen finish closing before opening the date picker.
     Future<void>.delayed(const Duration(milliseconds: 450), () {
@@ -134,37 +139,103 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
 
   Future<void> _signInWithGoogleForBed() async {
     final bed = _pendingBed;
+    if (bed == null) return;
     var ownerGmail = false;
+    var useMobileFallback = false;
+    var signedIn = false;
+    _googleSignInInProgress = true;
     setState(() => _booking = true);
     try {
       await _auth.googleStudentLogin();
-      // AuthState's listener resumes the selected bed after authentication.
+      signedIn = true;
     } on GoogleStudentSignInCanceled {
-      _pendingBed = null;
+      if (mounted) {
+        useMobileFallback = await _showGoogleSignInCanceled();
+      }
+      if (!useMobileFallback) _pendingBed = null;
     } on GoogleStudentSignInFailure catch (error) {
       _pendingBed = null;
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(error.message)));
+        await _showGoogleSignInError(error.message);
       }
     } on ApiException catch (error) {
       _pendingBed = null;
       if (isOwnerGmailConflict(error)) {
         ownerGmail = true;
       } else if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(error.message)));
+        await _showGoogleSignInError(error.message);
       }
     } catch (_) {
       _pendingBed = null;
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Google sign-in could not be completed.')));
+        await _showGoogleSignInError(
+            'Google sign-in could not be completed. Please try again.');
       }
     } finally {
+      _googleSignInInProgress = false;
       if (mounted) setState(() => _booking = false);
     }
-    if (ownerGmail && bed != null && mounted) await _resolveOwnerGmail(bed);
+    if (!mounted) return;
+    if (signedIn) {
+      // Resume explicitly after the native Google account sheet has closed.
+      // Relying only on AuthState's synchronous listener races with the
+      // router refresh and can lose the selected bed before the profile gate
+      // opens.
+      _pendingBed = null;
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      if (!mounted) return;
+      await _bookBed(bed);
+      return;
+    }
+    if (ownerGmail) await _resolveOwnerGmail(bed);
+    if (useMobileFallback && mounted) {
+      final here = GoRouterState.of(context).matchedLocation;
+      context.push(Uri(path: '/student/login', queryParameters: {'from': here})
+          .toString());
+    }
+  }
+
+  Future<bool> _showGoogleSignInCanceled() async {
+    if (!mounted) return false;
+    return await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text("Google sign-in didn't finish"),
+            content: const Text(
+              'Google did not return an account to the app. Try Google again, '
+              'or continue securely with your mobile number to book the '
+              'selected bed.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Close'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text('Use mobile number'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
+  Future<void> _showGoogleSignInError(String message) async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Google sign-in failed'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   /// The chosen Gmail already belongs to a PG owner, so the server won't make
