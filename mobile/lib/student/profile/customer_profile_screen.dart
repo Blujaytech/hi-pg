@@ -23,7 +23,6 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _occupationController = TextEditingController();
-  final _phoneController = TextEditingController();
   final _addressController = TextEditingController();
   final _identityLast4Controller = TextEditingController();
 
@@ -48,7 +47,6 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
   void dispose() {
     _nameController.dispose();
     _occupationController.dispose();
-    _phoneController.dispose();
     _addressController.dispose();
     _identityLast4Controller.dispose();
     super.dispose();
@@ -79,45 +77,12 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
     _profile = profile;
     _nameController.text = profile.fullName;
     _occupationController.text = profile.occupation;
-    _phoneController.text = profile.phone ?? '';
     _addressController.text = profile.permanentAddress ?? '';
     _identityType = profile.identityType;
     _identityLast4Controller.text = profile.identityLast4 ?? '';
     _acceptTerms = profile.termsAcceptedVersion != null;
     _acceptPrivacy = profile.privacyAcceptedVersion != null;
     _acceptAadhaarConsent = profile.aadhaarConsentVersion != null;
-  }
-
-  Future<void> _verifyMobile() async {
-    final phone = _phoneController.text.replaceAll(RegExp(r'[\s-]'), '');
-    if (!RegExp(r'^\+?[0-9]{10,13}$').hasMatch(phone)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter a valid mobile number first.')),
-      );
-      return;
-    }
-    try {
-      await _repository.requestPhoneOtp(phone);
-      if (!mounted) return;
-      final verified = await showDialog<CustomerProfile>(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => _PhoneOtpDialog(
-          repository: _repository,
-          phone: phone,
-        ),
-      );
-      if (verified == null || !mounted) return;
-      setState(() => _applyProfile(verified));
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Mobile number verified.')),
-      );
-    } on ApiException catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(error.message)));
-      }
-    }
   }
 
   Future<void> _save() async {
@@ -217,8 +182,8 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
             AppMessageBanner(
               icon: Icons.verified_user_outlined,
               message: widget.requiredFor == BookingType.monthly
-                  ? 'Monthly stays need verified contact details, your permanent address, and a government ID ending.'
-                  : 'Complete your basic profile and verify your mobile number to book a day-wise stay.',
+                  ? 'Monthly stays need your permanent address and a government ID ending.'
+                  : 'Complete your basic profile to book a day-wise stay.',
             ),
             const SizedBox(height: 20),
           ],
@@ -262,53 +227,6 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                     ? 'Enter your profession or occupation'
                     : null,
               ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          _SectionCard(
-            title: 'Verified mobile',
-            subtitle:
-                'Owners use this number only for booking and stay-related communication.',
-            children: [
-              TextFormField(
-                controller: _phoneController,
-                enabled: !_saving && !(_profile?.phoneVerified ?? false),
-                keyboardType: TextInputType.phone,
-                autofillHints: const [AutofillHints.telephoneNumber],
-                decoration: InputDecoration(
-                  labelText: 'Mobile number',
-                  prefixIcon: const Icon(Icons.phone_iphone_rounded),
-                  suffixIcon: (_profile?.phoneVerified ?? false)
-                      ? const Icon(Icons.verified_rounded,
-                          color: AppColors.success)
-                      : null,
-                ),
-                validator: (value) {
-                  final phone = (value ?? '').replaceAll(RegExp(r'[\s-]'), '');
-                  return RegExp(r'^\+?[0-9]{10,13}$').hasMatch(phone)
-                      ? null
-                      : 'Enter a valid mobile number';
-                },
-              ),
-              const SizedBox(height: 10),
-              if (_profile?.phoneVerified ?? false)
-                const Row(
-                  children: [
-                    Icon(Icons.check_circle_rounded,
-                        color: AppColors.success, size: 18),
-                    SizedBox(width: 7),
-                    Text('Mobile number verified',
-                        style: TextStyle(
-                            color: AppColors.success,
-                            fontWeight: FontWeight.w700)),
-                  ],
-                )
-              else
-                OutlinedButton.icon(
-                  onPressed: _saving ? null : _verifyMobile,
-                  icon: const Icon(Icons.sms_outlined, size: 18),
-                  label: const Text('Send verification code'),
-                ),
             ],
           ),
           const SizedBox(height: 16),
@@ -482,87 +400,6 @@ class _SectionCard extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _PhoneOtpDialog extends StatefulWidget {
-  final CustomerProfileRepository repository;
-  final String phone;
-
-  const _PhoneOtpDialog({required this.repository, required this.phone});
-
-  @override
-  State<_PhoneOtpDialog> createState() => _PhoneOtpDialogState();
-}
-
-class _PhoneOtpDialogState extends State<_PhoneOtpDialog> {
-  final _controller = TextEditingController();
-  bool _loading = false;
-  String? _error;
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  Future<void> _verify() async {
-    if (!RegExp(r'^\d{6}$').hasMatch(_controller.text.trim())) {
-      setState(() => _error = 'Enter the complete 6-digit code.');
-      return;
-    }
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    try {
-      final profile = await widget.repository
-          .verifyPhoneOtp(widget.phone, _controller.text);
-      if (mounted) Navigator.pop(context, profile);
-    } on ApiException catch (error) {
-      if (mounted) setState(() => _error = error.message);
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Verify mobile number'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text('Enter the code sent to ${widget.phone}.'),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _controller,
-            enabled: !_loading,
-            autofocus: true,
-            keyboardType: TextInputType.number,
-            maxLength: 6,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            onSubmitted: (_) => _verify(),
-            decoration: InputDecoration(
-              labelText: '6-digit code',
-              errorText: _error,
-              counterText: '',
-            ),
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: _loading ? null : () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: _loading ? null : _verify,
-          child: Text(_loading ? 'Verifying...' : 'Verify'),
-        ),
-      ],
     );
   }
 }

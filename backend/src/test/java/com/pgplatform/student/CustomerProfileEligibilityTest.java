@@ -43,6 +43,17 @@ class CustomerProfileEligibilityTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void bookingDoesNotRequireAVerifiedMobile() {
+        User user = student("Customer Three", null, false);
+
+        profileService.update(user.getId(), new CustomerProfileUpdateRequest(
+                "Customer Three", "Student", null, null, null,
+                true, true, false), "127.0.0.1", "test", "en-IN");
+
+        assertThat(profileService.eligibility(user.getId(), BookingType.DAY_WISE).eligible()).isTrue();
+    }
+
+    @Test
     void aadhaarAcceptsOnlyLastFourDigitsAndRequiresSeparateConsent() {
         User user = student("Customer Two", "9000000012", true);
 
