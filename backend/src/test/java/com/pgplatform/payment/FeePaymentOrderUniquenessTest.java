@@ -101,8 +101,10 @@ class FeePaymentOrderUniquenessTest extends AbstractIntegrationTest {
     @Test
     void twoDifferentFeesAreUnaffected() {
         Fee first = setUpFee();
+        UUID ownerId = jdbcTemplate.queryForObject(
+                "select owner_id from pgs where id = ?", UUID.class, first.getPg().getId());
         Fee second = feeRepository.findByIdAndDeletedAtIsNull(
-                feeService.create(first.getStudent().getId(), first.getPg().getOwner().getId(),
+                feeService.create(first.getStudent().getId(), ownerId,
                         new FeeCreateRequest(monthAfter(), LocalDate.now().getYear(),
                                 new BigDecimal("7500.00"), LocalDate.now().plusDays(35), null)).id())
                 .orElseThrow();

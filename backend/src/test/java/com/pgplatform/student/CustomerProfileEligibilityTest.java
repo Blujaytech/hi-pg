@@ -44,7 +44,7 @@ class CustomerProfileEligibilityTest extends AbstractIntegrationTest {
 
     @Test
     void bookingDoesNotRequireAVerifiedMobile() {
-        User user = student("Customer Three", null, false);
+        User user = student("Customer Three", "9000000013", false);
 
         profileService.update(user.getId(), new CustomerProfileUpdateRequest(
                 "Customer Three", "Student", null, null, null,
