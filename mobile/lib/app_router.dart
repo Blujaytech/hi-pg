@@ -340,6 +340,8 @@ GoRouter buildRouter(AuthState authState) {
                 : requiredFor == 'DAY_WISE'
                     ? BookingType.dayWise
                     : null,
+            requireVerifiedMobile:
+                state.uri.queryParameters['verifyMobile'] == 'true',
           );
         },
       ),

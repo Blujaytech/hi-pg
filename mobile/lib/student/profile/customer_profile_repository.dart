@@ -46,13 +46,13 @@ class CustomerProfileRepository {
   }
 
   Future<void> requestPhoneOtp(String phone) => _client.post<void>(
-        '/student/profile/phone/request-otp',
+        '/student/profile/phone/otp/request',
         data: {'phone': phone.trim()},
       );
 
   Future<CustomerProfile> verifyPhoneOtp(String phone, String code) async {
     final response = await _client.post<Map<String, dynamic>>(
-      '/student/profile/phone/verify',
+      '/student/profile/phone/otp/verify',
       data: {'phone': phone.trim(), 'code': code.trim()},
     );
     return CustomerProfile.fromJson(response.data!);

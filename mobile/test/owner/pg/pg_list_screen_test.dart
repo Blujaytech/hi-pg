@@ -7,6 +7,29 @@ import 'package:pg_platform_mobile/owner/pg/pg_repository.dart';
 import 'package:provider/provider.dart';
 
 void main() {
+  testWidgets('property actions do not overflow on a phone-width screen',
+      (tester) async {
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final authState = AuthState()..fullName = 'Nazeer';
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AuthState>.value(
+        value: authState,
+        child: MaterialApp(
+          home: PgListScreen(repository: _SinglePgRepository()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Customers'), findsOneWidget);
+    expect(find.text('Payments'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('keeps a newly created PG visible when reconciliation is stale',
       (tester) async {
     final repository = _StaleAfterCreatePgRepository();
@@ -37,6 +60,20 @@ void main() {
     expect(find.text('Test Haven PG'), findsOneWidget);
     expect(find.text('1 property'), findsOneWidget);
   });
+}
+
+class _SinglePgRepository extends _StaleAfterCreatePgRepository {
+  @override
+  Future<List<Pg>> list() async => [
+        Pg(
+          id: 'phone-width-pg',
+          name: 'Long Property Name',
+          address: '123 Long Market Road',
+          city: 'Hyderabad',
+          genderPreference: GenderPreference.coEd,
+          status: PgStatus.active,
+        ),
+      ];
 }
 
 class _StaleAfterCreatePgRepository implements PgDataSource {

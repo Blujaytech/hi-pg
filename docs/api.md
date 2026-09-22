@@ -322,10 +322,10 @@ All endpoints below require the role shown in the path. They use the authenticat
 | GET | `/student/profile` | Returns the customer's profile, verified-phone state, versioned legal acceptances, identity type, and identity last four characters. |
 | PUT | `/student/profile` | `{fullName, occupation, permanentAddress?, identityType?, identityLast4?, acceptTerms, acceptPrivacy, acceptAadhaarConsent}`. `identityLast4` is exactly four characters; a full Aadhaar number is rejected. Aadhaar consent is separate and required only when `identityType=AADHAAR`. |
 | POST | `/student/profile/phone/otp/request` | `{phone}`; requests verification for the profile mobile number. |
-| POST | `/student/profile/phone/otp/verify` | `{phone, otp}`; verifies that number for the authenticated customer. |
+| POST | `/student/profile/phone/otp/verify` | `{phone, code}`; verifies that number for the authenticated customer. |
 | GET | `/student/profile/booking-eligibility?bookingType=DAY_WISE\|MONTHLY` | Returns `{bookingType, eligible, missingRequirements}`. |
 
-Both booking types require full name, occupation, verified mobile, current Terms acceptance, and current Privacy Notice acceptance. Monthly bookings additionally require a permanent address, identity type, and four-character identity suffix. Booking creation enforces these rules server-side; the Flutter eligibility screen is not the security boundary.
+Both booking types require full name, occupation, current Terms acceptance, and current Privacy Notice acceptance. Monthly bookings additionally require a permanent address, identity type, and four-character identity suffix. The Flutter client still understands a `VERIFIED_MOBILE` requirement for compatibility with older deployments and can complete that verification through the profile screen. Booking creation enforces the server's current rules; the Flutter eligibility screen is not the security boundary.
 
 ### Owner direct-payment settings
 

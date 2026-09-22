@@ -522,16 +522,20 @@ class _CardAction extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 13),
-          child: Row(
+          padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 11),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(icon, size: 17, color: AppColors.ink),
-              const SizedBox(width: 6),
+              const SizedBox(height: 5),
               Text(
                 label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
                 style: const TextStyle(
-                  fontSize: 12.5,
+                  fontSize: 11.5,
                   fontWeight: FontWeight.w700,
                   color: AppColors.ink,
                 ),

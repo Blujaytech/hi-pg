@@ -199,8 +199,7 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
   void _reload() => setState(_loadDetails);
 
   void _subscribeToLiveAvailability() {
-    _availabilitySubscription = ApiClient.instance
-        .sseStream(
+    _availabilitySubscription = ApiClient.instance.sseStream(
       '/public/pgs/${widget.pgId}/availability/stream',
       // Without this the "Live" badge stayed lit after the stream died,
       // presenting a stale bed count as up-to-the-second on a screen people
@@ -209,8 +208,7 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
       onConnected: (connected) {
         if (mounted && _live != connected) setState(() => _live = connected);
       },
-    )
-        .listen(
+    ).listen(
       (event) {
         if (!mounted) return;
         setState(() {
@@ -377,7 +375,7 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
   Future<bool> _ensureBookingEligible(BookingType bookingType) async {
     setState(() => _booking = true);
     try {
-      var eligibility = await _profileRepository.eligibility(bookingType);
+      final eligibility = await _profileRepository.eligibility(bookingType);
       if (!mounted) return false;
       if (eligibility.eligible) return true;
 
@@ -385,22 +383,23 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
       final completed = await context.push<bool>(
         Uri(
           path: '/student/profile',
-          queryParameters: {'requiredFor': bookingType.apiValue},
+          queryParameters: {
+            'requiredFor': bookingType.apiValue,
+            if (eligibility.missingRequirements
+                .contains(ProfileRequirement.verifiedMobile))
+              'verifyMobile': 'true',
+          },
         ).toString(),
       );
-      if (completed != true || !mounted) return false;
+      if (!mounted) return false;
+      if (completed == true) return true;
 
-      eligibility = await _profileRepository.eligibility(bookingType);
-      if (eligibility.eligible) return true;
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(eligibility.missingRequirements
-                .map((requirement) => requirement.label)
-                .join(' · ')),
-          ),
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'Booking paused. Complete the required profile details to continue.'),
+        ),
+      );
       return false;
     } on ApiException catch (error) {
       if (mounted) {
