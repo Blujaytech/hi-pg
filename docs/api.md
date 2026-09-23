@@ -228,7 +228,7 @@ Authenticated, `hasRole('STUDENT')`. This is the first endpoint that links a Stu
 
 | Method | Path | Notes |
 |---|---|---|
-| POST | `/student/bookings` | `{bedId, moveInDate}` -- instant-confirm, no owner approval step; 409 if the bed is no longer available or the student already has an active booking |
+| POST | `/student/bookings` | Current payload: `{bedId, bookingType, checkInDate, checkOutDate?}`. Legacy `{bedId, moveInDate}` clients remain supported as open-ended monthly bookings. |
 | GET | `/student/bookings` | every booking (any status) for the logged-in student, newest first |
 | GET | `/student/bookings/{bookingId}` | one booking; 403 if it isn't yours |
 | POST | `/student/bookings/{bookingId}/cancel?reason=` | frees the bed, marks the linked Student `MOVED_OUT`; 409 if already cancelled |

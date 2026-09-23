@@ -171,8 +171,8 @@ class ApiClient {
         // Any transport failure is retried below, same as a clean close.
       }
       onConnected?.call(false);
-      await Future<void>.delayed(
-          _sseBackoff[attempt < _sseBackoff.length ? attempt : _sseBackoff.length - 1]);
+      await Future<void>.delayed(_sseBackoff[
+          attempt < _sseBackoff.length ? attempt : _sseBackoff.length - 1]);
       attempt++;
     }
   }
@@ -234,10 +234,21 @@ class ApiClient {
   ApiException _toApiException(DioException e) {
     final data = e.response?.data;
     if (data is Map<String, dynamic>) {
+      final details =
+          (data['details'] as List?)?.whereType<String>().toList() ??
+              const <String>[];
+      final serverMessage =
+          (data['message'] as String?) ?? 'Something went wrong';
       return ApiException(
-        message: (data['message'] as String?) ?? 'Something went wrong',
+        // Bean-validation responses have a deliberately generic summary. If
+        // a future client/server contract ever drifts again, show the precise
+        // rejected field instead of the unhelpful "Request validation failed".
+        message:
+            serverMessage == 'Request validation failed' && details.isNotEmpty
+                ? details.join('\n')
+                : serverMessage,
         statusCode: e.response?.statusCode,
-        details: (data['details'] as List?)?.cast<String>() ?? const [],
+        details: details,
       );
     }
     if (e.type == DioExceptionType.connectionTimeout ||
