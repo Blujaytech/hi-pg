@@ -12,8 +12,12 @@ import com.pgplatform.owner.PaymentOnboardingStatus;
 import com.pgplatform.owner.Pg;
 import com.pgplatform.owner.PgRepository;
 import com.pgplatform.owner.PgService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -24,6 +28,7 @@ import java.util.UUID;
 
 @Service
 public class OwnerKycService {
+    private static final Logger log = LoggerFactory.getLogger(OwnerKycService.class);
     private static final long MAX_FILE_BYTES = 10L * 1024 * 1024;
     private static final Set<OwnerKycDocumentType> REQUIRED_DOCUMENTS = EnumSet.of(
             OwnerKycDocumentType.PAN_CARD, OwnerKycDocumentType.AADHAAR_FRONT,
@@ -76,18 +81,28 @@ public class OwnerKycService {
         OwnerKycSubmission submission = requireEditable(pgId);
         validateFile(content, fileName, contentType);
         String storageKey = storageGateway.store(content, fileName, contentType);
-
-        OwnerKycDocument document = documentRepository
-                .findBySubmissionIdAndDocumentTypeAndDeletedAtIsNull(submission.getId(), type)
-                .orElseGet(OwnerKycDocument::new);
-        document.setSubmission(submission);
-        document.setDocumentType(type);
-        document.setFileName(fileName);
-        document.setContentType(contentType);
-        document.setSizeBytes((long) content.length);
-        document.setStorageKey(storageKey);
-        documentRepository.save(document);
-        return response(submission);
+        boolean cleanupRegistered = false;
+        try {
+            OwnerKycDocument document = documentRepository
+                    .findBySubmissionIdAndDocumentTypeAndDeletedAtIsNull(submission.getId(), type)
+                    .orElseGet(OwnerKycDocument::new);
+            String replacedStorageKey = document.getStorageKey();
+            document.setSubmission(submission);
+            document.setDocumentType(type);
+            document.setFileName(fileName);
+            document.setContentType(contentType);
+            document.setSizeBytes((long) content.length);
+            document.setStorageKey(storageKey);
+            documentRepository.save(document);
+            registerStorageCleanup(storageKey, replacedStorageKey);
+            cleanupRegistered = true;
+            return response(submission);
+        } catch (RuntimeException ex) {
+            // If persistence fails before transaction callbacks are registered,
+            // do not leave an unreferenced sensitive object in the bucket.
+            if (!cleanupRegistered) safeDelete(storageKey, "new object after failed upload");
+            throw ex;
+        }
     }
 
     @Transactional
@@ -141,6 +156,19 @@ public class OwnerKycService {
         }
         if (request.status() != OwnerKycStatus.VERIFIED && request.status() != OwnerKycStatus.REJECTED) {
             throw new ConflictException("Admin review must verify or reject KYC");
+        }
+        if (request.status() == OwnerKycStatus.REJECTED
+                && (request.reviewNote() == null || request.reviewNote().isBlank())) {
+            throw new ConflictException("A reason is required when returning KYC for changes");
+        }
+        if (request.status() == OwnerKycStatus.VERIFIED) {
+            Set<OwnerKycDocumentType> uploaded = documentRepository
+                    .findAllBySubmissionIdAndDeletedAtIsNullOrderByDocumentType(submission.getId()).stream()
+                    .map(OwnerKycDocument::getDocumentType)
+                    .collect(java.util.stream.Collectors.toSet());
+            if (!uploaded.containsAll(REQUIRED_DOCUMENTS)) {
+                throw new ConflictException("All required KYC documents must be present before approval");
+            }
         }
         submission.setStatus(request.status());
         submission.setReviewNote(request.reviewNote());
@@ -197,8 +225,53 @@ public class OwnerKycService {
             throw new ConflictException("KYC files must be between 1 byte and 10 MB");
         }
         if (fileName == null || fileName.isBlank()) throw new ConflictException("File name is required");
-        if (contentType == null || !(contentType.startsWith("image/") || "application/pdf".equals(contentType))) {
-            throw new ConflictException("KYC documents must be an image or PDF");
+        if (contentType == null || !Set.of("image/jpeg", "image/png", "application/pdf").contains(contentType)) {
+            throw new ConflictException("KYC documents must be JPG, PNG, or PDF");
+        }
+        boolean validSignature = switch (contentType) {
+            case "image/jpeg" -> startsWith(content, 0xFF, 0xD8, 0xFF);
+            case "image/png" -> startsWith(content, 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A);
+            case "application/pdf" -> startsWith(content, 0x25, 0x50, 0x44, 0x46, 0x2D);
+            default -> false;
+        };
+        if (!validSignature) {
+            throw new ConflictException("The selected file content does not match its JPG, PNG, or PDF type");
+        }
+    }
+
+    private boolean startsWith(byte[] content, int... signature) {
+        if (content.length < signature.length) return false;
+        for (int i = 0; i < signature.length; i++) {
+            if ((content[i] & 0xFF) != signature[i]) return false;
+        }
+        return true;
+    }
+
+    private void registerStorageCleanup(String newStorageKey, String replacedStorageKey) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            throw new IllegalStateException("KYC document upload requires an active transaction");
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status == STATUS_COMMITTED) {
+                    if (replacedStorageKey != null && !replacedStorageKey.equals(newStorageKey)) {
+                        safeDelete(replacedStorageKey, "replaced object");
+                    }
+                } else {
+                    safeDelete(newStorageKey, "new object after rolled-back upload");
+                }
+            }
+        });
+    }
+
+    private void safeDelete(String storageKey, String context) {
+        try {
+            storageGateway.delete(storageKey);
+        } catch (RuntimeException cleanupError) {
+            // The committed database reference remains valid; surface this in
+            // logs for operational cleanup without breaking the owner's flow.
+            log.error("Could not delete {} from private storage ({})", storageKey, context, cleanupError);
         }
     }
 

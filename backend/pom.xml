@@ -89,6 +89,14 @@
             <artifactId>s3</artifactId>
             <version>${aws-sdk.version}</version>
         </dependency>
+        <!-- Pin the lightweight JDK transport explicitly. Letting the SDK
+             auto-select Spring Boot's older Apache HttpClient 5 causes a
+             NoClassDefFoundError when storage is enabled in production. -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>url-connection-client</artifactId>
+            <version>${aws-sdk.version}</version>
+        </dependency>
 
         <!-- Lombok -->
         <dependency>

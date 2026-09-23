@@ -6,6 +6,8 @@ import org.springframework.stereotype.Component;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.core.exception.SdkException;
+import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3Configuration;
@@ -42,6 +44,10 @@ public class S3DocumentStorageGateway implements DocumentStorageGateway {
         S3ClientBuilder clientBuilder = S3Client.builder()
                 .region(Region.of(properties.getRegion()))
                 .credentialsProvider(credentials)
+                // Do not rely on classpath auto-detection: Spring Boot 3.2
+                // manages an Apache HttpClient version older than the AWS SDK
+                // expects. The JDK transport has no such version coupling.
+                .httpClientBuilder(UrlConnectionHttpClient.builder())
                 .serviceConfiguration(serviceConfiguration);
         S3Presigner.Builder presignerBuilder = S3Presigner.builder()
                 .region(Region.of(properties.getRegion()))
@@ -66,8 +72,13 @@ public class S3DocumentStorageGateway implements DocumentStorageGateway {
                 .contentType(contentType)
                 .contentLength((long) content.length)
                 .build();
-        client.putObject(request, RequestBody.fromBytes(content));
-        return storageKey;
+        try {
+            client.putObject(request, RequestBody.fromBytes(content));
+            return storageKey;
+        } catch (SdkException ex) {
+            throw new DocumentStorageException(
+                    "Private document storage is temporarily unavailable. Please try again.", ex);
+        }
     }
 
     @Override
@@ -76,19 +87,28 @@ public class S3DocumentStorageGateway implements DocumentStorageGateway {
                 .bucket(properties.getBucket())
                 .key(storageKey)
                 .build();
-        return presigner.presignGetObject(GetObjectPresignRequest.builder()
-                        .signatureDuration(ttl)
-                        .getObjectRequest(objectRequest)
-                        .build())
-                .url().toExternalForm();
+        try {
+            return presigner.presignGetObject(GetObjectPresignRequest.builder()
+                            .signatureDuration(ttl)
+                            .getObjectRequest(objectRequest)
+                            .build())
+                    .url().toExternalForm();
+        } catch (SdkException ex) {
+            throw new DocumentStorageException(
+                    "The private document link could not be created. Please try again.", ex);
+        }
     }
 
     @Override
     public void delete(String storageKey) {
-        client.deleteObject(DeleteObjectRequest.builder()
-                .bucket(properties.getBucket())
-                .key(storageKey)
-                .build());
+        try {
+            client.deleteObject(DeleteObjectRequest.builder()
+                    .bucket(properties.getBucket())
+                    .key(storageKey)
+                    .build());
+        } catch (SdkException ex) {
+            throw new DocumentStorageException("The private document could not be deleted.", ex);
+        }
     }
 
     @PreDestroy

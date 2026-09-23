@@ -30,8 +30,8 @@ public class OwnerKycController {
 
     @PostMapping(value = "/documents", consumes = "multipart/form-data")
     public OwnerKycResponse upload(@AuthenticationPrincipal UserPrincipal principal, @PathVariable UUID pgId,
-                                   @RequestParam OwnerKycDocumentType documentType,
-                                   @RequestPart MultipartFile file) {
+                                   @RequestParam("documentType") OwnerKycDocumentType documentType,
+                                   @RequestPart("file") MultipartFile file) {
         try {
             return service.upload(pgId, principal.getId(), documentType, file.getBytes(),
                     file.getOriginalFilename(), file.getContentType());

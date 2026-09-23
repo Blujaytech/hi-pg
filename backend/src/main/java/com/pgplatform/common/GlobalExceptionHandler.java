@@ -1,5 +1,6 @@
 package com.pgplatform.common;
 
+import com.pgplatform.document.DocumentStorageException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -62,6 +63,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiError> handleNotImplemented(UnsupportedOperationException ex, HttpServletRequest req) {
         return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED)
                 .body(ApiError.of(501, "NOT_IMPLEMENTED", ex.getMessage(), req.getRequestURI()));
+    }
+
+    @ExceptionHandler(DocumentStorageException.class)
+    public ResponseEntity<ApiError> handleDocumentStorage(DocumentStorageException ex, HttpServletRequest req) {
+        log.error("Private document storage failure on {} {}", req.getMethod(), req.getRequestURI(), ex);
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(ApiError.of(503, "STORAGE_UNAVAILABLE", ex.getMessage(), req.getRequestURI()));
     }
 
     @ExceptionHandler(Exception.class)

@@ -44,6 +44,22 @@ services:
         value: 83954662324-8tsednfctojp1stj3o7rc7fvs02m1lds.apps.googleusercontent.com
       - key: CORS_ALLOWED_ORIGINS
         sync: false
+      # Private Cloudflare R2 bucket used for owner/student documents. Keep
+      # credentials in Render; never commit their values to this Blueprint.
+      - key: S3_ENABLED
+        value: "true"
+      - key: S3_ENDPOINT
+        value: https://1f5240818c712202da2c5c3745d1f51f.r2.cloudflarestorage.com
+      - key: S3_REGION
+        value: auto
+      - key: S3_BUCKET
+        value: hi-pg-kyc-private
+      - key: S3_ACCESS_KEY
+        sync: false
+      - key: S3_SECRET_KEY
+        sync: false
+      - key: S3_PATH_STYLE_ACCESS
+        value: "false"
 
 databases:
   - name: pg-platform-db
