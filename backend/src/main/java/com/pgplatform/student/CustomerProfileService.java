@@ -141,6 +141,7 @@ public class CustomerProfileService {
         String name = profile == null ? user.getFullName() : profile.getFullName();
         if (isBlank(name) || "Student".equalsIgnoreCase(name.trim())) missing.add("FULL_NAME");
         if (profile == null || isBlank(profile.getOccupation())) missing.add("OCCUPATION");
+        if (!user.isPhoneVerified() || isBlank(user.getPhone())) missing.add("VERIFIED_MOBILE");
         if (!accepted(user.getId(), LegalDocumentType.TERMS, termsVersion)) missing.add("TERMS_ACCEPTANCE");
         if (!accepted(user.getId(), LegalDocumentType.PRIVACY, privacyVersion)) missing.add("PRIVACY_ACCEPTANCE");
         if (bookingType == BookingType.MONTHLY) {

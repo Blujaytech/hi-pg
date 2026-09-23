@@ -143,3 +143,47 @@ class BookingEligibility {
                 .toList(),
       );
 }
+
+extension CustomerProfileEligibility on CustomerProfile {
+  /// Mirrors the server's booking gate so a customer can still reach the
+  /// mandatory profile form during a rolling deployment where an older API
+  /// rejects the newer eligibility query contract. The booking endpoint
+  /// remains authoritative and checks the same requirements server-side.
+  BookingEligibility eligibilityFor(BookingType bookingType) {
+    final missing = <ProfileRequirement>[];
+    if (id == null) missing.add(ProfileRequirement.profile);
+    if (fullName.trim().isEmpty || fullName.trim().toLowerCase() == 'student') {
+      missing.add(ProfileRequirement.fullName);
+    }
+    if (occupation.trim().isEmpty) {
+      missing.add(ProfileRequirement.occupation);
+    }
+    if (!phoneVerified || (phone?.trim().isEmpty ?? true)) {
+      missing.add(ProfileRequirement.verifiedMobile);
+    }
+    if (termsAcceptedVersion == null) {
+      missing.add(ProfileRequirement.termsAcceptance);
+    }
+    if (privacyAcceptedVersion == null) {
+      missing.add(ProfileRequirement.privacyAcceptance);
+    }
+    if (bookingType == BookingType.monthly) {
+      if (permanentAddress?.trim().isEmpty ?? true) {
+        missing.add(ProfileRequirement.permanentAddress);
+      }
+      final hasIdentity = identityType != null &&
+          RegExp(r'^[A-Za-z0-9]{4}$').hasMatch(identityLast4?.trim() ?? '');
+      if (!hasIdentity) {
+        missing.add(ProfileRequirement.identity);
+      } else if (identityType == IdentityType.aadhaar &&
+          aadhaarConsentVersion == null) {
+        missing.add(ProfileRequirement.aadhaarConsent);
+      }
+    }
+    return BookingEligibility(
+      bookingType: bookingType,
+      eligible: missing.isEmpty,
+      missingRequirements: List.unmodifiable(missing),
+    );
+  }
+}
