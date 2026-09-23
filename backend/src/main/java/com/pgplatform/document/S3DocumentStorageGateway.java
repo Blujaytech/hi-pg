@@ -19,6 +19,7 @@ import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.UUID;
 
@@ -108,6 +109,28 @@ public class S3DocumentStorageGateway implements DocumentStorageGateway {
                     .build());
         } catch (SdkException ex) {
             throw new DocumentStorageException("The private document could not be deleted.", ex);
+        }
+    }
+
+    @Override
+    public void verifyReadWriteAccess() {
+        String storageKey = "private/system/storage-probes/" + UUID.randomUUID() + ".txt";
+        byte[] probe = "hi-pg storage probe\n".getBytes(StandardCharsets.UTF_8);
+        PutObjectRequest put = PutObjectRequest.builder()
+                .bucket(properties.getBucket())
+                .key(storageKey)
+                .contentType("text/plain")
+                .contentLength((long) probe.length)
+                .build();
+        try {
+            client.putObject(put, RequestBody.fromBytes(probe));
+            client.deleteObject(DeleteObjectRequest.builder()
+                    .bucket(properties.getBucket())
+                    .key(storageKey)
+                    .build());
+        } catch (SdkException ex) {
+            throw new DocumentStorageException(
+                    "Private document storage credentials or bucket access are invalid.", ex);
         }
     }
 

@@ -20,4 +20,7 @@ public interface DocumentStorageGateway {
     String generateSignedUrl(String storageKey, Duration ttl);
 
     void delete(String storageKey);
+
+    /** Verifies that the configured private store supports a complete write/delete cycle. */
+    void verifyReadWriteAccess();
 }

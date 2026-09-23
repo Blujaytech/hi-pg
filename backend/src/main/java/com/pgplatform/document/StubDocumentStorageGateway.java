@@ -35,4 +35,9 @@ public class StubDocumentStorageGateway implements DocumentStorageGateway {
     public void delete(String storageKey) {
         throw new UnsupportedOperationException(NOT_CONFIGURED);
     }
+
+    @Override
+    public void verifyReadWriteAccess() {
+        throw new UnsupportedOperationException(NOT_CONFIGURED);
+    }
 }
