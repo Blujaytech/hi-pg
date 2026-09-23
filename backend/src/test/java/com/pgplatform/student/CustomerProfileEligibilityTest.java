@@ -55,19 +55,13 @@ class CustomerProfileEligibilityTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void everyBookingRequiresAVerifiedMobile() {
+    void bookingDoesNotRequireAVerifiedMobile() {
         User user = student("Customer Three", "9000000013", false);
 
         profileService.update(user.getId(), new CustomerProfileUpdateRequest(
                 "Customer Three", "Student", null, null, null,
                 true, true, false), "127.0.0.1", "test", "en-IN");
 
-        var eligibility = profileService.eligibility(user.getId(), BookingType.DAY_WISE);
-        assertThat(eligibility.eligible()).isFalse();
-        assertThat(eligibility.missingRequirements()).containsExactly("VERIFIED_MOBILE");
-
-        user.setPhoneVerified(true);
-        userRepository.save(user);
         assertThat(profileService.eligibility(user.getId(), BookingType.DAY_WISE).eligible()).isTrue();
     }
 
@@ -88,7 +82,7 @@ class CustomerProfileEligibilityTest extends AbstractIntegrationTest {
         assertThat(response.getBody().bookingType()).isEqualTo(BookingType.MONTHLY);
         assertThat(response.getBody().eligible()).isFalse();
         assertThat(response.getBody().missingRequirements())
-                .contains("PROFILE", "OCCUPATION", "VERIFIED_MOBILE",
+                .contains("PROFILE", "OCCUPATION",
                         "TERMS_ACCEPTANCE", "PRIVACY_ACCEPTANCE",
                         "PERMANENT_ADDRESS", "IDENTITY");
     }

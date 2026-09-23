@@ -47,7 +47,6 @@ void main() {
       containsAll(<ProfileRequirement>[
         ProfileRequirement.profile,
         ProfileRequirement.occupation,
-        ProfileRequirement.verifiedMobile,
         ProfileRequirement.termsAcceptance,
         ProfileRequirement.privacyAcceptance,
         ProfileRequirement.permanentAddress,
@@ -56,17 +55,13 @@ void main() {
     );
   });
 
-  test('day-wise booking still requires a verified mobile', () {
+  test('day-wise booking does not require a verified mobile', () {
     final eligibility = profile(
       phone: '+919000000002',
       phoneVerified: false,
     ).eligibilityFor(BookingType.dayWise);
 
-    expect(eligibility.eligible, isFalse);
-    expect(
-      eligibility.missingRequirements,
-      equals(<ProfileRequirement>[ProfileRequirement.verifiedMobile]),
-    );
+    expect(eligibility.eligible, isTrue);
   });
 
   test('complete day-wise profile does not require monthly identity fields',

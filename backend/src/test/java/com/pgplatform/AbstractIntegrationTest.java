@@ -65,10 +65,6 @@ public abstract class AbstractIntegrationTest {
     protected void completeMonthlyCustomerProfile(UUID userId) {
         String fullName = jdbcTemplate.queryForObject(
                 "select full_name from users where id = ?", String.class, userId);
-        // Booking eligibility requires a verified mobile for every stay type.
-        // Most older booking fixtures predate that gate, so mark their already
-        // authenticated test customer verified here alongside the profile.
-        jdbcTemplate.update("update users set phone_verified = true where id = ?", userId);
         jdbcTemplate.update("""
                 insert into customer_profiles
                     (id, user_id, full_name, occupation, permanent_address,

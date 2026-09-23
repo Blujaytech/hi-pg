@@ -158,9 +158,6 @@ extension CustomerProfileEligibility on CustomerProfile {
     if (occupation.trim().isEmpty) {
       missing.add(ProfileRequirement.occupation);
     }
-    if (!phoneVerified || (phone?.trim().isEmpty ?? true)) {
-      missing.add(ProfileRequirement.verifiedMobile);
-    }
     if (termsAcceptedVersion == null) {
       missing.add(ProfileRequirement.termsAcceptance);
     }

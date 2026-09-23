@@ -11,12 +11,10 @@ import 'customer_profile_repository.dart';
 
 class CustomerProfileScreen extends StatefulWidget {
   final BookingType? requiredFor;
-  final bool requireVerifiedMobile;
 
   const CustomerProfileScreen({
     super.key,
     this.requiredFor,
-    this.requireVerifiedMobile = false,
   });
 
   @override
@@ -146,11 +144,6 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
           'Accept the Terms of Service and Privacy Policy to continue.');
       return;
     }
-    if (widget.requireVerifiedMobile && !(_profile?.phoneVerified ?? false)) {
-      setState(
-          () => _error = 'Verify your mobile number to continue this booking.');
-      return;
-    }
     if (_monthlyRequired && !_hasMonthlyDetails()) {
       setState(() => _error =
           'Permanent address and a government ID ending are required for monthly bookings.');
@@ -240,12 +233,8 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
             AppMessageBanner(
               icon: Icons.verified_user_outlined,
               message: widget.requiredFor == BookingType.monthly
-                  ? widget.requireVerifiedMobile
-                      ? 'Verify your mobile, then add your permanent address and government ID ending.'
-                      : 'Monthly stays need your permanent address and a government ID ending.'
-                  : widget.requireVerifiedMobile
-                      ? 'Complete your basic profile and verify your mobile number.'
-                      : 'Complete your basic profile to book a day-wise stay.',
+                  ? 'Monthly stays need your permanent address and government ID ending.'
+                  : 'Complete your basic profile to book a day-wise stay.',
             ),
             const SizedBox(height: 20),
           ],
@@ -292,8 +281,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
             ],
           ),
           const SizedBox(height: 16),
-          if (widget.requireVerifiedMobile ||
-              (_profile?.phone?.isNotEmpty ?? false)) ...[
+          if (widget.requiredFor == null) ...[
             _SectionCard(
               title: 'Verified mobile',
               subtitle: 'Used only for booking and stay-related communication.',
@@ -312,8 +300,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                         : null,
                   ),
                   validator: (value) {
-                    if (!widget.requireVerifiedMobile &&
-                        (value ?? '').trim().isEmpty) {
+                    if ((value ?? '').trim().isEmpty) {
                       return null;
                     }
                     final phone =

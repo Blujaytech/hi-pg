@@ -21,7 +21,6 @@ import '../payment/payment_repository.dart';
 import '../payment/payment_choice_sheet.dart';
 import '../payment/razorpay_checkout.dart';
 import '../profile/customer_profile_repository.dart';
-import '../profile/customer_profile_models.dart';
 import 'discovery_models.dart';
 import 'discovery_repository.dart';
 
@@ -456,9 +455,6 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
           path: '/student/profile',
           queryParameters: {
             'requiredFor': bookingType.apiValue,
-            if (eligibility.missingRequirements
-                .contains(ProfileRequirement.verifiedMobile))
-              'verifyMobile': 'true',
           },
         ).toString(),
       );
