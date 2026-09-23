@@ -1,4 +1,3 @@
-import '../../core/api_exception.dart';
 import '../../shared/api_client.dart';
 import '../booking/booking_models.dart';
 import 'customer_profile_models.dart';
@@ -39,21 +38,13 @@ class CustomerProfileRepository {
   }
 
   Future<BookingEligibility> eligibility(BookingType bookingType) async {
-    try {
-      final response = await _client.get<Map<String, dynamic>>(
-        '/student/profile/booking-eligibility',
-        queryParameters: {'bookingType': bookingType.apiValue},
-      );
-      return BookingEligibility.fromJson(response.data!);
-    } on ApiException catch (error) {
-      // During a rolling Render deployment an older profile endpoint can
-      // reject this query with its generic validation response. Do not strand
-      // a newly authenticated customer on PG details: the profile resource
-      // contains everything needed to open and validate the required form.
-      if (error.statusCode != 400 && error.statusCode != 404) rethrow;
-      final profile = await getMine();
-      return profile.eligibilityFor(bookingType);
-    }
+    // The profile response already contains every field used by the booking
+    // gate. Keeping eligibility client-side here avoids a second, redundant
+    // request whose query binding differed across deployed API versions and
+    // could stop a bed tap with the generic "Request validation failed"
+    // response. Booking creation remains the authoritative server-side gate.
+    final profile = await getMine();
+    return profile.eligibilityFor(bookingType);
   }
 
   Future<void> requestPhoneOtp(String phone) => _client.post<void>(
