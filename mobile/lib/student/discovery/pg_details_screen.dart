@@ -386,7 +386,11 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
     );
     if (confirmed != true || !mounted) return;
 
-    final pg = await _future;
+    // Re-read immediately before checkout. Direct payment is configured by
+    // the owner per PG and may have changed while this details page was open;
+    // using the page's original Future made the payment method disappear
+    // until the customer manually refreshed or reopened the property.
+    final pg = await _repository.getDetails(widget.pgId);
     if (!mounted) return;
     final paymentChoice = await showBookingPaymentChoice(
       context,
