@@ -72,6 +72,7 @@ class PgSearchServiceTest extends AbstractIntegrationTest {
         PgDetailsResponse details = pgSearchService.getDetails(pgId);
         assertThat(details.totalBeds()).isEqualTo(3);
         assertThat(details.availableBeds()).isEqualTo(3);
+        assertThat(details.directPaymentAvailable()).isFalse();
         assertThat(details.floors()).hasSize(1);
         assertThat(details.floors().get(0).rooms()).hasSize(2);
 

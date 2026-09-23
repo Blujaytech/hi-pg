@@ -7,6 +7,7 @@ enum BookingPaymentChoice { online, directOwner }
 Future<BookingPaymentChoice?> showBookingPaymentChoice(
   BuildContext context, {
   String? propertyName,
+  bool directOwnerAvailable = true,
 }) {
   return showModalBottomSheet<BookingPaymentChoice>(
     context: context,
@@ -45,29 +46,32 @@ Future<BookingPaymentChoice?> showBookingPaymentChoice(
             onTap: () =>
                 Navigator.pop(sheetContext, BookingPaymentChoice.online),
           ),
-          const SizedBox(height: 12),
-          _PaymentChoiceCard(
-            icon: Icons.person_pin_circle_outlined,
-            title: 'Pay Directly to Owner',
-            subtitle: "Pay to the PG owner's configured UPI ID and notify them",
-            onTap: () =>
-                Navigator.pop(sheetContext, BookingPaymentChoice.directOwner),
-          ),
-          const SizedBox(height: 12),
-          const Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(Icons.info_outline_rounded,
-                  size: 17, color: AppColors.muted),
-              SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Direct UPI payments are verified by the owner. Marking a payment as sent does not allocate the bed.',
-                  style: TextStyle(color: AppColors.muted, fontSize: 12),
+          if (directOwnerAvailable) ...[
+            const SizedBox(height: 12),
+            _PaymentChoiceCard(
+              icon: Icons.person_pin_circle_outlined,
+              title: 'Pay Directly to Owner',
+              subtitle:
+                  "Pay to the PG owner's configured UPI ID and notify them",
+              onTap: () =>
+                  Navigator.pop(sheetContext, BookingPaymentChoice.directOwner),
+            ),
+            const SizedBox(height: 12),
+            const Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.info_outline_rounded,
+                    size: 17, color: AppColors.muted),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Direct UPI payments are verified by the owner. Marking a payment as sent does not allocate the bed.',
+                    style: TextStyle(color: AppColors.muted, fontSize: 12),
+                  ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
+          ],
         ],
       ),
     ),

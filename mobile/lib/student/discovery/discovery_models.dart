@@ -13,7 +13,8 @@ extension GenderPreferenceX on GenderPreference {
         GenderPreference.coEd => 'Co-ed',
       };
 
-  static GenderPreference fromApi(String value) => GenderPreference.values.firstWhere(
+  static GenderPreference fromApi(String value) =>
+      GenderPreference.values.firstWhere(
         (g) => g.apiValue == value,
         orElse: () => GenderPreference.coEd,
       );
@@ -52,7 +53,8 @@ class PgSearchResult {
         city: json['city'] as String,
         address: json['address'] as String,
         description: json['description'] as String?,
-        genderPreference: GenderPreferenceX.fromApi(json['genderPreference'] as String),
+        genderPreference:
+            GenderPreferenceX.fromApi(json['genderPreference'] as String),
         latitude: (json['latitude'] as num?)?.toDouble(),
         longitude: (json['longitude'] as num?)?.toDouble(),
         availableBeds: json['availableBeds'] as int,
@@ -67,7 +69,11 @@ class PagedResult<T> {
   final int totalPages;
   final int totalElements;
 
-  PagedResult({required this.content, required this.page, required this.totalPages, required this.totalElements});
+  PagedResult(
+      {required this.content,
+      required this.page,
+      required this.totalPages,
+      required this.totalElements});
 }
 
 class AvailableBedOption {
@@ -75,11 +81,14 @@ class AvailableBedOption {
   final String label;
   final String bookingMode;
 
-  AvailableBedOption({required this.id, required this.label, required this.bookingMode});
+  AvailableBedOption(
+      {required this.id, required this.label, required this.bookingMode});
 
   factory AvailableBedOption.fromJson(Map<String, dynamic> json) =>
-      AvailableBedOption(id: json['id'] as String, label: json['label'] as String,
-        bookingMode: json['bookingMode'] as String? ?? 'MONTHLY');
+      AvailableBedOption(
+          id: json['id'] as String,
+          label: json['label'] as String,
+          bookingMode: json['bookingMode'] as String? ?? 'MONTHLY');
 }
 
 class RoomAvailability {
@@ -109,7 +118,8 @@ class RoomAvailability {
     required this.availableBedOptions,
   });
 
-  factory RoomAvailability.fromJson(Map<String, dynamic> json) => RoomAvailability(
+  factory RoomAvailability.fromJson(Map<String, dynamic> json) =>
+      RoomAvailability(
         roomId: json['roomId'] as String,
         roomNumber: json['roomNumber'] as String,
         roomType: json['roomType'] as String,
@@ -120,7 +130,8 @@ class RoomAvailability {
         noticePeriodDays: json['noticePeriodDays'] as int? ?? 15,
         securityDeposit: (json['securityDeposit'] as num? ?? 0).toDouble(),
         availableBeds: json['availableBeds'] as int,
-        availableBedOptions: (json['availableBedOptions'] as List<dynamic>? ?? [])
+        availableBedOptions: (json['availableBedOptions'] as List<dynamic>? ??
+                [])
             .map((b) => AvailableBedOption.fromJson(b as Map<String, dynamic>))
             .toList(),
       );
@@ -132,13 +143,20 @@ class FloorAvailability {
   final int floorNumber;
   final List<RoomAvailability> rooms;
 
-  FloorAvailability({required this.floorId, required this.name, required this.floorNumber, required this.rooms});
+  FloorAvailability(
+      {required this.floorId,
+      required this.name,
+      required this.floorNumber,
+      required this.rooms});
 
-  factory FloorAvailability.fromJson(Map<String, dynamic> json) => FloorAvailability(
+  factory FloorAvailability.fromJson(Map<String, dynamic> json) =>
+      FloorAvailability(
         floorId: json['floorId'] as String,
         name: json['name'] as String,
         floorNumber: json['floorNumber'] as int,
-        rooms: (json['rooms'] as List<dynamic>).map((r) => RoomAvailability.fromJson(r as Map<String, dynamic>)).toList(),
+        rooms: (json['rooms'] as List<dynamic>)
+            .map((r) => RoomAvailability.fromJson(r as Map<String, dynamic>))
+            .toList(),
       );
 }
 
@@ -155,6 +173,7 @@ class PgDetails {
   final double? longitude;
   final int totalBeds;
   final int availableBeds;
+  final bool directPaymentAvailable;
   final List<FloorAvailability> floors;
 
   PgDetails({
@@ -170,6 +189,7 @@ class PgDetails {
     required this.longitude,
     required this.totalBeds,
     required this.availableBeds,
+    required this.directPaymentAvailable,
     required this.floors,
   });
 
@@ -181,11 +201,16 @@ class PgDetails {
         state: json['state'] as String?,
         pincode: json['pincode'] as String?,
         description: json['description'] as String?,
-        genderPreference: GenderPreferenceX.fromApi(json['genderPreference'] as String),
+        genderPreference:
+            GenderPreferenceX.fromApi(json['genderPreference'] as String),
         latitude: (json['latitude'] as num?)?.toDouble(),
         longitude: (json['longitude'] as num?)?.toDouble(),
         totalBeds: json['totalBeds'] as int,
         availableBeds: json['availableBeds'] as int,
-        floors: (json['floors'] as List<dynamic>).map((f) => FloorAvailability.fromJson(f as Map<String, dynamic>)).toList(),
+        directPaymentAvailable:
+            json['directPaymentAvailable'] as bool? ?? false,
+        floors: (json['floors'] as List<dynamic>)
+            .map((f) => FloorAvailability.fromJson(f as Map<String, dynamic>))
+            .toList(),
       );
 }

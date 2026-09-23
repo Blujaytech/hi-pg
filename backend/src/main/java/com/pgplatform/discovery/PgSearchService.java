@@ -14,6 +14,7 @@ import com.pgplatform.owner.FloorRepository;
 import com.pgplatform.owner.GenderPreference;
 import com.pgplatform.owner.Pg;
 import com.pgplatform.owner.PgRepository;
+import com.pgplatform.owner.PgDirectPaymentSettingsRepository;
 import com.pgplatform.owner.PgStatus;
 import com.pgplatform.owner.Room;
 import com.pgplatform.owner.RoomRepository;
@@ -51,13 +52,16 @@ public class PgSearchService {
     private final FloorRepository floorRepository;
     private final RoomRepository roomRepository;
     private final BedRepository bedRepository;
+    private final PgDirectPaymentSettingsRepository directPaymentSettingsRepository;
 
     public PgSearchService(PgRepository pgRepository, FloorRepository floorRepository,
-                            RoomRepository roomRepository, BedRepository bedRepository) {
+                            RoomRepository roomRepository, BedRepository bedRepository,
+                            PgDirectPaymentSettingsRepository directPaymentSettingsRepository) {
         this.pgRepository = pgRepository;
         this.floorRepository = floorRepository;
         this.roomRepository = roomRepository;
         this.bedRepository = bedRepository;
+        this.directPaymentSettingsRepository = directPaymentSettingsRepository;
     }
 
     /**
@@ -113,6 +117,8 @@ public class PgSearchService {
         List<Floor> floors = floorRepository.findAllByPgIdAndDeletedAtIsNullOrderByFloorNumberAsc(pgId);
         long totalBeds = bedRepository.countByPgId(pgId);
         long availableBeds = bedRepository.countByPgIdAndStatus(pgId, BedStatus.AVAILABLE);
+        boolean directPaymentAvailable = directPaymentSettingsRepository
+                .existsByPgIdAndEnabledTrueAndVerifiedTrueAndDeletedAtIsNull(pgId);
 
         List<FloorAvailabilityResponse> floorResponses = floors.stream().map(floor -> {
             List<Room> rooms = roomRepository.findAllByFloorIdAndDeletedAtIsNullOrderByRoomNumberAsc(floor.getId());
@@ -137,7 +143,7 @@ public class PgSearchService {
         return new PgDetailsResponse(
                 pg.getId(), pg.getName(), pg.getAddress(), pg.getCity(), pg.getState(), pg.getPincode(),
                 pg.getDescription(), pg.getGenderPreference(), pg.getLatitude(), pg.getLongitude(),
-                totalBeds, availableBeds, floorResponses
+                totalBeds, availableBeds, directPaymentAvailable, floorResponses
         );
     }
 

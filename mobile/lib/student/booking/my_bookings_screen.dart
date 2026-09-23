@@ -10,8 +10,10 @@ import '../../shared/app_states.dart';
 import 'booking_models.dart';
 import 'booking_repository.dart';
 import '../payment/payment_repository.dart';
+import '../payment/direct_payment_repository.dart';
 import '../payment/payment_choice_sheet.dart';
 import '../payment/razorpay_checkout.dart';
+import '../discovery/discovery_repository.dart';
 
 class MyBookingsScreen extends StatefulWidget {
   const MyBookingsScreen({super.key});
@@ -23,6 +25,8 @@ class MyBookingsScreen extends StatefulWidget {
 class _MyBookingsScreenState extends State<MyBookingsScreen> {
   final _repository = BookingRepository();
   final _paymentRepository = PaymentRepository();
+  final _directPaymentRepository = DirectPaymentRepository();
+  final _discoveryRepository = DiscoveryRepository();
   late final RazorpayCheckout _checkout;
   late Future<List<Booking>> _future;
 
@@ -178,17 +182,22 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
 
       var choice = BookingPaymentChoice.online;
       if (booking.paymentChannel == BookingPaymentChannel.unselected) {
+        final pg = await _discoveryRepository.getDetails(booking.pgId);
+        if (!mounted) return;
         final selected = await showBookingPaymentChoice(
           context,
           propertyName: booking.pgName,
+          directOwnerAvailable: pg.directPaymentAvailable,
         );
         if (selected == null || !mounted) return;
         choice = selected;
       }
 
       if (choice == BookingPaymentChoice.directOwner) {
-        await context.push<bool>(
-            '/student/bookings/${booking.id}/direct-payment?select=true');
+        await _directPaymentRepository.selectDirectPayment(booking.id);
+        if (!mounted) return;
+        await context
+            .push<bool>('/student/bookings/${booking.id}/direct-payment');
         if (mounted) _reload();
         return;
       }
@@ -269,8 +278,8 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
                   );
                 }
                 final booking = bookings[index - 1];
-                final busy = _payingBookingId != null ||
-                    _cancellingBookingId != null;
+                final busy =
+                    _payingBookingId != null || _cancellingBookingId != null;
                 return _BookingCard(
                   booking: booking,
                   paying: _payingBookingId == booking.id,

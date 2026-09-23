@@ -24,6 +24,7 @@ public record PgDetailsResponse(
         Double longitude,
         long totalBeds,
         long availableBeds,
+        boolean directPaymentAvailable,
         List<FloorAvailabilityResponse> floors
 ) {
 }

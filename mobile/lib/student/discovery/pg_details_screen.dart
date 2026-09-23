@@ -19,6 +19,7 @@ import '../booking/booking_repository.dart';
 import '../booking/booking_models.dart';
 import '../payment/payment_repository.dart';
 import '../payment/payment_choice_sheet.dart';
+import '../payment/direct_payment_repository.dart';
 import '../payment/razorpay_checkout.dart';
 import '../profile/customer_profile_repository.dart';
 import 'discovery_models.dart';
@@ -42,6 +43,7 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
   final _repository = DiscoveryRepository();
   final _bookingRepository = BookingRepository();
   final _paymentRepository = PaymentRepository();
+  final _directPaymentRepository = DirectPaymentRepository();
   final _profileRepository = CustomerProfileRepository();
   late final RazorpayCheckout _checkout;
   late Future<PgDetails> _future;
@@ -384,7 +386,12 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
     );
     if (confirmed != true || !mounted) return;
 
-    final paymentChoice = await showBookingPaymentChoice(context);
+    final pg = await _future;
+    if (!mounted) return;
+    final paymentChoice = await showBookingPaymentChoice(
+      context,
+      directOwnerAvailable: pg.directPaymentAvailable,
+    );
     if (paymentChoice == null || !mounted) return;
 
     setState(() => _booking = true);
@@ -401,9 +408,27 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
         await _checkout.pay(order,
             description: '${bookingType.label} booking at ${booking.pgName}');
       } else {
+        try {
+          await _directPaymentRepository.selectDirectPayment(booking.id);
+        } catch (error) {
+          // The method was available when details loaded but became invalid
+          // before selection. Release the untouched hold so it cannot strand
+          // the customer behind an overlapping-booking error.
+          try {
+            await _bookingRepository.cancel(
+              booking.id,
+              reason: 'Direct owner payment was unavailable',
+            );
+          } catch (_) {
+            // The original payment error remains the useful one. A failed
+            // cleanup can still be recovered from My Bookings or hold expiry.
+          }
+          rethrow;
+        }
+        if (!mounted) return;
         setState(() => _booking = false);
-        final informed = await context.push<bool>(
-            '/student/bookings/${booking.id}/direct-payment?select=true');
+        final informed = await context
+            .push<bool>('/student/bookings/${booking.id}/direct-payment');
         if (!mounted) return;
         if (informed == true) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -429,8 +454,13 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
       _reload();
     } on ApiException catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(e.message)));
+        if (e.statusCode == 409 &&
+            e.message.toLowerCase().contains('overlap')) {
+          await _showExistingBookingRecovery();
+        } else {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text(e.message)));
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -440,6 +470,30 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
     } finally {
       if (mounted) setState(() => _booking = false);
     }
+  }
+
+  Future<void> _showExistingBookingRecovery() async {
+    if (!mounted) return;
+    final openBookings = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Finish your existing booking'),
+        content: const Text(
+          'You already have a booking or payment hold for these dates. Open My Bookings to resume payment or cancel that booking before choosing another bed.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Stay here'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Open My Bookings'),
+          ),
+        ],
+      ),
+    );
+    if (openBookings == true && mounted) context.go('/student/bookings');
   }
 
   Future<bool> _ensureBookingEligible(BookingType bookingType) async {
