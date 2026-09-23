@@ -143,7 +143,9 @@ class DirectPaymentFlowTest extends AbstractIntegrationTest {
         User owner = new User();
         owner.setEmail(email);
         owner.setPhone(phone);
-        owner.setPhoneVerified(true);
+        // Owner OTP is optional. Verified KYC alone must be enough to enable
+        // direct payments with the support mobile entered in settings.
+        owner.setPhoneVerified(false);
         owner.setFullName("Verified Owner");
         owner.setRole(Role.OWNER);
         owner.setProvider(AuthProviderType.LOCAL);

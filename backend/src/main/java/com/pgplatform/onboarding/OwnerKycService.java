@@ -52,9 +52,6 @@ public class OwnerKycService {
     @Transactional
     public OwnerKycResponse saveProfile(UUID pgId, UUID ownerId, OwnerKycProfileRequest request) {
         Pg pg = pgService.requireOwnedPg(pgId, ownerId);
-        if (!pg.getOwner().isPhoneVerified()) {
-            throw new ConflictException("Verify the owner's mobile number before starting KYC");
-        }
         OwnerKycSubmission submission = submissionRepository.findByPgIdAndDeletedAtIsNull(pgId)
                 .orElseGet(OwnerKycSubmission::new);
         if (submission.getId() != null && submission.getStatus() == OwnerKycStatus.SUBMITTED) {
@@ -96,9 +93,6 @@ public class OwnerKycService {
     @Transactional
     public OwnerKycResponse submit(UUID pgId, UUID ownerId) {
         Pg pg = pgService.requireOwnedPg(pgId, ownerId);
-        if (!pg.getOwner().isPhoneVerified()) {
-            throw new ConflictException("Verify the owner's mobile number before submitting KYC");
-        }
         OwnerKycSubmission submission = requireEditable(pgId);
         Set<OwnerKycDocumentType> uploaded = documentRepository
                 .findAllBySubmissionIdAndDeletedAtIsNullOrderByDocumentType(submission.getId()).stream()

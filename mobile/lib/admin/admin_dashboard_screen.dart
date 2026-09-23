@@ -338,8 +338,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             const SizedBox(height: 12),
             _line(Icons.person_outline_rounded, 'Owner', item.ownerName),
             _line(Icons.badge_outlined, 'Legal name', item.legalName),
-            _line(Icons.phone_outlined, 'OTP verified mobile',
-                item.verifiedPhone ?? 'Missing'),
+            _line(Icons.phone_outlined, 'Owner mobile (optional)',
+                item.verifiedPhone ?? 'Not provided'),
             _line(Icons.credit_card_outlined, 'PAN / Aadhaar',
                 '••••${item.panLastFour}  /  ••••${item.aadhaarLastFour}'),
             if ((item.reviewNote ?? '').isNotEmpty)

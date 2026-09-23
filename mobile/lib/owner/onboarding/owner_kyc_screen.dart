@@ -241,13 +241,13 @@ class _OwnerKycScreenState extends State<OwnerKycScreen> {
                       ),
                     ],
                     const SizedBox(height: 16),
-                    _phoneCard(),
-                    const SizedBox(height: 16),
                     _detailsCard(),
                     if (_kyc != null) ...[
                       const SizedBox(height: 16),
                       _documentsCard(),
                     ],
+                    const SizedBox(height: 16),
+                    _phoneCard(),
                     const SizedBox(height: 16),
                     const AppMessageBanner(
                       icon: Icons.lock_outline_rounded,
@@ -287,7 +287,7 @@ class _OwnerKycScreenState extends State<OwnerKycScreen> {
         ),
       _ => (
           'Complete verification',
-          'Verify your mobile, save KYC details, upload all documents, then submit.',
+          'Save KYC details, upload all documents, then submit. Mobile OTP is optional.',
           AppColors.ink,
           AppColors.fill,
           Icons.fact_check_outlined,
@@ -307,11 +307,11 @@ class _OwnerKycScreenState extends State<OwnerKycScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('1. Owner mobile OTP',
+              Text('Owner mobile OTP (optional)',
                   style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 5),
               const Text(
-                  'This is self-verification by OTP. Admin approval is not required.'),
+                  'You can skip this for now. KYC can be saved and submitted without mobile verification.'),
               const SizedBox(height: 14),
               TextField(
                 controller: _phone,
@@ -345,7 +345,7 @@ class _OwnerKycScreenState extends State<OwnerKycScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('2. Owner KYC details',
+              Text('1. Owner KYC details',
                   style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 5),
               Text(widget.pg?.name ?? _kyc?.pgName ?? 'Selected PG'),
@@ -409,7 +409,7 @@ class _OwnerKycScreenState extends State<OwnerKycScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('3. Required documents',
+              Text('2. Required documents',
                   style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 5),
               const Text('JPG, PNG or PDF. Maximum 10 MB per file.'),

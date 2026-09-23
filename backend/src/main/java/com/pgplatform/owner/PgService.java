@@ -88,9 +88,6 @@ public class PgService {
     @Transactional
     public PgResponse requestPaymentOnboarding(UUID pgId, UUID ownerId) {
         Pg pg = requireOwnedPg(pgId, ownerId);
-        if (!pg.getOwner().isPhoneVerified()) {
-            throw new ConflictException("Verify the owner's mobile number before payment onboarding");
-        }
         var kyc = ownerKycSubmissionRepository.findByPgIdAndDeletedAtIsNull(pgId)
                 .orElseThrow(() -> new ConflictException("Complete the PG owner KYC profile first"));
         if (kyc.getStatus() != OwnerKycStatus.SUBMITTED && kyc.getStatus() != OwnerKycStatus.VERIFIED) {

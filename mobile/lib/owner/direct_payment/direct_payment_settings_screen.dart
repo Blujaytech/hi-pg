@@ -178,8 +178,8 @@ class _DirectPaymentSettingsScreenState
                       const SizedBox(height: 4),
                       Text(
                         verified
-                            ? 'Your phone and PG KYC checks are complete. Customers see this owner-declared UPI ID only after creating a booking hold.'
-                            : 'Your owner phone and PG KYC must be verified before direct payments can be enabled.',
+                            ? 'Your PG KYC is complete. Customers see this owner-declared UPI ID only after creating a booking hold.'
+                            : 'Your PG KYC must be verified before direct payments can be enabled. Owner mobile OTP is optional.',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                               color: verified
                                   ? AppColors.success

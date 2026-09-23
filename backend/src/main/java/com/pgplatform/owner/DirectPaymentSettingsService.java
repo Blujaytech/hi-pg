@@ -50,12 +50,6 @@ public class DirectPaymentSettingsService {
             if (kyc.getStatus() != OwnerKycStatus.VERIFIED) {
                 throw new ConflictException("Verified owner KYC is required for direct payments");
             }
-            if (!pg.getOwner().isPhoneVerified() || pg.getOwner().getPhone() == null) {
-                throw new ConflictException("Verify the owner's mobile number before enabling direct payments");
-            }
-            if (!samePhone(pg.getOwner().getPhone(), request.mobileNumber())) {
-                throw new ConflictException("Direct-payment mobile must match the owner's verified mobile number");
-            }
             settings.setVerified(true);
             settings.setVerifiedAt(Instant.now());
         } else {
@@ -83,19 +77,4 @@ public class DirectPaymentSettingsService {
                 .orElseThrow(() -> new NotFoundException("Direct-payment settings are not configured for this PG"));
     }
 
-    private boolean samePhone(String first, String second) {
-        String firstDigits = digits(first);
-        String secondDigits = digits(second);
-        if (firstDigits.equals(secondDigits)) return true;
-        // Indian accounts commonly store +91XXXXXXXXXX while a form displays
-        // only XXXXXXXXXX. Matching the final ten digits preserves the verified
-        // number requirement without rejecting that harmless representation.
-        return firstDigits.length() >= 10 && secondDigits.length() >= 10
-                && firstDigits.substring(firstDigits.length() - 10)
-                .equals(secondDigits.substring(secondDigits.length() - 10));
-    }
-
-    private String digits(String value) {
-        return value == null ? "" : value.replaceAll("\\D", "");
-    }
 }
