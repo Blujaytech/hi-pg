@@ -15,6 +15,10 @@ void main() {
       status: AuthStatus.authenticated,
       role: UserRole.owner,
       location: location);
+  String? admin(String location) => routeRedirect(
+      status: AuthStatus.authenticated,
+      role: UserRole.admin,
+      location: location);
 
   test('guests can browse PGs without signing in', () {
     expect(guest('/explore'), isNull);
@@ -25,6 +29,7 @@ void main() {
     expect(guest('/student'), '/');
     expect(guest('/student/bookings'), '/');
     expect(guest('/owner'), '/');
+    expect(guest('/admin'), '/');
   });
 
   test('signing in to book returns the customer to the PG they were viewing',
@@ -44,5 +49,9 @@ void main() {
     expect(owner('/student/bookings'), '/owner');
     expect(customer('/owner'), '/student');
     expect(customer('/explore/pgs/pg-1'), isNull);
+    expect(owner('/admin'), '/owner');
+    expect(admin('/student'), '/admin');
+    expect(admin('/admin'), isNull);
+    expect(admin('/owner'), isNull);
   });
 }

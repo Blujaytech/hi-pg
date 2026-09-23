@@ -49,7 +49,10 @@ public class OwnerAuthService {
     @Transactional
     public AuthResponse login(OwnerLoginRequest request) {
         User user = userRepository.findByEmailIgnoreCaseAndDeletedAtIsNull(normalizeEmail(request.email()))
-                .filter(u -> u.getRole() == Role.OWNER)
+                // Owners and platform administrators deliberately share one
+                // email/password entry point. The authenticated server role,
+                // never an email check in the client, decides the workspace.
+                .filter(u -> u.getRole() == Role.OWNER || u.getRole() == Role.ADMIN)
                 .orElseThrow(() -> new BadCredentialsException("Invalid credentials"));
 
         if (user.getPasswordHash() == null || !passwordEncoder.matches(request.password(), user.getPasswordHash())) {

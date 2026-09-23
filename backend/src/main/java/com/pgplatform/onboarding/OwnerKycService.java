@@ -132,6 +132,12 @@ public class OwnerKycService {
                 .stream().map(this::response).toList();
     }
 
+    @Transactional(readOnly = true)
+    public List<OwnerKycResponse> listAll() {
+        return submissionRepository.findAllByDeletedAtIsNullOrderByUpdatedAtDesc()
+                .stream().map(this::response).toList();
+    }
+
     @Transactional
     public OwnerKycResponse review(UUID submissionId, OwnerKycReviewRequest request) {
         OwnerKycSubmission submission = submissionRepository.findByIdAndDeletedAtIsNull(submissionId)
@@ -142,26 +148,31 @@ public class OwnerKycService {
         if (request.status() != OwnerKycStatus.VERIFIED && request.status() != OwnerKycStatus.REJECTED) {
             throw new ConflictException("Admin review must verify or reject KYC");
         }
-        if (request.status() == OwnerKycStatus.VERIFIED
-                && (request.razorpayLinkedAccountId() == null || request.razorpayLinkedAccountId().isBlank())) {
-            throw new ConflictException("A Razorpay linked account is required before verification");
-        }
         submission.setStatus(request.status());
         submission.setReviewNote(request.reviewNote());
         submission.setReviewedAt(Instant.now());
         submissionRepository.save(submission);
 
         Pg pg = submission.getPg();
-        pg.setPaymentOnboardingStatus(request.status() == OwnerKycStatus.VERIFIED
-                ? PaymentOnboardingStatus.VERIFIED : PaymentOnboardingStatus.REJECTED);
+        String linkedAccountId = trimToNull(request.razorpayLinkedAccountId());
+        // KYC approval is enough for the separately owner-confirmed direct-UPI
+        // channel. Razorpay Route onboarding is an additional concern and is
+        // only marked verified when an actual linked account is supplied.
+        pg.setPaymentOnboardingStatus(request.status() == OwnerKycStatus.REJECTED
+                ? PaymentOnboardingStatus.REJECTED
+                : linkedAccountId == null
+                    ? PaymentOnboardingStatus.NOT_STARTED
+                    : PaymentOnboardingStatus.VERIFIED);
         pg.setRazorpayLinkedAccountId(request.status() == OwnerKycStatus.VERIFIED
-                ? request.razorpayLinkedAccountId().trim() : null);
+                ? linkedAccountId : null);
         pg.setPlatformCommissionBps(request.platformCommissionBps());
         pgRepository.save(pg);
         notificationService.notifyUser(pg.getOwner().getId(),
-                request.status() == OwnerKycStatus.VERIFIED ? "Payments enabled" : "KYC needs changes",
+                request.status() == OwnerKycStatus.VERIFIED ? "KYC verified" : "KYC needs changes",
                 request.status() == OwnerKycStatus.VERIFIED
-                        ? "Your PG can now accept Razorpay payments."
+                        ? linkedAccountId == null
+                            ? "Your PG can now enable direct owner payments. Online payments still require Razorpay onboarding."
+                            : "Your PG can now enable direct owner and Razorpay payments."
                         : "Your KYC was rejected: " + (request.reviewNote() == null ? "Contact support." : request.reviewNote()));
         return response(submission);
     }
@@ -195,5 +206,9 @@ public class OwnerKycService {
         if (contentType == null || !(contentType.startsWith("image/") || "application/pdf".equals(contentType))) {
             throw new ConflictException("KYC documents must be an image or PDF");
         }
+    }
+
+    private String trimToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 }

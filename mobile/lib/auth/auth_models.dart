@@ -1,6 +1,17 @@
-enum UserRole { owner, student }
+enum UserRole {
+  owner('OWNER'),
+  student('STUDENT'),
+  admin('ADMIN');
 
-UserRole roleFromString(String value) => value.toUpperCase() == 'OWNER' ? UserRole.owner : UserRole.student;
+  const UserRole(this.apiValue);
+  final String apiValue;
+}
+
+UserRole roleFromString(String value) => switch (value.toUpperCase()) {
+      'OWNER' => UserRole.owner,
+      'ADMIN' => UserRole.admin,
+      _ => UserRole.student,
+    };
 
 class AuthSession {
   final String accessToken;

@@ -20,6 +20,9 @@ public class AdminKycController {
     @GetMapping("/pending")
     public List<OwnerKycResponse> pending() { return service.listPending(); }
 
+    @GetMapping
+    public List<OwnerKycResponse> all() { return service.listAll(); }
+
     @PatchMapping("/{submissionId}")
     public OwnerKycResponse review(@PathVariable UUID submissionId,
                                    @Valid @RequestBody OwnerKycReviewRequest request) {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'admin/admin_dashboard_screen.dart';
 import 'auth/auth_models.dart';
 import 'auth/auth_state.dart';
 import 'auth/owner_login_screen.dart';
@@ -16,6 +17,7 @@ import 'owner/expense/expense_list_screen.dart';
 import 'owner/fee/fee_list_screen.dart';
 import 'owner/floor/floor_list_screen.dart';
 import 'owner/floor/floor_models.dart';
+import 'owner/onboarding/owner_kyc_screen.dart';
 import 'owner/pg/pg_list_screen.dart';
 import 'owner/pg/pg_models.dart';
 import 'owner/receipt/receipt_list_screen.dart';
@@ -124,13 +126,22 @@ String? routeRedirect({
   if (loggingIn) {
     // Only in-app explore pages are accepted as a return target.
     if (from != null && _isExplore(from)) return from;
-    return role == UserRole.owner ? '/owner' : '/student';
+    return switch (role) {
+      UserRole.admin => '/admin',
+      UserRole.owner => '/owner',
+      _ => '/student',
+    };
   }
 
   final isOwnerRoute = location.startsWith('/owner');
   final isStudentRoute = location.startsWith('/student');
+  final isAdminRoute = location.startsWith('/admin');
   if (role == UserRole.owner && isStudentRoute) return '/owner';
-  if (role == UserRole.student && isOwnerRoute) return '/student';
+  if (role == UserRole.owner && isAdminRoute) return '/owner';
+  if (role == UserRole.student && (isOwnerRoute || isAdminRoute)) {
+    return '/student';
+  }
+  if (role == UserRole.admin && isStudentRoute) return '/admin';
 
   return null;
 }
@@ -170,6 +181,10 @@ GoRouter buildRouter(AuthState authState) {
                     ? state.uri.queryParameters['from']
                     : null,
               )),
+      GoRoute(
+        path: '/admin',
+        builder: (context, state) => const AdminDashboardScreen(),
+      ),
 
       // Public PG browsing: no account needed until a bed is booked.
       GoRoute(
@@ -284,6 +299,13 @@ GoRouter buildRouter(AuthState authState) {
       GoRoute(
         path: '/owner/pgs/:pgId/direct-payment-settings',
         builder: (context, state) => DirectPaymentSettingsScreen(
+          pgId: state.pathParameters['pgId']!,
+          pg: state.extra as Pg?,
+        ),
+      ),
+      GoRoute(
+        path: '/owner/pgs/:pgId/kyc',
+        builder: (context, state) => OwnerKycScreen(
           pgId: state.pathParameters['pgId']!,
           pg: state.extra as Pg?,
         ),

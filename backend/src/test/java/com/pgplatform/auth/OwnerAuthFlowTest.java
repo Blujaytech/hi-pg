@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -15,6 +16,10 @@ class OwnerAuthFlowTest extends AbstractIntegrationTest {
 
     @Autowired
     private TestRestTemplate restTemplate;
+    @Autowired
+    private UserRepository userRepository;
+    @Autowired
+    private PasswordEncoder passwordEncoder;
 
     @Test
     void ownerCanSignUpThenLoginWithTheSameCredentials() {
@@ -69,6 +74,26 @@ class OwnerAuthFlowTest extends AbstractIntegrationTest {
                 new OwnerSignupRequest("Duplicate", "owner.case@example.com", "password123", null),
                 String.class);
         assertThat(duplicate.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+    }
+
+    @Test
+    void adminUsesTheSameLoginEndpointAndReceivesTheAdminRole() {
+        User admin = new User();
+        admin.setEmail("pilot-admin@example.com");
+        admin.setFullName("Pilot Administrator");
+        admin.setPasswordHash(passwordEncoder.encode("admin-password-123"));
+        admin.setRole(Role.ADMIN);
+        admin.setProvider(AuthProviderType.LOCAL);
+        userRepository.save(admin);
+
+        ResponseEntity<AuthResponsePayload> response = restTemplate.postForEntity(
+                "/api/v1/auth/owner/login",
+                new OwnerLoginRequest("pilot-admin@example.com", "admin-password-123"),
+                AuthResponsePayload.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().role()).isEqualTo("ADMIN");
     }
 
     record AuthResponsePayload(String accessToken, String refreshToken, String userId, String fullName, String role) {

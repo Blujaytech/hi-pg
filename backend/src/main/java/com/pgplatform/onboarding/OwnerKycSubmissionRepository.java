@@ -9,4 +9,5 @@ public interface OwnerKycSubmissionRepository extends JpaRepository<OwnerKycSubm
     Optional<OwnerKycSubmission> findByIdAndDeletedAtIsNull(UUID id);
     Optional<OwnerKycSubmission> findByPgIdAndDeletedAtIsNull(UUID pgId);
     List<OwnerKycSubmission> findAllByStatusAndDeletedAtIsNullOrderBySubmittedAtAsc(OwnerKycStatus status);
+    List<OwnerKycSubmission> findAllByDeletedAtIsNullOrderByUpdatedAtDesc();
 }

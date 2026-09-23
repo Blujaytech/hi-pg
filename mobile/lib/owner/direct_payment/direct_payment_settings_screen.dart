@@ -186,6 +186,17 @@ class _DirectPaymentSettingsScreenState
                                   : AppColors.warning,
                             ),
                       ),
+                      if (!verified) ...[
+                        const SizedBox(height: 10),
+                        OutlinedButton.icon(
+                          onPressed: () => context.push(
+                            '/owner/pgs/${widget.pgId}/kyc',
+                            extra: widget.pg,
+                          ),
+                          icon: const Icon(Icons.fact_check_outlined, size: 18),
+                          label: const Text('Complete verification'),
+                        ),
+                      ],
                     ],
                   ),
                 ),

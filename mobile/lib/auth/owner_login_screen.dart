@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../core/api_exception.dart';
 import '../core/theme.dart';
 import '../shared/app_states.dart';
+import 'auth_models.dart';
 import 'auth_state.dart';
 import 'auth_widgets.dart';
 
@@ -37,10 +38,13 @@ class _OwnerLoginScreenState extends State<OwnerLoginScreen> {
       _error = null;
     });
     try {
-      await context.read<AuthState>().ownerLogin(
+      final auth = context.read<AuthState>();
+      await auth.ownerLogin(
           email: _emailController.text.trim(),
           password: _passwordController.text);
-      if (mounted) context.go('/owner');
+      if (mounted) {
+        context.go(auth.role == UserRole.admin ? '/admin' : '/owner');
+      }
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
     } finally {
@@ -63,10 +67,10 @@ class _OwnerLoginScreenState extends State<OwnerLoginScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const AuthHeader(
-                    eyebrow: 'PG owner',
+                    eyebrow: 'PG owner & administration',
                     title: 'Welcome back',
                     subtitle:
-                        'Log in to manage your properties, customers and rent.',
+                        'Owners manage their PGs here. Authorised administrators are routed to KYC review.',
                   ),
                   const SizedBox(height: 30),
                   if (_error != null) ...[

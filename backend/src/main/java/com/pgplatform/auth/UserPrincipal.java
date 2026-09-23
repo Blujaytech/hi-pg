@@ -30,6 +30,15 @@ public class UserPrincipal implements UserDetails {
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
+        // The pilot administrator account may also own the original demo PGs.
+        // Preserve access to those owner resources while keeping ADMIN as the
+        // role returned to clients and required by every admin endpoint.
+        if (role == Role.ADMIN) {
+            return List.of(
+                    new SimpleGrantedAuthority("ROLE_ADMIN"),
+                    new SimpleGrantedAuthority("ROLE_OWNER")
+            );
+        }
         return List.of(new SimpleGrantedAuthority("ROLE_" + role.name()));
     }
 

@@ -44,7 +44,7 @@ public class OwnerPhoneVerificationService {
     private User requireOwner(UUID ownerId) {
         User owner = userRepository.findByIdAndDeletedAtIsNull(ownerId)
                 .orElseThrow(() -> new NotFoundException("Owner account not found"));
-        if (owner.getRole() != Role.OWNER) {
+        if (owner.getRole() != Role.OWNER && owner.getRole() != Role.ADMIN) {
             throw new ConflictException("Only owners can verify an owner phone number");
         }
         return owner;

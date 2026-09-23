@@ -57,7 +57,7 @@ class AuthState extends ChangeNotifier {
     await SecureStorage.instance.saveSession(
       accessToken: session.accessToken,
       refreshToken: session.refreshToken,
-      role: session.role == UserRole.owner ? 'OWNER' : 'STUDENT',
+      role: session.role.apiValue,
       fullName: session.fullName,
       userId: session.userId,
     );

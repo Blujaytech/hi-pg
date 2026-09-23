@@ -125,8 +125,11 @@ class _SplashScreenState extends State<SplashScreen>
     }
     _handedOff = true;
     context.go(switch (_auth.status) {
-      AuthStatus.authenticated =>
-        _auth.role == UserRole.owner ? '/owner' : '/student',
+      AuthStatus.authenticated => switch (_auth.role) {
+          UserRole.admin => '/admin',
+          UserRole.owner => '/owner',
+          _ => '/student',
+        },
       _ => '/',
     });
   }
@@ -159,7 +162,8 @@ class _SplashScreenState extends State<SplashScreen>
   Widget _frame(_Geometry g, double t) {
     final bounce = _progress(t, _Timeline.bounce);
     final zoom = _progress(t, _Timeline.zoom);
-    final flood = Curves.easeInCubic.transform(_progress(zoom, _Timeline.flood));
+    final flood =
+        Curves.easeInCubic.transform(_progress(zoom, _Timeline.flood));
     final lockupOpacity = 1 - (zoom * 3).clamp(0.0, 1.0);
     final tagline =
         Curves.easeOutCubic.transform(_progress(t, _Timeline.tagline));
@@ -215,8 +219,7 @@ class _SplashScreenState extends State<SplashScreen>
                   faceColor: Color.lerp(AppColors.ink, AppColors.surface,
                       (zoom * 4).clamp(0.0, 1.0)),
                   wink: _closeAndOpen.transform(_progress(t, _Timeline.wink)),
-                  blink:
-                      _closeAndOpen.transform(_progress(t, _Timeline.blink)),
+                  blink: _closeAndOpen.transform(_progress(t, _Timeline.blink)),
                   smile: lerpDouble(
                     .55,
                     1,

@@ -43,7 +43,8 @@ class AccountScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthState>();
-    final isOwner = auth.role == UserRole.owner;
+    final isOwner = auth.role != UserRole.student;
+    final isAdmin = auth.role == UserRole.admin;
     final storedName = auth.fullName?.trim() ?? '';
     final name = storedName.isNotEmpty
         ? storedName
@@ -54,7 +55,24 @@ class AccountScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 6, 20, 32),
         children: [
-          _ProfileCard(name: name, role: isOwner ? 'PG owner' : 'Customer'),
+          _ProfileCard(
+            name: name,
+            role: isAdmin
+                ? 'Administrator & PG owner'
+                : (isOwner ? 'PG owner' : 'Customer'),
+          ),
+          if (isAdmin) ...[
+            const SizedBox(height: 28),
+            const _GroupLabel('Administration'),
+            _LinkGroup(children: [
+              _LinkTile(
+                icon: Icons.admin_panel_settings_outlined,
+                title: 'KYC review dashboard',
+                subtitle: 'Review and approve owner submissions',
+                onTap: () => context.go('/admin'),
+              ),
+            ]),
+          ],
           if (!isOwner) ...[
             const SizedBox(height: 28),
             const _GroupLabel('Your stay'),
