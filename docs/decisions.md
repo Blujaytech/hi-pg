@@ -277,3 +277,11 @@ a clean lockfile install, zero-warning lint, production compilation, and `npm au
 leave the App Router on an unsupported line with newer advisories unpatched. The upgrade keeps the
 existing React 18 application code (supported by this Next.js release), while removing all known
 advisories from both production and development dependency trees at the time of the release check.
+
+## 2026-09-24 -- ADR-0031: Self-service bookings are the owner customer roster; room identity and operational details are authoritative
+
+**Decision**: owners no longer create customer profiles or assign a second bed after a customer has selected one. Booking creates/links the PG-scoped resident record, while the owner roster projects the latest active booking's room and bed before confirmation and continues to use the resident's allocated bed after confirmation. The same projection carries payment-review status, monthly move-out notice/shortfall, and day-wise checkout date/time. Owners retain payment review and resident operations, but there is no owner-facing manual customer-create endpoint.
+
+Room numbers are unique within a floor after whitespace/case normalization. Service validation provides a useful conflict message, while V22's partial unique index closes concurrent-create races. Existing duplicates are renamed, not discarded.
+
+PG cities are selected from a server-owned supported-city list (with explicit aliases) and PG photos use the existing private object-storage boundary. Customer guardian contact details are optional and phone numbers are validated. Complaints remain customer-created and owner-managed, with PG-wide owner visibility plus room/bed context. These fields live in backend responses so the Flutter UI is a projection of authoritative state rather than a second workflow.

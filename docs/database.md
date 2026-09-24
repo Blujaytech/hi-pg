@@ -120,3 +120,10 @@ One row per registered push-capable device. Upserted by `token` (`DeviceTokenSer
 ## What's still missing (not yet migrated)
 
 Phase 14 added no schema (pure in-memory SSE fan-out, no new tables). Everything past Phase 14. Gets its own `V{n}__...sql` when that phase starts -- check the latest `V` number in the migration folder first (CLAUDE.md).
+
+## V22 -- booking/customer/property hardening
+
+- Renames legacy duplicate room numbers instead of deleting data, then installs `uq_rooms_floor_number_active` on `(floor_id, lower(trim(room_number)))` for live rooms.
+- Adds optional `guardian_name` and `guardian_phone` to `customer_profiles`.
+- Adds private `photo_storage_key` to `pgs`; public APIs expose only short-lived signed URLs.
+- Adds `check_out_time` to bookings so day-wise departures retain the customer-selected time.

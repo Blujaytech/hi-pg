@@ -66,6 +66,7 @@ class Booking {
   final BookingPaymentChannel paymentChannel;
   final DateTime moveInDate;
   final DateTime? checkOutDate;
+  final String? checkOutTime;
   final double rentAmount;
   final double securityDepositAmount;
   final double totalAmount;
@@ -89,6 +90,7 @@ class Booking {
     required this.paymentChannel,
     required this.moveInDate,
     required this.checkOutDate,
+    required this.checkOutTime,
     required this.rentAmount,
     required this.securityDepositAmount,
     required this.totalAmount,
@@ -118,6 +120,7 @@ class Booking {
         checkOutDate: json['checkOutDate'] == null
             ? null
             : DateTime.parse(json['checkOutDate'] as String),
+        checkOutTime: json['checkOutTime'] as String?,
         rentAmount: (json['rentAmount'] as num? ?? 0).toDouble(),
         securityDepositAmount:
             (json['securityDepositAmount'] as num? ?? 0).toDouble(),

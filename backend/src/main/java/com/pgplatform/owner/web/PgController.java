@@ -11,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.UUID;
@@ -52,6 +53,14 @@ public class PgController {
     public ResponseEntity<Void> delete(@AuthenticationPrincipal UserPrincipal principal, @PathVariable UUID pgId) {
         pgService.delete(pgId, principal.getId());
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping(value = "/{pgId}/photo", consumes = "multipart/form-data")
+    public PgResponse uploadPhoto(@AuthenticationPrincipal UserPrincipal principal,
+                                  @PathVariable UUID pgId,
+                                  @RequestPart("file") MultipartFile file) throws java.io.IOException {
+        return pgService.uploadPhoto(pgId, principal.getId(), file.getBytes(),
+                file.getOriginalFilename(), file.getContentType());
     }
 
     @PostMapping("/{pgId}/payment-onboarding")

@@ -29,6 +29,9 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
     @Query("select b from Booking b where b.student.user.id = :userId and b.deletedAt is null order by b.createdAt desc")
     List<Booking> findAllForUser(@Param("userId") UUID userId);
 
+    Optional<Booking> findFirstByStudentIdAndStatusInAndDeletedAtIsNullOrderByCreatedAtDesc(
+            UUID studentId, Collection<BookingStatus> statuses);
+
     @Query("select count(b) from Booking b where b.student.user.id = :userId and b.status in ('PAYMENT_PENDING', 'DIRECT_PAYMENT_REVIEW', 'CONFIRMED', 'CHECKED_IN') and b.deletedAt is null")
     long countActiveConfirmedForUser(@Param("userId") UUID userId);
 

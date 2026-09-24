@@ -3,11 +3,9 @@ package com.pgplatform.student.web;
 import com.pgplatform.auth.UserPrincipal;
 import com.pgplatform.student.StudentService;
 import com.pgplatform.student.dto.AssignBedRequest;
-import com.pgplatform.student.dto.StudentCreateRequest;
 import com.pgplatform.student.dto.StudentResponse;
 import com.pgplatform.student.dto.StudentUpdateRequest;
 import jakarta.validation.Valid;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -24,13 +22,6 @@ public class StudentController {
 
     public StudentController(StudentService studentService) {
         this.studentService = studentService;
-    }
-
-    @PostMapping("/api/v1/owner/pgs/{pgId}/students")
-    public ResponseEntity<StudentResponse> create(@AuthenticationPrincipal UserPrincipal principal,
-                                                   @PathVariable UUID pgId,
-                                                   @Valid @RequestBody StudentCreateRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(studentService.create(pgId, principal.getId(), request));
     }
 
     @GetMapping("/api/v1/owner/pgs/{pgId}/students")

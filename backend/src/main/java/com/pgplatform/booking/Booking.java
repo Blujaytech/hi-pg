@@ -17,6 +17,7 @@ import lombok.Setter;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.math.BigDecimal;
 
 /**
@@ -61,6 +62,9 @@ public class Booking extends BaseEntity {
 
     @Column(name = "check_out_date")
     private LocalDate checkOutDate;
+
+    @Column(name = "check_out_time")
+    private LocalTime checkOutTime;
 
     @Column(name = "rent_amount", nullable = false, precision = 10, scale = 2)
     private BigDecimal rentAmount = BigDecimal.ZERO;

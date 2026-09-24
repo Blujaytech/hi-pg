@@ -6,13 +6,15 @@ import jakarta.validation.constraints.FutureOrPresent;
 import jakarta.validation.constraints.NotNull;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.UUID;
 
 public record BookingCreateRequest(
         @NotNull UUID bedId,
         @NotNull BookingType bookingType,
         @JsonAlias("moveInDate") @NotNull @FutureOrPresent LocalDate checkInDate,
-        LocalDate checkOutDate
+        LocalDate checkOutDate,
+        LocalTime checkOutTime
 ) {
     /**
      * Keep already-installed clients working across the flexible-booking API
@@ -24,10 +26,19 @@ public record BookingCreateRequest(
         if (bookingType == null) {
             bookingType = BookingType.MONTHLY;
         }
+        if (bookingType == BookingType.DAY_WISE && checkOutTime == null) {
+            checkOutTime = LocalTime.of(11, 0);
+        }
     }
 
     /** Compatibility for older callers; creates an open-ended monthly request. */
     public BookingCreateRequest(UUID bedId, LocalDate moveInDate) {
-        this(bedId, BookingType.MONTHLY, moveInDate, null);
+        this(bedId, BookingType.MONTHLY, moveInDate, null, null);
+    }
+
+    /** Compatibility for tests and clients introduced before checkout time. */
+    public BookingCreateRequest(UUID bedId, BookingType bookingType,
+                                LocalDate checkInDate, LocalDate checkOutDate) {
+        this(bedId, bookingType, checkInDate, checkOutDate, null);
     }
 }

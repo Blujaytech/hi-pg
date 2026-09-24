@@ -14,6 +14,8 @@ public record ComplaintResponse(
         String studentName,
         UUID pgId,
         String pgName,
+        String roomNumber,
+        String bedLabel,
         ComplaintCategory category,
         ComplaintPriority priority,
         String description,
@@ -29,6 +31,10 @@ public record ComplaintResponse(
                 complaint.getStudent().getFullName(),
                 complaint.getPg().getId(),
                 complaint.getPg().getName(),
+                complaint.getStudent().getBed() == null ? null
+                        : complaint.getStudent().getBed().getRoom().getRoomNumber(),
+                complaint.getStudent().getBed() == null ? null
+                        : complaint.getStudent().getBed().getLabel(),
                 complaint.getCategory(),
                 complaint.getPriority(),
                 complaint.getDescription(),

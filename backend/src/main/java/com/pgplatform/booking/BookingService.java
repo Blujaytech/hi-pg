@@ -30,6 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
@@ -112,6 +113,8 @@ public class BookingService {
         booking.setPaymentChannel(BookingPaymentChannel.UNSELECTED);
         booking.setMoveInDate(request.checkInDate());
         booking.setCheckOutDate(request.checkOutDate());
+        booking.setCheckOutTime(request.bookingType() == BookingType.DAY_WISE
+                ? request.checkOutTime() : null);
         booking.setRentAmount(rent);
         booking.setSecurityDepositAmount(deposit);
         booking.setTotalAmount(rent.add(deposit));
@@ -344,7 +347,9 @@ public class BookingService {
                 .findAllByStatusInAndCheckOutDateLessThanEqualAndDeletedAtIsNull(
                         List.of(BookingStatus.CONFIRMED, BookingStatus.CHECKED_IN), today);
         for (Booking booking : departures) {
-            completeStay(booking);
+            if (isDepartureDue(booking, today, LocalTime.now())) {
+                completeStay(booking);
+            }
         }
 
         List<Booking> arrivals = bookingRepository
@@ -385,6 +390,15 @@ public class BookingService {
         booking.setCompletedAt(Instant.now());
         bookingRepository.save(booking);
         broadcaster.notifyChanged(booking.getPg().getId());
+    }
+
+    private boolean isDepartureDue(Booking booking, LocalDate today, LocalTime now) {
+        if (booking.getCheckOutDate() == null) return false;
+        if (booking.getCheckOutDate().isBefore(today)) return true;
+        if (booking.getCheckOutDate().isAfter(today)) return false;
+        return booking.getBookingType() != BookingType.DAY_WISE
+                || booking.getCheckOutTime() == null
+                || !booking.getCheckOutTime().isAfter(now);
     }
 
     private void checkIn(Booking booking) {
@@ -517,8 +531,7 @@ public class BookingService {
                     Student student = new Student();
                     student.setUser(user);
                     student.setPg(pg);
-                    student.setFullName(user.getFullName());
-                    student.setPhone(user.getPhone() != null ? user.getPhone() : "");
+                    customerProfileService.applyToStudent(userId, student);
                     student.setDateOfJoining(moveInDate);
                     student.setStatus(StudentStatus.PROSPECTIVE);
                     return studentRepository.save(student);

@@ -11,6 +11,7 @@ public record PgSearchResultResponse(
         String city,
         String address,
         String description,
+        String photoUrl,
         GenderPreference genderPreference,
         Double latitude,
         Double longitude,

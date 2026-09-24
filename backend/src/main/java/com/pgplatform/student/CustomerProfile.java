@@ -31,6 +31,12 @@ public class CustomerProfile extends BaseEntity {
     @Column(name = "permanent_address", columnDefinition = "text")
     private String permanentAddress;
 
+    @Column(name = "guardian_name")
+    private String guardianName;
+
+    @Column(name = "guardian_phone", length = 16)
+    private String guardianPhone;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "identity_type", length = 24)
     private IdentityType identityType;

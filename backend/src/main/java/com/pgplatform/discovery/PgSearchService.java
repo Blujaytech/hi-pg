@@ -26,6 +26,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.pgplatform.document.DocumentStorageGateway;
 
 import java.math.BigDecimal;
 import java.util.Arrays;
@@ -34,6 +35,7 @@ import java.util.Locale;
 import java.util.UUID;
 import java.time.LocalDate;
 import java.util.Set;
+import java.time.Duration;
 
 /**
  * Public (unauthenticated) student-facing discovery -- technical plan §6
@@ -53,15 +55,18 @@ public class PgSearchService {
     private final RoomRepository roomRepository;
     private final BedRepository bedRepository;
     private final PgDirectPaymentSettingsRepository directPaymentSettingsRepository;
+    private final DocumentStorageGateway storageGateway;
 
     public PgSearchService(PgRepository pgRepository, FloorRepository floorRepository,
                             RoomRepository roomRepository, BedRepository bedRepository,
-                            PgDirectPaymentSettingsRepository directPaymentSettingsRepository) {
+                            PgDirectPaymentSettingsRepository directPaymentSettingsRepository,
+                            DocumentStorageGateway storageGateway) {
         this.pgRepository = pgRepository;
         this.floorRepository = floorRepository;
         this.roomRepository = roomRepository;
         this.bedRepository = bedRepository;
         this.directPaymentSettingsRepository = directPaymentSettingsRepository;
+        this.storageGateway = storageGateway;
     }
 
     /**
@@ -142,7 +147,7 @@ public class PgSearchService {
 
         return new PgDetailsResponse(
                 pg.getId(), pg.getName(), pg.getAddress(), pg.getCity(), pg.getState(), pg.getPincode(),
-                pg.getDescription(), pg.getGenderPreference(), pg.getLatitude(), pg.getLongitude(),
+                pg.getDescription(), photoUrl(pg), pg.getGenderPreference(), pg.getLatitude(), pg.getLongitude(),
                 totalBeds, availableBeds, directPaymentAvailable, floorResponses
         );
     }
@@ -156,10 +161,15 @@ public class PgSearchService {
         BigDecimal minRent = roomRepository.findMinRentForPg(pg.getId());
         BigDecimal maxRent = roomRepository.findMaxRentForPg(pg.getId());
         return new PgSearchResultResponse(
-                pg.getId(), pg.getName(), pg.getCity(), pg.getAddress(), pg.getDescription(),
+                pg.getId(), pg.getName(), pg.getCity(), pg.getAddress(), pg.getDescription(), photoUrl(pg),
                 pg.getGenderPreference(), pg.getLatitude(), pg.getLongitude(),
                 availableBeds, minRent, maxRent
         );
+    }
+
+    private String photoUrl(Pg pg) {
+        return pg.getPhotoStorageKey() == null ? null
+                : storageGateway.generateSignedUrl(pg.getPhotoStorageKey(), Duration.ofHours(1));
     }
 
     private int clampSize(int size) {

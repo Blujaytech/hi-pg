@@ -26,6 +26,7 @@ class PgSearchResult {
   final String city;
   final String address;
   final String? description;
+  final String? photoUrl;
   final GenderPreference genderPreference;
   final double? latitude;
   final double? longitude;
@@ -39,6 +40,7 @@ class PgSearchResult {
     required this.city,
     required this.address,
     required this.description,
+    this.photoUrl,
     required this.genderPreference,
     required this.latitude,
     required this.longitude,
@@ -53,6 +55,7 @@ class PgSearchResult {
         city: json['city'] as String,
         address: json['address'] as String,
         description: json['description'] as String?,
+        photoUrl: json['photoUrl'] as String?,
         genderPreference:
             GenderPreferenceX.fromApi(json['genderPreference'] as String),
         latitude: (json['latitude'] as num?)?.toDouble(),
@@ -168,6 +171,7 @@ class PgDetails {
   final String? state;
   final String? pincode;
   final String? description;
+  final String? photoUrl;
   final GenderPreference genderPreference;
   final double? latitude;
   final double? longitude;
@@ -184,6 +188,7 @@ class PgDetails {
     required this.state,
     required this.pincode,
     required this.description,
+    this.photoUrl,
     required this.genderPreference,
     required this.latitude,
     required this.longitude,
@@ -201,6 +206,7 @@ class PgDetails {
         state: json['state'] as String?,
         pincode: json['pincode'] as String?,
         description: json['description'] as String?,
+        photoUrl: json['photoUrl'] as String?,
         genderPreference:
             GenderPreferenceX.fromApi(json['genderPreference'] as String),
         latitude: (json['latitude'] as num?)?.toDouble(),

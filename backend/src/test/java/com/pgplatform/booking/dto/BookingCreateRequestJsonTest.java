@@ -50,5 +50,6 @@ class BookingCreateRequestJsonTest {
         assertThat(request.bookingType()).isEqualTo(BookingType.DAY_WISE);
         assertThat(request.checkInDate()).isEqualTo(checkInDate);
         assertThat(request.checkOutDate()).isEqualTo(checkOutDate);
+        assertThat(request.checkOutTime()).hasToString("11:00");
     }
 }

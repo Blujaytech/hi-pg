@@ -15,6 +15,8 @@ class CustomerProfileRepository {
     required String fullName,
     required String occupation,
     String? permanentAddress,
+    String? guardianName,
+    String? guardianPhone,
     IdentityType? identityType,
     String? identityLast4,
     required bool acceptTerms,
@@ -27,6 +29,9 @@ class CustomerProfileRepository {
         'fullName': fullName.trim(),
         'occupation': occupation.trim(),
         'permanentAddress': _blankToNull(permanentAddress),
+        'guardianName': _blankToNull(guardianName),
+        'guardianPhone':
+            _blankToNull(guardianPhone)?.replaceAll(RegExp(r'[\s-]'), ''),
         'identityType': identityType?.apiValue,
         'identityLast4': _blankToNull(identityLast4)?.toUpperCase(),
         'acceptTerms': acceptTerms,

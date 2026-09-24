@@ -13,6 +13,8 @@ public record CustomerProfileResponse(
         String phone,
         boolean phoneVerified,
         String permanentAddress,
+        String guardianName,
+        String guardianPhone,
         IdentityType identityType,
         String identityLast4,
         String termsAcceptedVersion,

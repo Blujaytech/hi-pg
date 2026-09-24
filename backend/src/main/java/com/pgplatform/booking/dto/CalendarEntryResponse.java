@@ -6,6 +6,7 @@ import com.pgplatform.booking.BookingType;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.UUID;
 
 public record CalendarEntryResponse(
@@ -17,13 +18,15 @@ public record CalendarEntryResponse(
         BookingStatus status,
         LocalDate startDate,
         LocalDate endDate,
+        LocalTime checkOutTime,
         Instant paymentExpiresAt
 ) {
     public static CalendarEntryResponse from(Booking booking) {
         return new CalendarEntryResponse(
                 booking.getId(), booking.getBed().getId(), booking.getBed().getLabel(),
                 booking.getStudent().getFullName(), booking.getBookingType(), booking.getStatus(),
-                booking.getMoveInDate(), booking.getCheckOutDate(), booking.getPaymentExpiresAt()
+                booking.getMoveInDate(), booking.getCheckOutDate(), booking.getCheckOutTime(),
+                booking.getPaymentExpiresAt()
         );
     }
 }

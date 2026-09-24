@@ -13,19 +13,24 @@ class BookingRepository {
     required BookingType bookingType,
     required DateTime moveInDate,
     DateTime? checkOutDate,
+    String? checkOutTime,
   }) async {
-    final response = await _client.post<Map<String, dynamic>>('/student/bookings', data: {
+    final response =
+        await _client.post<Map<String, dynamic>>('/student/bookings', data: {
       'bedId': bedId,
       'bookingType': bookingType.apiValue,
       'checkInDate': moveInDate.toIso8601String().substring(0, 10),
       'checkOutDate': checkOutDate?.toIso8601String().substring(0, 10),
+      'checkOutTime': checkOutTime,
     });
     return Booking.fromJson(response.data!);
   }
 
   Future<List<Booking>> listMine() async {
     final response = await _client.get<List<dynamic>>('/student/bookings');
-    return response.data!.map((e) => Booking.fromJson(e as Map<String, dynamic>)).toList();
+    return response.data!
+        .map((e) => Booking.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
   Future<Booking> cancel(String bookingId, {String? reason}) async {
@@ -35,10 +40,13 @@ class BookingRepository {
     return Booking.fromJson(response.data!);
   }
 
-  Future<Booking> submitMoveOutNotice(String bookingId, DateTime moveOutDate) async {
+  Future<Booking> submitMoveOutNotice(
+      String bookingId, DateTime moveOutDate) async {
     final response = await _client.post<Map<String, dynamic>>(
       '/student/bookings/$bookingId/move-out-notice',
-      data: {'plannedMoveOutDate': moveOutDate.toIso8601String().substring(0, 10)},
+      data: {
+        'plannedMoveOutDate': moveOutDate.toIso8601String().substring(0, 10)
+      },
     );
     return Booking.fromJson(response.data!);
   }

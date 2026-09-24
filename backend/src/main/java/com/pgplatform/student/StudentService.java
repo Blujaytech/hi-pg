@@ -13,6 +13,9 @@ import com.pgplatform.student.dto.AssignBedRequest;
 import com.pgplatform.student.dto.StudentCreateRequest;
 import com.pgplatform.student.dto.StudentResponse;
 import com.pgplatform.student.dto.StudentUpdateRequest;
+import com.pgplatform.booking.Booking;
+import com.pgplatform.booking.BookingRepository;
+import com.pgplatform.booking.BookingStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,13 +35,15 @@ public class StudentService {
     private final BedRepository bedRepository;
     private final PgService pgService;
     private final BedAvailabilityBroadcaster broadcaster;
+    private final BookingRepository bookingRepository;
 
     public StudentService(StudentRepository studentRepository, BedRepository bedRepository, PgService pgService,
-                           BedAvailabilityBroadcaster broadcaster) {
+                           BedAvailabilityBroadcaster broadcaster, BookingRepository bookingRepository) {
         this.studentRepository = studentRepository;
         this.bedRepository = bedRepository;
         this.pgService = pgService;
         this.broadcaster = broadcaster;
+        this.bookingRepository = bookingRepository;
     }
 
     @Transactional
@@ -55,19 +60,19 @@ public class StudentService {
             student = doAssignBed(student, pg, UUID.fromString(request.bedId()));
         }
 
-        return StudentResponse.from(student);
+        return response(student);
     }
 
     @Transactional(readOnly = true)
     public List<StudentResponse> listForPg(UUID pgId, UUID ownerId) {
         pgService.requireOwnedPg(pgId, ownerId);
         return studentRepository.findAllByPgIdAndDeletedAtIsNullOrderByFullNameAsc(pgId)
-                .stream().map(StudentResponse::from).toList();
+                .stream().map(this::response).toList();
     }
 
     @Transactional(readOnly = true)
     public StudentResponse get(UUID studentId, UUID ownerId) {
-        return StudentResponse.from(requireOwnedStudent(studentId, ownerId));
+        return response(requireOwnedStudent(studentId, ownerId));
     }
 
     @Transactional
@@ -75,7 +80,7 @@ public class StudentService {
         Student student = requireOwnedStudent(studentId, ownerId);
         applyFields(student, request.fullName(), request.phone(), request.email(), request.guardianName(),
                 request.guardianPhone(), request.permanentAddress(), request.idProofNumber(), request.dateOfJoining());
-        return StudentResponse.from(studentRepository.save(student));
+        return response(studentRepository.save(student));
     }
 
     @Transactional
@@ -85,7 +90,7 @@ public class StudentService {
             throw new ConflictException("Cannot assign a bed to a student who has moved out");
         }
         student = doAssignBed(student, student.getPg(), UUID.fromString(request.bedId()));
-        return StudentResponse.from(student);
+        return response(student);
     }
 
     @Transactional
@@ -99,7 +104,7 @@ public class StudentService {
         }
         student.setStatus(StudentStatus.MOVED_OUT);
         student.setMoveOutDate(LocalDate.now());
-        StudentResponse response = StudentResponse.from(studentRepository.save(student));
+        StudentResponse response = response(studentRepository.save(student));
         broadcaster.notifyChanged(student.getPg().getId());
         return response;
     }
@@ -168,5 +173,15 @@ public class StudentService {
             throw new ForbiddenException("You do not have access to this student");
         }
         return student;
+    }
+
+    private StudentResponse response(Student student) {
+        Booking booking = bookingRepository
+                .findFirstByStudentIdAndStatusInAndDeletedAtIsNullOrderByCreatedAtDesc(
+                        student.getId(), List.of(BookingStatus.PAYMENT_PENDING,
+                                BookingStatus.DIRECT_PAYMENT_REVIEW, BookingStatus.CONFIRMED,
+                                BookingStatus.CHECKED_IN))
+                .orElse(null);
+        return StudentResponse.from(student, booking);
     }
 }

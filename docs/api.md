@@ -356,3 +356,12 @@ The `verified` field means the platform's owner/KYC/phone prerequisites passed. 
 | POST | `/owner/direct-payment-requests/{requestId}/reject` | `{idempotencyKey, reason}`. Records an auditable rejection and releases the held booking. |
 
 Customer submission never proves receipt. Only owner approval allocates the bed. Repeated decisions with the same idempotency key are safe, cross-owner access is rejected, and approved direct payments are included in owner dashboard/report collection totals by review time. Because funds bypass Razorpay, gateway reconciliation and automated gateway refunds are unavailable for this channel; production disputes and refunds must follow the operational policy in `direct-owner-payment-and-profile.md`.
+
+## Booking and owner-workflow hardening (2026-09-24)
+
+- `POST /owner/floors/{floorId}/rooms` rejects a room number already used on that floor, ignoring case and surrounding/repeated whitespace. The database is the final concurrency-safe authority.
+- Owner-side manual customer creation is no longer exposed. A customer record is created/linked by self-service booking, and owner customer responses include the selected `roomNumber`, `bedLabel`, booking status/type, checkout date/time, planned move-out date, and notice shortfall even before payment confirmation.
+- Day-wise `POST /student/bookings` accepts `checkOutTime` (`HH:mm`). If an older client omits it, the server uses `11:00`. Calendar and booking responses return the same field.
+- Customer profile GET/PUT includes optional `guardianName` and `guardianPhone`; phone fields accept a valid Indian mobile number with optional `+91` prefix.
+- PG create/update accepts only the supported canonical Indian-city list (common aliases such as Bangalore/Gurgaon are normalized). `POST /owner/pgs/{pgId}/photo` accepts one private JPEG/PNG up to 5 MB and returns a short-lived signed `photoUrl` in owner and public discovery responses.
+- Complaint responses include the resident's current `roomNumber` and `bedLabel`; owners can list all complaints for a PG with `GET /owner/pgs/{pgId}/complaints`.

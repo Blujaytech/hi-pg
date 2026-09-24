@@ -44,6 +44,9 @@ public class Pg extends BaseEntity {
     @Column(columnDefinition = "text")
     private String description;
 
+    @Column(name = "photo_storage_key", length = 500)
+    private String photoStorageKey;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "gender_preference", nullable = false, length = 20)
     private GenderPreference genderPreference = GenderPreference.CO_ED;

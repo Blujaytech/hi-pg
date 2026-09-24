@@ -79,6 +79,8 @@ class Complaint {
   final String studentName;
   final String pgId;
   final String pgName;
+  final String? roomNumber;
+  final String? bedLabel;
   final ComplaintCategory category;
   final ComplaintPriority priority;
   final String description;
@@ -93,6 +95,8 @@ class Complaint {
     required this.studentName,
     required this.pgId,
     required this.pgName,
+    this.roomNumber,
+    this.bedLabel,
     required this.category,
     required this.priority,
     required this.description,
@@ -108,6 +112,8 @@ class Complaint {
         studentName: json['studentName'] as String,
         pgId: json['pgId'] as String,
         pgName: json['pgName'] as String? ?? 'Your PG',
+        roomNumber: json['roomNumber'] as String?,
+        bedLabel: json['bedLabel'] as String?,
         category: ComplaintCategoryX.fromApi(json['category'] as String),
         priority: ComplaintPriorityX.fromApi(json['priority'] as String),
         description: json['description'] as String,

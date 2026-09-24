@@ -29,6 +29,7 @@ public class CustomerProfileService {
     private final LegalAcceptanceRepository acceptanceRepository;
     private final UserRepository userRepository;
     private final OtpService otpService;
+    private final StudentRepository studentRepository;
 
     @Value("${app.legal.terms-version:2026-09-22}")
     private String termsVersion;
@@ -39,11 +40,13 @@ public class CustomerProfileService {
 
     public CustomerProfileService(CustomerProfileRepository profileRepository,
                                   LegalAcceptanceRepository acceptanceRepository,
-                                  UserRepository userRepository, OtpService otpService) {
+                                  UserRepository userRepository, OtpService otpService,
+                                  StudentRepository studentRepository) {
         this.profileRepository = profileRepository;
         this.acceptanceRepository = acceptanceRepository;
         this.userRepository = userRepository;
         this.otpService = otpService;
+        this.studentRepository = studentRepository;
     }
 
     @Transactional(readOnly = true)
@@ -68,6 +71,8 @@ public class CustomerProfileService {
         profile.setFullName(fullName);
         profile.setOccupation(request.occupation().trim());
         profile.setPermanentAddress(trimToNull(request.permanentAddress()));
+        profile.setGuardianName(trimToNull(request.guardianName()));
+        profile.setGuardianPhone(normalizePhone(request.guardianPhone()));
         profile.setIdentityType(request.identityType());
         profile.setIdentityLastFour(request.identityType() == null ? null
                 : request.identityLast4().trim().toUpperCase(Locale.ROOT));
@@ -77,6 +82,10 @@ public class CustomerProfileService {
             user.setFullName(fullName);
             userRepository.save(user);
         }
+        studentRepository.findByUserIdAndDeletedAtIsNull(userId).ifPresent(student -> {
+            applyToStudent(userId, student);
+            studentRepository.save(student);
+        });
         if (request.acceptTerms()) {
             accept(user, LegalDocumentType.TERMS, termsVersion, ipAddress, userAgent, locale);
         }
@@ -130,6 +139,10 @@ public class CustomerProfileService {
         user.setPhone(request.phone());
         user.setPhoneVerified(true);
         userRepository.save(user);
+        studentRepository.findByUserIdAndDeletedAtIsNull(userId).ifPresent(student -> {
+            student.setPhone(request.phone());
+            studentRepository.save(student);
+        });
         return response(user, profileRepository.findByUserIdAndDeletedAtIsNull(userId).orElse(null));
     }
 
@@ -195,6 +208,8 @@ public class CustomerProfileService {
                 profile == null ? user.getFullName() : profile.getFullName(),
                 profile == null ? null : profile.getOccupation(), user.getPhone(), user.isPhoneVerified(),
                 profile == null ? null : profile.getPermanentAddress(),
+                profile == null ? null : profile.getGuardianName(),
+                profile == null ? null : profile.getGuardianPhone(),
                 profile == null ? null : profile.getIdentityType(),
                 profile == null ? null : profile.getIdentityLastFour(),
                 latestVersion(user.getId(), LegalDocumentType.TERMS),
@@ -218,6 +233,22 @@ public class CustomerProfileService {
 
     private static boolean isBlank(String value) { return value == null || value.isBlank(); }
     private static String trimToNull(String value) { return isBlank(value) ? null : value.trim(); }
+    private static String normalizePhone(String value) {
+        String phone = trimToNull(value);
+        return phone == null ? null : phone.replaceAll("[\\s-]", "");
+    }
+
+    /** Copies customer-owned identity/contact details into the owner-visible stay record. */
+    @Transactional(readOnly = true)
+    public void applyToStudent(UUID userId, Student student) {
+        User user = requireStudentUser(userId);
+        CustomerProfile profile = profileRepository.findByUserIdAndDeletedAtIsNull(userId).orElse(null);
+        student.setFullName(profile == null ? user.getFullName() : profile.getFullName());
+        student.setPhone(user.getPhone() == null ? "" : user.getPhone());
+        student.setGuardianName(profile == null ? null : profile.getGuardianName());
+        student.setGuardianPhone(profile == null ? null : profile.getGuardianPhone());
+        student.setPermanentAddress(profile == null ? null : profile.getPermanentAddress());
+    }
     private static String limit(String value, int length) {
         if (isBlank(value)) return null;
         return value.length() <= length ? value : value.substring(0, length);

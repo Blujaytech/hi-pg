@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 
 import '../../core/api_exception.dart';
 import '../../core/theme.dart';
@@ -45,6 +46,8 @@ class _StudentListScreenState extends State<StudentListScreen> {
         .showSnackBar(SnackBar(content: Text(message)));
   }
 
+  // Kept temporarily for legacy locally-created records; no UI route exposes it.
+  // ignore: unused_element
   Future<void> _openCreateSheet() async {
     final created = await showFormSheet<bool>(
       context,
@@ -56,6 +59,7 @@ class _StudentListScreenState extends State<StudentListScreen> {
     }
   }
 
+  // ignore: unused_element
   Future<void> _openAssignBedSheet(Student student) async {
     final List<AvailableBed> beds;
     try {
@@ -195,12 +199,6 @@ class _StudentListScreenState extends State<StudentListScreen> {
                   label: 'Receipts',
                   value: 'receipts'),
               if (isActive)
-                _ActionTile(
-                  icon: Icons.bed_outlined,
-                  label: student.bedId == null ? 'Assign bed' : 'Change bed',
-                  value: 'assign',
-                ),
-              if (isActive)
                 const _ActionTile(
                   icon: Icons.logout_rounded,
                   label: 'Move out',
@@ -223,8 +221,6 @@ class _StudentListScreenState extends State<StudentListScreen> {
       case 'receipts':
         context.push('/owner/students/${student.id}/receipts',
             extra: student.fullName);
-      case 'assign':
-        _openAssignBedSheet(student);
       case 'move_out':
         _confirmMoveOut(student);
     }
@@ -236,19 +232,11 @@ class _StudentListScreenState extends State<StudentListScreen> {
       future: _future,
       builder: (context, snapshot) {
         final students = snapshot.data ?? const <Student>[];
-        final ready = snapshot.connectionState == ConnectionState.done &&
-            !snapshot.hasError;
         return Scaffold(
           appBar: AppBar(
-            title: _TitleWithSubtitle(title: 'Customers', subtitle: widget.pg?.name),
+            title: _TitleWithSubtitle(
+                title: 'Customers', subtitle: widget.pg?.name),
           ),
-          floatingActionButton: ready && students.isNotEmpty
-              ? FloatingActionButton.extended(
-                  onPressed: _openCreateSheet,
-                  icon: const Icon(Icons.person_add_alt_1_rounded),
-                  label: const Text('Add customer'),
-                )
-              : null,
           body: _buildBody(snapshot, students),
         );
       },
@@ -267,14 +255,11 @@ class _StudentListScreenState extends State<StudentListScreen> {
       return AppErrorView(message: message, onRetry: _reload);
     }
     if (students.isEmpty) {
-      return AppEmptyView(
-        icon: Icons.group_add_outlined,
+      return const AppEmptyView(
+        icon: Icons.people_outline_rounded,
         title: 'No customers yet',
         message:
-            'Add the customers living at this property, then give each of them a bed.',
-        actionLabel: 'Add customer',
-        actionIcon: Icons.person_add_alt_1_rounded,
-        onAction: _openCreateSheet,
+            'Customers appear here automatically after they choose a bed and begin booking.',
       );
     }
     final active =
@@ -350,7 +335,7 @@ class _StudentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isActive = student.status == StudentStatus.active;
+    final isActive = student.status != StudentStatus.movedOut;
     return Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -381,7 +366,8 @@ class _StudentCard extends StatelessWidget {
                           const StatusPill(label: 'Moved out')
                         else if (student.bedLabel != null)
                           StatusPill(
-                            label: 'Bed ${student.bedLabel}',
+                            label:
+                                'Room ${student.roomNumber ?? '—'} · ${student.bedLabel}',
                             icon: Icons.bed_outlined,
                           )
                         else
@@ -390,8 +376,34 @@ class _StudentCard extends StatelessWidget {
                             tone: StatusTone.warning,
                             icon: Icons.bed_outlined,
                           ),
+                        if (student.bookingStatus == 'DIRECT_PAYMENT_REVIEW')
+                          const StatusPill(
+                            label: 'Payment verification pending',
+                            tone: StatusTone.warning,
+                          )
+                        else if (student.bookingStatus == 'PAYMENT_PENDING')
+                          const StatusPill(
+                            label: 'Payment pending',
+                            tone: StatusTone.warning,
+                          ),
                       ],
                     ),
+                    if (student.plannedMoveOutDate != null ||
+                        (student.bookingType == 'DAY_WISE' &&
+                            student.checkOutDate != null)) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        student.plannedMoveOutDate != null
+                            ? 'Move-out notice: ${DateFormat('d MMM yyyy').format(student.plannedMoveOutDate!)}${student.noticeShortfallDays > 0 ? ' · ${student.noticeShortfallDays} day shortfall' : ''}'
+                            : 'Day-wise checkout: ${DateFormat('d MMM yyyy').format(student.checkOutDate!)} at ${_formatTime(student.checkOutTime)}',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: student.noticeShortfallDays > 0
+                                  ? AppColors.warning
+                                  : AppColors.ink,
+                              fontWeight: FontWeight.w600,
+                            ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -401,6 +413,13 @@ class _StudentCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String _formatTime(String? value) {
+    if (value == null || value.length < 5) return '11:00 AM';
+    final parts = value.substring(0, 5).split(':');
+    final date = DateTime(2000, 1, 1, int.parse(parts[0]), int.parse(parts[1]));
+    return DateFormat('h:mm a').format(date);
   }
 }
 

@@ -12,6 +12,7 @@ import com.pgplatform.student.StudentRepository;
 import com.pgplatform.student.StudentStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.util.Comparator;
 import java.util.List;
@@ -45,10 +46,14 @@ public class RoomService {
     public RoomResponse create(UUID floorId, UUID ownerId, RoomCreateRequest request) {
         Floor floor = floorService.requireOwnedFloor(floorId, ownerId);
         validatePricing(request.bookingMode(), request.dayWiseRate());
+        String roomNumber = normalizeRoomNumber(request.roomNumber());
+        if (roomRepository.existsByFloorIdAndRoomNumberIgnoreCaseAndDeletedAtIsNull(floorId, roomNumber)) {
+            throw new ConflictException("Room " + roomNumber + " already exists on this floor");
+        }
 
         Room room = new Room();
         room.setFloor(floor);
-        room.setRoomNumber(request.roomNumber());
+        room.setRoomNumber(roomNumber);
         room.setSharingCount(request.sharingCount());
         room.setRentPerBed(request.rentPerBed());
         room.setRoomType(request.roomType());
@@ -56,7 +61,11 @@ public class RoomService {
         room.setDayWiseRate(request.dayWiseRate());
         room.setNoticePeriodDays(request.noticePeriodDays());
         room.setSecurityDeposit(request.securityDeposit());
-        room = roomRepository.save(room);
+        try {
+            room = roomRepository.saveAndFlush(room);
+        } catch (DataIntegrityViolationException ex) {
+            throw new ConflictException("Room " + roomNumber + " already exists on this floor");
+        }
 
         List<Bed> beds = createBeds(room, 1, request.sharingCount());
         broadcaster.notifyChanged(floor.getPg().getId());
@@ -75,8 +84,13 @@ public class RoomService {
     public RoomResponse update(UUID roomId, UUID ownerId, RoomUpdateRequest request) {
         Room room = requireOwnedRoom(roomId, ownerId);
         validatePricing(request.bookingMode(), request.dayWiseRate());
+        String roomNumber = normalizeRoomNumber(request.roomNumber());
+        if (roomRepository.existsByFloorIdAndRoomNumberIgnoreCaseAndIdNotAndDeletedAtIsNull(
+                room.getFloor().getId(), roomNumber, roomId)) {
+            throw new ConflictException("Room " + roomNumber + " already exists on this floor");
+        }
         RoomBookingMode previousMode = room.getBookingMode();
-        room.setRoomNumber(request.roomNumber());
+        room.setRoomNumber(roomNumber);
         room.setRentPerBed(request.rentPerBed());
         room.setRoomType(request.roomType());
         room.setBookingMode(request.bookingMode());
@@ -183,6 +197,12 @@ public class RoomService {
                 && (dayWiseRate == null || dayWiseRate.compareTo(BigDecimal.ZERO) <= 0)) {
             throw new ConflictException("A positive day-wise rate is required for day-wise or mixed rooms");
         }
+    }
+
+    private String normalizeRoomNumber(String value) {
+        String normalized = value == null ? "" : value.trim().replaceAll("\\s+", " ");
+        if (normalized.isEmpty()) throw new ConflictException("Room number is required");
+        return normalized;
     }
 
     private BedBookingMode inheritedBedMode(RoomBookingMode mode) {

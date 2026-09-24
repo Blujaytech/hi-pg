@@ -24,7 +24,8 @@ enum PgStatus { active, inactive }
 
 extension PgStatusX on PgStatus {
   String get apiValue => this == PgStatus.active ? 'ACTIVE' : 'INACTIVE';
-  static PgStatus fromApi(String value) => value == 'ACTIVE' ? PgStatus.active : PgStatus.inactive;
+  static PgStatus fromApi(String value) =>
+      value == 'ACTIVE' ? PgStatus.active : PgStatus.inactive;
 }
 
 class Pg {
@@ -37,6 +38,7 @@ class Pg {
   final double? latitude;
   final double? longitude;
   final String? description;
+  final String? photoUrl;
   final GenderPreference genderPreference;
   final PgStatus status;
 
@@ -50,6 +52,7 @@ class Pg {
     this.latitude,
     this.longitude,
     this.description,
+    this.photoUrl,
     required this.genderPreference,
     required this.status,
   });
@@ -64,7 +67,9 @@ class Pg {
         latitude: (json['latitude'] as num?)?.toDouble(),
         longitude: (json['longitude'] as num?)?.toDouble(),
         description: json['description'] as String?,
-        genderPreference: GenderPreferenceX.fromApi(json['genderPreference'] as String),
+        photoUrl: json['photoUrl'] as String?,
+        genderPreference:
+            GenderPreferenceX.fromApi(json['genderPreference'] as String),
         status: PgStatusX.fromApi(json['status'] as String),
       );
 }

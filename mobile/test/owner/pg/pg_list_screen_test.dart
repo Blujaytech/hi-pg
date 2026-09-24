@@ -26,6 +26,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Customers'), findsOneWidget);
+    expect(find.text('Complaints'), findsOneWidget);
     expect(find.text('Payments'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -52,7 +53,14 @@ void main() {
     final fields = find.byType(TextFormField);
     await tester.enterText(fields.at(0), 'Test Haven PG');
     await tester.enterText(fields.at(1), '12 Market Road');
-    await tester.enterText(fields.at(2), 'Hyderabad');
+    final cityField = find.byType(DropdownButtonFormField<String>);
+    await tester.ensureVisible(cityField);
+    await tester.tap(cityField);
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(Scrollable).last, const Offset(0, -300));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Hyderabad').last);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Create property'));
     await tester.pumpAndSettle();
 

@@ -9,6 +9,8 @@ import '../../shared/app_states.dart';
 import 'student_fee_repository.dart';
 import '../payment/payment_repository.dart';
 import '../payment/razorpay_checkout.dart';
+import '../booking/booking_models.dart';
+import '../booking/booking_repository.dart';
 
 final _money = NumberFormat.currency(
   locale: 'en_IN',
@@ -26,8 +28,9 @@ class MyFeesScreen extends StatefulWidget {
 class _MyFeesScreenState extends State<MyFeesScreen> {
   final _repository = StudentFeeRepository();
   final _paymentRepository = PaymentRepository();
+  final _bookingRepository = BookingRepository();
   late final RazorpayCheckout _checkout;
-  late Future<List<Fee>> _future;
+  late Future<_PaymentViewData> _future;
 
   /// The fee whose checkout is currently open, if any. "Pay now" is a money
   /// action, so every pay button is disabled while one is in flight -- a
@@ -39,10 +42,22 @@ class _MyFeesScreenState extends State<MyFeesScreen> {
   void initState() {
     super.initState();
     _checkout = RazorpayCheckout(_paymentRepository);
-    _future = _repository.listMine();
+    _future = _load();
   }
 
-  void _reload() => setState(() => _future = _repository.listMine());
+  Future<_PaymentViewData> _load() async {
+    List<Fee> fees;
+    try {
+      fees = await _repository.listMine();
+    } on ApiException catch (error) {
+      if (error.statusCode != 404) rethrow;
+      fees = const [];
+    }
+    final bookings = await _bookingRepository.listMine();
+    return _PaymentViewData(fees: fees, bookings: bookings);
+  }
+
+  void _reload() => setState(() => _future = _load());
 
   Future<void> _refresh() async {
     _reload();
@@ -58,13 +73,19 @@ class _MyFeesScreenState extends State<MyFeesScreen> {
     setState(() => _payingFeeId = fee.id);
     try {
       final order = await _paymentRepository.createFeeOrder(fee.id);
-      await _checkout.pay(order, description: 'Rent for ${DateFormat('MMMM yyyy').format(DateTime(fee.periodYear, fee.periodMonth))}');
+      await _checkout.pay(order,
+          description:
+              'Rent for ${DateFormat('MMMM yyyy').format(DateTime(fee.periodYear, fee.periodMonth))}');
       if (mounted) {
         _reload();
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Payment received successfully.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Payment received successfully.')));
       }
     } on ApiException catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.message)));
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -81,36 +102,59 @@ class _MyFeesScreenState extends State<MyFeesScreen> {
     var dueDay = 10;
     final accepted = await showDialog<bool>(
       context: context,
-      builder: (context) => StatefulBuilder(builder: (context, setState) => AlertDialog(
-        title: const Text('Enable monthly AutoPay'),
-        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('You authorize Razorpay to debit rent automatically each month. No owner approval is required for each debit.'),
-          const SizedBox(height: 16),
-          DropdownButtonFormField<int>(
-            initialValue: dueDay,
-            decoration: const InputDecoration(labelText: 'Monthly debit day'),
-            items: [1, 5, 10, 15, 20, 25, 28].map((day) => DropdownMenuItem(value: day, child: Text('Day $day'))).toList(),
-            onChanged: (value) { if (value != null) setState(() => dueDay = value); },
-          ),
-        ]),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Authorize')),
-        ],
-      )),
+      builder: (context) => StatefulBuilder(
+          builder: (context, setState) => AlertDialog(
+                title: const Text('Enable monthly AutoPay'),
+                content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                          'You authorize Razorpay to debit rent automatically each month. No owner approval is required for each debit.'),
+                      const SizedBox(height: 16),
+                      DropdownButtonFormField<int>(
+                        initialValue: dueDay,
+                        decoration: const InputDecoration(
+                            labelText: 'Monthly debit day'),
+                        items: [1, 5, 10, 15, 20, 25, 28]
+                            .map((day) => DropdownMenuItem(
+                                value: day, child: Text('Day $day')))
+                            .toList(),
+                        onChanged: (value) {
+                          if (value != null) setState(() => dueDay = value);
+                        },
+                      ),
+                    ]),
+                actions: [
+                  TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('Cancel')),
+                  FilledButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('Authorize')),
+                ],
+              )),
     );
     if (accepted != true || !mounted) return;
     setState(() => _enablingAutoPay = true);
     try {
       final mandate = await _paymentRepository.enableAutoPay(dueDay);
       final url = mandate.authorizationUrl;
-      if (url == null || !await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication)) {
+      if (url == null ||
+          !await launchUrl(Uri.parse(url),
+              mode: LaunchMode.externalApplication)) {
         throw Exception('Could not open the Razorpay authorization page');
       }
     } on ApiException catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.message)));
+      }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(e.toString().replaceFirst('Exception: ', ''))));
+      }
     } finally {
       if (mounted) setState(() => _enablingAutoPay = false);
     }
@@ -120,7 +164,7 @@ class _MyFeesScreenState extends State<MyFeesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Fees & payments')),
-      body: FutureBuilder<List<Fee>>(
+      body: FutureBuilder<_PaymentViewData>(
         future: _future,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -145,8 +189,10 @@ class _MyFeesScreenState extends State<MyFeesScreen> {
             return AppErrorView(message: message, onRetry: _reload);
           }
 
-          final fees = snapshot.data ?? const <Fee>[];
-          if (fees.isEmpty) {
+          final data = snapshot.data ?? const _PaymentViewData();
+          final fees = data.fees;
+          final bookings = data.bookings;
+          if (fees.isEmpty && bookings.isEmpty) {
             return const AppEmptyView(
               icon: Icons.check_circle_outline_rounded,
               title: 'No fees recorded',
@@ -160,16 +206,22 @@ class _MyFeesScreenState extends State<MyFeesScreen> {
             child: ListView.separated(
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(20, 6, 20, 32),
-              itemCount: fees.length + 2,
+              itemCount: fees.length + bookings.length + 2,
               separatorBuilder: (_, __) => const SizedBox(height: 12),
               itemBuilder: (context, index) {
-                if (index == 0) return _FeeOverview(fees: fees);
+                if (index == 0) {
+                  return _PaymentOverview(fees: fees, bookings: bookings);
+                }
                 if (index == 1) {
                   return _PaymentNotice(
                     onEnableAutoPay: _enablingAutoPay ? null : _enableAutoPay,
                   );
                 }
-                final fee = fees[index - 2];
+                final bookingIndex = index - 2;
+                if (bookingIndex < bookings.length) {
+                  return _BookingPaymentCard(booking: bookings[bookingIndex]);
+                }
+                final fee = fees[bookingIndex - bookings.length];
                 return _FeeCard(
                   fee: fee,
                   onPay: _payingFeeId == null ? () => _payFee(fee) : null,
@@ -184,15 +236,36 @@ class _MyFeesScreenState extends State<MyFeesScreen> {
   }
 }
 
-class _FeeOverview extends StatelessWidget {
+class _PaymentViewData {
   final List<Fee> fees;
+  final List<Booking> bookings;
 
-  const _FeeOverview({required this.fees});
+  const _PaymentViewData({this.fees = const [], this.bookings = const []});
+}
+
+class _PaymentOverview extends StatelessWidget {
+  final List<Fee> fees;
+  final List<Booking> bookings;
+
+  const _PaymentOverview({required this.fees, required this.bookings});
 
   @override
   Widget build(BuildContext context) {
-    final due = fees.fold<double>(0, (sum, fee) => sum + fee.balance);
-    final paid = fees.fold<double>(0, (sum, fee) => sum + fee.amountPaid);
+    final unpaidBookings = bookings.where((booking) =>
+        booking.status == BookingStatus.paymentPending ||
+        booking.status == BookingStatus.directPaymentReview);
+    final paidBookings = bookings.where((booking) =>
+        booking.status == BookingStatus.confirmed ||
+        booking.status == BookingStatus.checkedIn ||
+        booking.status == BookingStatus.completed);
+    final due = fees.fold<double>(0, (sum, fee) => sum + fee.balance) +
+        unpaidBookings.fold<double>(
+            0, (sum, booking) => sum + booking.totalAmount);
+    final paid = fees.fold<double>(0, (sum, fee) => sum + fee.amountPaid) +
+        paidBookings.fold<double>(
+            0, (sum, booking) => sum + booking.totalAmount);
+    final deposits = paidBookings.fold<double>(
+        0, (sum, booking) => sum + booking.securityDepositAmount);
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -240,14 +313,118 @@ class _FeeOverview extends StatelessWidget {
               ),
               Expanded(
                 child: _SummaryValue(
-                  icon: Icons.receipt_long_outlined,
-                  label: 'Fee periods',
-                  value: '${fees.length}',
+                  icon: Icons.savings_outlined,
+                  label: 'Deposit paid',
+                  value: _money.format(deposits),
                 ),
               ),
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _BookingPaymentCard extends StatelessWidget {
+  final Booking booking;
+
+  const _BookingPaymentCard({required this.booking});
+
+  @override
+  Widget build(BuildContext context) {
+    final paid = booking.status == BookingStatus.confirmed ||
+        booking.status == BookingStatus.checkedIn ||
+        booking.status == BookingStatus.completed;
+    final awaitingVerification =
+        booking.status == BookingStatus.directPaymentReview;
+    final inactive = booking.status == BookingStatus.cancelled ||
+        booking.status == BookingStatus.expired;
+    final pending =
+        booking.status == BookingStatus.paymentPending || awaitingVerification
+            ? booking.totalAmount
+            : 0.0;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const IconTile(icon: Icons.bed_outlined, size: 44),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(booking.pgName,
+                          style: Theme.of(context).textTheme.titleMedium),
+                      Text('Room ${booking.roomNumber} · ${booking.bedLabel}',
+                          style: Theme.of(context).textTheme.bodySmall),
+                    ],
+                  ),
+                ),
+                StatusPill(
+                  label: awaitingVerification
+                      ? 'Verifying'
+                      : paid
+                          ? 'Paid'
+                          : booking.status.label,
+                  tone: paid
+                      ? StatusTone.success
+                      : awaitingVerification
+                          ? StatusTone.warning
+                          : StatusTone.neutral,
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                    child: _Amount(
+                        label: 'Rent',
+                        value: _money.format(booking.rentAmount))),
+                Expanded(
+                    child: _Amount(
+                        label: 'Deposit',
+                        value: _money.format(booking.securityDepositAmount))),
+                Expanded(
+                    child: _Amount(
+                        label: 'Total',
+                        value: _money.format(booking.totalAmount))),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color:
+                    pending > 0 ? AppColors.warningSoft : AppColors.successSoft,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                awaitingVerification
+                    ? '${_money.format(pending)} sent · owner verification pending'
+                    : pending > 0
+                        ? 'Pending amount: ${_money.format(pending)}'
+                        : inactive
+                            ? 'No amount due · ${booking.status.label.toLowerCase()}'
+                            : 'Paid amount: ${_money.format(booking.totalAmount)}',
+                style: TextStyle(
+                  color: pending > 0
+                      ? AppColors.warning
+                      : inactive
+                          ? AppColors.muted
+                          : AppColors.success,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -308,7 +485,9 @@ class _PaymentNotice extends StatelessWidget {
         child: Row(children: [
           const Icon(Icons.autorenew_rounded, color: AppColors.ink),
           const SizedBox(width: 12),
-          const Expanded(child: Text('Pay by UPI, card or netbanking, or authorize automatic monthly rent.')),
+          const Expanded(
+              child: Text(
+                  'Pay by UPI, card or netbanking, or authorize automatic monthly rent.')),
           TextButton(onPressed: onEnableAutoPay, child: const Text('AutoPay')),
         ]),
       ),
@@ -367,7 +546,8 @@ class _FeeCard extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: _Amount(label: 'Fee', value: _money.format(fee.amount)),
+                  child:
+                      _Amount(label: 'Fee', value: _money.format(fee.amount)),
                 ),
                 Expanded(
                   child: _Amount(
@@ -400,18 +580,20 @@ class _FeeCard extends StatelessWidget {
             ],
             if (fee.status != FeeStatus.paid) ...[
               const SizedBox(height: 14),
-              SizedBox(width: double.infinity, child: FilledButton.icon(
-                onPressed: onPay,
-                icon: paying
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white),
-                      )
-                    : const Icon(Icons.account_balance_wallet_outlined),
-                label: Text(paying ? 'Opening checkout...' : 'Pay now'),
-              )),
+              SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: onPay,
+                    icon: paying
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Icon(Icons.account_balance_wallet_outlined),
+                    label: Text(paying ? 'Opening checkout...' : 'Pay now'),
+                  )),
             ],
           ],
         ),

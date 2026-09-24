@@ -19,6 +19,7 @@ public record PgDetailsResponse(
         String state,
         String pincode,
         String description,
+        String photoUrl,
         GenderPreference genderPreference,
         Double latitude,
         Double longitude,

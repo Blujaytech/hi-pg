@@ -7,6 +7,7 @@ import com.pgplatform.booking.BookingPaymentChannel;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.UUID;
 import java.math.BigDecimal;
 
@@ -23,6 +24,7 @@ public record BookingResponse(
         BookingPaymentChannel paymentChannel,
         LocalDate checkInDate,
         LocalDate checkOutDate,
+        LocalTime checkOutTime,
         BigDecimal rentAmount,
         BigDecimal securityDepositAmount,
         BigDecimal totalAmount,
@@ -39,6 +41,7 @@ public record BookingResponse(
                 booking.getBed().getId(), booking.getBed().getLabel(), booking.getBed().getRoom().getRoomNumber(),
                 booking.getStatus(), booking.getBookingType(), booking.getPaymentChannel(),
                 booking.getMoveInDate(), booking.getCheckOutDate(),
+                booking.getCheckOutTime(),
                 booking.getRentAmount(), booking.getSecurityDepositAmount(), booking.getTotalAmount(),
                 booking.getPaymentExpiresAt(), booking.getConfirmedAt(), booking.getCancelledAt(),
                 booking.getCancellationReason(), booking.getPlannedMoveOutDate(), booking.getNoticeShortfallDays()

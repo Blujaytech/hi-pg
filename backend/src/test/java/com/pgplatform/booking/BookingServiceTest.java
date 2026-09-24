@@ -21,6 +21,7 @@ import com.pgplatform.owner.dto.PgCreateRequest;
 import com.pgplatform.owner.dto.RoomCreateRequest;
 import com.pgplatform.owner.dto.RoomResponse;
 import com.pgplatform.student.StudentRepository;
+import com.pgplatform.student.StudentService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -47,6 +48,8 @@ class BookingServiceTest extends AbstractIntegrationTest {
     private BedRepository bedRepository;
     @Autowired
     private StudentRepository studentRepository;
+    @Autowired
+    private StudentService studentService;
 
     private UUID ownerId;
     private UUID pgId;
@@ -113,6 +116,23 @@ class BookingServiceTest extends AbstractIntegrationTest {
 
         assertThatThrownBy(() -> bookingService.book(userId, new BookingCreateRequest(bedId2, LocalDate.now().plusDays(1))))
                 .isInstanceOf(ConflictException.class);
+    }
+
+    @Test
+    void ownerCustomerListShowsTheBedSelectedByAnUnpaidFutureBooking() {
+        setUpOwnerAndPg();
+        UUID bedId = createBed("305");
+        UUID userId = createStudentUser("9222222299");
+
+        BookingResponse booking = bookingService.book(userId,
+                new BookingCreateRequest(bedId, LocalDate.now().plusDays(2)));
+        var customer = studentService.listForPg(pgId, ownerId).get(0);
+
+        assertThat(customer.bookingId()).isEqualTo(booking.id());
+        assertThat(customer.roomNumber()).isEqualTo("305");
+        assertThat(customer.bedId()).isEqualTo(bedId);
+        assertThat(customer.bedLabel()).isEqualTo("Bed 1");
+        assertThat(customer.bookingStatus()).isEqualTo(BookingStatus.PAYMENT_PENDING);
     }
 
     @Test

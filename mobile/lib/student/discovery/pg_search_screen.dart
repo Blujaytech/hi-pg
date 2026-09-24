@@ -186,9 +186,10 @@ class _PgSearchScreenState extends State<PgSearchScreen> {
     _update(SearchFilters(sort: _filters.sort));
   }
 
-  void _toggleGender(GenderPreference gender) => _update(_filters.gender == gender
-      ? _filters.copyWith(clearGender: true)
-      : _filters.copyWith(gender: gender));
+  void _toggleGender(GenderPreference gender) =>
+      _update(_filters.gender == gender
+          ? _filters.copyWith(clearGender: true)
+          : _filters.copyWith(gender: gender));
 
   Future<void> _openFilters() async {
     FocusScope.of(context).unfocus();
@@ -240,8 +241,12 @@ class _PgSearchScreenState extends State<PgSearchScreen> {
   Widget build(BuildContext context) {
     final visible = _filters.apply(_loaded);
     // Keep filling the list when local filters leave too little on screen.
-    if (_showResults && !_loading && !_loadingMore && _error == null &&
-        _hasMore && visible.length < 8) {
+    if (_showResults &&
+        !_loading &&
+        !_loadingMore &&
+        _error == null &&
+        _hasMore &&
+        visible.length < 8) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _loadMore());
     }
     return Scaffold(
@@ -368,7 +373,8 @@ class _PgSearchScreenState extends State<PgSearchScreen> {
           for (final query in _recentSearches)
             ListTile(
               contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.history_rounded, color: AppColors.muted),
+              leading:
+                  const Icon(Icons.history_rounded, color: AppColors.muted),
               title: Text(query),
               trailing: const Icon(Icons.north_west_rounded,
                   size: 18, color: AppColors.subtle),
@@ -397,7 +403,8 @@ class _PgSearchScreenState extends State<PgSearchScreen> {
         OutlinedButton.icon(
           onPressed: () => setState(() => _browseAll = true),
           icon: const Icon(Icons.apartment_rounded, size: 19),
-          label: Text(_loaded.isEmpty ? 'Browse all PGs' : 'Browse all $total PGs'),
+          label: Text(
+              _loaded.isEmpty ? 'Browse all PGs' : 'Browse all $total PGs'),
         ),
       ],
     );
@@ -414,7 +421,9 @@ class _PgSearchScreenState extends State<PgSearchScreen> {
     if (visible.isEmpty && !_hasMore) {
       return AppEmptyView(
         icon: Icons.search_off_rounded,
-        title: query.isEmpty ? 'No PGs match these filters' : 'No PGs match "$query"',
+        title: query.isEmpty
+            ? 'No PGs match these filters'
+            : 'No PGs match "$query"',
         message: 'Try an area, PG name or city, or loosen a filter.',
         actionLabel: _filters.isEmpty ? null : 'Clear all',
         actionIcon: Icons.close_rounded,
@@ -742,15 +751,29 @@ class _PgResultCard extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 56,
-                height: 68,
-                decoration: BoxDecoration(
-                  color: AppColors.ink,
-                  borderRadius: BorderRadius.circular(15),
-                ),
-                child: const Icon(Icons.apartment_rounded,
-                    color: Colors.white, size: 26),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(15),
+                child: pg.photoUrl == null
+                    ? Container(
+                        width: 56,
+                        height: 68,
+                        color: AppColors.ink,
+                        child: const Icon(Icons.apartment_rounded,
+                            color: Colors.white, size: 26),
+                      )
+                    : Image.network(
+                        pg.photoUrl!,
+                        width: 56,
+                        height: 68,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          width: 56,
+                          height: 68,
+                          color: AppColors.ink,
+                          child: const Icon(Icons.apartment_rounded,
+                              color: Colors.white, size: 26),
+                        ),
+                      ),
               ),
               const SizedBox(width: 13),
               Expanded(

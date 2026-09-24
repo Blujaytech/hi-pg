@@ -28,6 +28,8 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
   final _occupationController = TextEditingController();
   final _phoneController = TextEditingController();
   final _addressController = TextEditingController();
+  final _guardianNameController = TextEditingController();
+  final _guardianPhoneController = TextEditingController();
   final _identityLast4Controller = TextEditingController();
 
   CustomerProfile? _profile;
@@ -53,6 +55,8 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
     _occupationController.dispose();
     _phoneController.dispose();
     _addressController.dispose();
+    _guardianNameController.dispose();
+    _guardianPhoneController.dispose();
     _identityLast4Controller.dispose();
     super.dispose();
   }
@@ -84,6 +88,8 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
     _occupationController.text = profile.occupation;
     _phoneController.text = profile.phone ?? '';
     _addressController.text = profile.permanentAddress ?? '';
+    _guardianNameController.text = profile.guardianName ?? '';
+    _guardianPhoneController.text = profile.guardianPhone ?? '';
     _identityType = profile.identityType;
     _identityLast4Controller.text = profile.identityLast4 ?? '';
     _acceptTerms = profile.termsAcceptedVersion != null;
@@ -164,6 +170,8 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
         fullName: _nameController.text,
         occupation: _occupationController.text,
         permanentAddress: _addressController.text,
+        guardianName: _guardianNameController.text,
+        guardianPhone: _guardianPhoneController.text,
         identityType: _identityType,
         identityLast4: _identityLast4Controller.text,
         acceptTerms: _acceptTerms,
@@ -277,6 +285,46 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                 validator: (value) => (value ?? '').trim().length < 2
                     ? 'Enter your profession or occupation'
                     : null,
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _SectionCard(
+            title: 'Emergency contact',
+            subtitle:
+                'Shown to the PG owner only for stay safety and emergencies.',
+            children: [
+              TextFormField(
+                controller: _guardianNameController,
+                enabled: !_saving,
+                textCapitalization: TextCapitalization.words,
+                textInputAction: TextInputAction.next,
+                decoration: const InputDecoration(
+                  labelText: 'Guardian name (optional)',
+                  prefixIcon: Icon(Icons.family_restroom_rounded),
+                ),
+              ),
+              const SizedBox(height: 14),
+              TextFormField(
+                controller: _guardianPhoneController,
+                enabled: !_saving,
+                keyboardType: TextInputType.phone,
+                textInputAction: TextInputAction.next,
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[0-9+\s-]')),
+                  LengthLimitingTextInputFormatter(16),
+                ],
+                decoration: const InputDecoration(
+                  labelText: 'Guardian mobile number (optional)',
+                  prefixIcon: Icon(Icons.phone_outlined),
+                ),
+                validator: (value) {
+                  final phone = (value ?? '').replaceAll(RegExp(r'[\s-]'), '');
+                  if (phone.isEmpty) return null;
+                  return RegExp(r'^\+?[1-9][0-9]{9,14}$').hasMatch(phone)
+                      ? null
+                      : 'Enter a valid guardian mobile number';
+                },
               ),
             ],
           ),

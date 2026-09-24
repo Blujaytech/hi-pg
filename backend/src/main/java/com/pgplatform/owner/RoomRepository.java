@@ -10,6 +10,9 @@ import java.util.UUID;
 
 public interface RoomRepository extends JpaRepository<Room, UUID> {
     Optional<Room> findByIdAndDeletedAtIsNull(UUID id);
+    boolean existsByFloorIdAndRoomNumberIgnoreCaseAndDeletedAtIsNull(UUID floorId, String roomNumber);
+    boolean existsByFloorIdAndRoomNumberIgnoreCaseAndIdNotAndDeletedAtIsNull(
+            UUID floorId, String roomNumber, UUID id);
     List<Room> findAllByFloorIdAndDeletedAtIsNullOrderByRoomNumberAsc(UUID floorId);
 
     @Query("select count(r) from Room r where r.floor.pg.id = :pgId and r.deletedAt is null")

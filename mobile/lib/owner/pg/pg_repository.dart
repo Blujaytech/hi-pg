@@ -1,4 +1,6 @@
 import '../../shared/api_client.dart';
+import 'package:dio/dio.dart';
+import 'package:http_parser/http_parser.dart';
 import 'pg_models.dart';
 
 abstract interface class PgDataSource {
@@ -79,4 +81,21 @@ class PgRepository implements PgDataSource {
 
   @override
   Future<void> delete(String pgId) => _client.delete<void>('/owner/pgs/$pgId');
+
+  Future<Pg> uploadPhoto({
+    required String pgId,
+    required List<int> bytes,
+    required String fileName,
+  }) async {
+    final lower = fileName.toLowerCase();
+    final contentType = lower.endsWith('.png') ? 'image/png' : 'image/jpeg';
+    final response = await _client.post<Map<String, dynamic>>(
+      '/owner/pgs/$pgId/photo',
+      data: FormData.fromMap({
+        'file': MultipartFile.fromBytes(bytes,
+            filename: fileName, contentType: MediaType.parse(contentType)),
+      }),
+    );
+    return Pg.fromJson(response.data!);
+  }
 }

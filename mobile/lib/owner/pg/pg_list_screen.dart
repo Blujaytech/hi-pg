@@ -1,3 +1,6 @@
+import 'dart:typed_data';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -10,6 +13,7 @@ import '../../shared/app_states.dart';
 import '../../shared/brand/hi_pg_brand.dart';
 import 'pg_models.dart';
 import 'pg_repository.dart';
+import 'supported_cities.dart';
 
 /// Owner home tab: greeting, portfolio at a glance and every property with
 /// one-tap shortcuts into its rooms, students and expenses.
@@ -417,8 +421,23 @@ class _PropertyCard extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const IconTile(
-                      icon: Icons.apartment_rounded, size: 50, dark: true),
+                  pg.photoUrl == null
+                      ? const IconTile(
+                          icon: Icons.apartment_rounded, size: 50, dark: true)
+                      : ClipRRect(
+                          borderRadius: BorderRadius.circular(14),
+                          child: Image.network(
+                            pg.photoUrl!,
+                            width: 50,
+                            height: 50,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => const IconTile(
+                              icon: Icons.apartment_rounded,
+                              size: 50,
+                              dark: true,
+                            ),
+                          ),
+                        ),
                   const SizedBox(width: 13),
                   Expanded(
                     child: Column(
@@ -483,6 +502,12 @@ class _PropertyCard extends StatelessWidget {
                   icon: Icons.group_outlined,
                   label: 'Customers',
                   onTap: () => onOpen('students'),
+                ),
+                const VerticalDivider(width: 1),
+                _CardAction(
+                  icon: Icons.report_problem_outlined,
+                  label: 'Complaints',
+                  onTap: () => onOpen('complaints'),
                 ),
                 const VerticalDivider(width: 1),
                 _CardAction(
@@ -562,7 +587,9 @@ class _PgFormSheetState extends State<_PgFormSheet> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _name;
   late final TextEditingController _address;
-  late final TextEditingController _city;
+  String? _city;
+  Uint8List? _photoBytes;
+  String? _photoName;
   LatLng? _location;
   GenderPreference _gender = GenderPreference.coEd;
   bool _saving = false;
@@ -576,7 +603,8 @@ class _PgFormSheetState extends State<_PgFormSheet> {
     final initial = widget.initial;
     _name = TextEditingController(text: initial?.name ?? '');
     _address = TextEditingController(text: initial?.address ?? '');
-    _city = TextEditingController(text: initial?.city ?? '');
+    _city =
+        supportedIndianCities.contains(initial?.city) ? initial?.city : null;
     _gender = initial?.genderPreference ?? GenderPreference.coEd;
     if (initial?.latitude != null && initial?.longitude != null) {
       _location = LatLng(initial!.latitude!, initial.longitude!);
@@ -587,7 +615,6 @@ class _PgFormSheetState extends State<_PgFormSheet> {
   void dispose() {
     _name.dispose();
     _address.dispose();
-    _city.dispose();
     super.dispose();
   }
 
@@ -599,13 +626,13 @@ class _PgFormSheetState extends State<_PgFormSheet> {
       _error = null;
     });
     try {
-      final Pg saved;
+      Pg saved;
       final initial = widget.initial;
       if (initial == null) {
         saved = await widget.repository.create(
           name: _name.text.trim(),
           address: _address.text.trim(),
-          city: _city.text.trim(),
+          city: _city!,
           latitude: _location?.latitude,
           longitude: _location?.longitude,
           genderPreference: _gender,
@@ -615,15 +642,25 @@ class _PgFormSheetState extends State<_PgFormSheet> {
           id: initial.id,
           name: _name.text.trim(),
           address: _address.text.trim(),
-          city: _city.text.trim(),
+          city: _city!,
           state: initial.state,
           pincode: initial.pincode,
           latitude: _location?.latitude,
           longitude: _location?.longitude,
           description: initial.description,
+          photoUrl: initial.photoUrl,
           genderPreference: _gender,
           status: initial.status,
         ));
+      }
+      if (_photoBytes != null &&
+          _photoName != null &&
+          widget.repository is PgRepository) {
+        saved = await (widget.repository as PgRepository).uploadPhoto(
+          pgId: saved.id,
+          bytes: _photoBytes!,
+          fileName: _photoName!,
+        );
       }
       if (mounted) Navigator.of(context).pop(saved);
     } on ApiException catch (error) {
@@ -640,11 +677,30 @@ class _PgFormSheetState extends State<_PgFormSheet> {
         fullscreenDialog: true,
         builder: (_) => _PropertyLocationPicker(
           initial: _location,
-          city: _city.text.trim(),
+          city: _city ?? '',
         ),
       ),
     );
     if (selected != null && mounted) setState(() => _location = selected);
+  }
+
+  Future<void> _pickPhoto() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['jpg', 'jpeg', 'png'],
+      withData: true,
+    );
+    final file = result?.files.single;
+    if (file == null || file.bytes == null || !mounted) return;
+    if (file.size > 5 * 1024 * 1024) {
+      setState(() => _error = 'PG photo must be 5 MB or smaller.');
+      return;
+    }
+    setState(() {
+      _photoBytes = file.bytes;
+      _photoName = file.name;
+      _error = null;
+    });
   }
 
   @override
@@ -696,16 +752,65 @@ class _PgFormSheetState extends State<_PgFormSheet> {
             validator: _required,
           ),
           const SizedBox(height: 13),
-          TextFormField(
-            controller: _city,
-            enabled: !_saving,
-            textCapitalization: TextCapitalization.words,
-            textInputAction: TextInputAction.done,
+          DropdownButtonFormField<String>(
+            initialValue: _city,
             decoration: const InputDecoration(
-              labelText: 'City',
+              labelText: 'Verified city',
+              hintText: 'Choose a city',
               prefixIcon: Icon(Icons.location_city_rounded),
             ),
-            validator: _required,
+            items: supportedIndianCities
+                .map((city) => DropdownMenuItem(value: city, child: Text(city)))
+                .toList(),
+            onChanged:
+                _saving ? null : (value) => setState(() => _city = value),
+            validator: (value) => value == null ? 'Choose a valid city' : null,
+          ),
+          const SizedBox(height: 14),
+          InkWell(
+            onTap: _saving ? null : _pickPhoto,
+            borderRadius: BorderRadius.circular(16),
+            child: Container(
+              height: 116,
+              decoration: BoxDecoration(
+                color: AppColors.fill,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.border),
+                image: _photoBytes != null
+                    ? DecorationImage(
+                        image: MemoryImage(_photoBytes!), fit: BoxFit.cover)
+                    : widget.initial?.photoUrl != null
+                        ? DecorationImage(
+                            image: NetworkImage(widget.initial!.photoUrl!),
+                            fit: BoxFit.cover,
+                          )
+                        : null,
+              ),
+              child: Container(
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  color:
+                      (_photoBytes != null || widget.initial?.photoUrl != null)
+                          ? Colors.black.withValues(alpha: .35)
+                          : Colors.transparent,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.add_a_photo_outlined),
+                    const SizedBox(width: 8),
+                    Text(
+                      _photoName ??
+                          (widget.initial?.photoUrl == null
+                              ? 'Add PG photo'
+                              : 'Change PG photo'),
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
           const SizedBox(height: 14),
           _PropertyLocationField(

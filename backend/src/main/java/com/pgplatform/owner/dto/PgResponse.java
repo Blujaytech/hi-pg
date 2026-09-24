@@ -18,6 +18,7 @@ public record PgResponse(
         Double latitude,
         Double longitude,
         String description,
+        String photoUrl,
         GenderPreference genderPreference,
         PgStatus status,
         PaymentOnboardingStatus paymentOnboardingStatus,
@@ -25,9 +26,13 @@ public record PgResponse(
         Instant createdAt
 ) {
     public static PgResponse from(Pg pg) {
+        return from(pg, null);
+    }
+
+    public static PgResponse from(Pg pg, String photoUrl) {
         return new PgResponse(
                 pg.getId(), pg.getName(), pg.getAddress(), pg.getCity(), pg.getState(), pg.getPincode(),
-                pg.getLatitude(), pg.getLongitude(), pg.getDescription(), pg.getGenderPreference(),
+                pg.getLatitude(), pg.getLongitude(), pg.getDescription(), photoUrl, pg.getGenderPreference(),
                 pg.getStatus(), pg.getPaymentOnboardingStatus(), pg.getPlatformCommissionBps(), pg.getCreatedAt()
         );
     }

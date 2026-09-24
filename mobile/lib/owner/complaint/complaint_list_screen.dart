@@ -9,11 +9,16 @@ import 'complaint_repository.dart';
 import 'complaint_visuals.dart';
 
 class ComplaintListScreen extends StatefulWidget {
-  final String studentId;
+  final String? studentId;
+  final String? pgId;
   final String? studentName;
 
-  const ComplaintListScreen(
-      {super.key, required this.studentId, this.studentName});
+  const ComplaintListScreen({
+    super.key,
+    this.studentId,
+    this.pgId,
+    this.studentName,
+  }) : assert(studentId != null || pgId != null);
 
   @override
   State<ComplaintListScreen> createState() => _ComplaintListScreenState();
@@ -26,11 +31,14 @@ class _ComplaintListScreenState extends State<ComplaintListScreen> {
   @override
   void initState() {
     super.initState();
-    _future = _repository.listForStudent(widget.studentId);
+    _future = _load();
   }
 
-  void _reload() =>
-      setState(() => _future = _repository.listForStudent(widget.studentId));
+  Future<List<Complaint>> _load() => widget.pgId != null
+      ? _repository.listForPg(widget.pgId!)
+      : _repository.listForStudent(widget.studentId!);
+
+  void _reload() => setState(() => _future = _load());
 
   Future<void> _refresh() async {
     _reload();
@@ -45,7 +53,7 @@ class _ComplaintListScreenState extends State<ComplaintListScreen> {
     final created = await showFormSheet<bool>(
       context,
       (_) => _ComplaintFormSheet(
-          repository: _repository, studentId: widget.studentId),
+          repository: _repository, studentId: widget.studentId!),
     );
     if (created == true && mounted) _reload();
   }
@@ -78,13 +86,14 @@ class _ComplaintListScreenState extends State<ComplaintListScreen> {
               ],
             ),
           ),
-          floatingActionButton: ready && complaints.isNotEmpty
-              ? FloatingActionButton.extended(
-                  onPressed: _openCreateSheet,
-                  icon: const Icon(Icons.add_rounded),
-                  label: const Text('Log complaint'),
-                )
-              : null,
+          floatingActionButton:
+              widget.studentId != null && ready && complaints.isNotEmpty
+                  ? FloatingActionButton.extended(
+                      onPressed: _openCreateSheet,
+                      icon: const Icon(Icons.add_rounded),
+                      label: const Text('Log complaint'),
+                    )
+                  : null,
           body: _buildBody(snapshot, complaints),
         );
       },
@@ -107,9 +116,9 @@ class _ComplaintListScreenState extends State<ComplaintListScreen> {
         icon: Icons.task_alt_rounded,
         title: 'No complaints',
         message: 'Nothing has been reported for this customer.',
-        actionLabel: 'Log complaint',
+        actionLabel: widget.studentId == null ? null : 'Log complaint',
         actionIcon: Icons.add_rounded,
-        onAction: _openCreateSheet,
+        onAction: widget.studentId == null ? null : _openCreateSheet,
       );
     }
     return RefreshIndicator(
@@ -160,8 +169,7 @@ class _ComplaintCard extends StatelessWidget {
                             style: Theme.of(context).textTheme.titleMedium),
                         const SizedBox(height: 2),
                         Text(
-                          DateFormat('d MMM yyyy, h:mm a')
-                              .format(complaint.createdAt.toLocal()),
+                          '${complaint.studentName}${complaint.roomNumber == null ? '' : ' · Room ${complaint.roomNumber}${complaint.bedLabel == null ? '' : ' · ${complaint.bedLabel}'}'}\n${DateFormat('d MMM yyyy, h:mm a').format(complaint.createdAt.toLocal())}',
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
                       ],
@@ -419,9 +427,8 @@ class _StatusFormSheetState extends State<_StatusFormSheet> {
                   color: _status == status ? Colors.white : AppColors.ink,
                   fontWeight: FontWeight.w700,
                 ),
-                onSelected: _saving
-                    ? null
-                    : (_) => setState(() => _status = status),
+                onSelected:
+                    _saving ? null : (_) => setState(() => _status = status),
               ),
           ],
         ),

@@ -65,6 +65,21 @@ class RoomBedAutoCreationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void duplicateRoomNumbersOnTheSameFloorAreRejectedIgnoringCaseAndWhitespace() {
+        UUID ownerId = createOwner();
+        UUID pgId = pgService.create(ownerId, new PgCreateRequest("Sunrise PG", "12 MG Road", "Bengaluru",
+                null, null, null, null, null, GenderPreference.CO_ED)).id();
+        UUID floorId = floorService.create(pgId, ownerId, new FloorCreateRequest("Ground Floor", 0)).id();
+        roomService.create(floorId, ownerId,
+                new RoomCreateRequest("  G-01  ", 2, new BigDecimal("6000.00"), RoomType.NON_AC));
+
+        assertThatThrownBy(() -> roomService.create(floorId, ownerId,
+                new RoomCreateRequest("g-01", 3, new BigDecimal("7000.00"), RoomType.AC)))
+                .isInstanceOf(com.pgplatform.common.ConflictException.class)
+                .hasMessageContaining("already exists");
+    }
+
+    @Test
     void increasingSharingCountAddsBedsAndDecreasingRemovesThem() {
         UUID ownerId = createOwner();
         UUID pgId = pgService.create(ownerId, new PgCreateRequest("Sunrise PG", "12 MG Road", "Bengaluru",

@@ -354,6 +354,7 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
     if (moveInDate == null || !mounted) return;
 
     DateTime? checkOutDate;
+    TimeOfDay? checkOutTime;
     if (bookingType == BookingType.dayWise) {
       checkOutDate = await showDatePicker(
         context: context,
@@ -363,6 +364,12 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
         helpText: 'Choose checkout date',
       );
       if (checkOutDate == null || !mounted) return;
+      checkOutTime = await showTimePicker(
+        context: context,
+        initialTime: const TimeOfDay(hour: 11, minute: 0),
+        helpText: 'Choose checkout time',
+      );
+      if (checkOutTime == null || !mounted) return;
     }
 
     final formattedDate = '${moveInDate.day.toString().padLeft(2, '0')}/'
@@ -372,7 +379,7 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
       builder: (context) => AlertDialog(
         title: Text('Book ${bed.label}?'),
         content: Text('${bookingType.label} booking\nCheck-in: $formattedDate'
-            '${checkOutDate == null ? '' : '\nCheckout: ${DateFormat('d MMM yyyy').format(checkOutDate)}'}'
+            '${checkOutDate == null ? '' : '\nCheckout: ${DateFormat('d MMM yyyy').format(checkOutDate)} at ${checkOutTime!.format(context)}'}'
             '\n\nA temporary bed hold will be created. Choose secure online payment or pay the owner directly.'),
         actions: [
           TextButton(
@@ -405,6 +412,9 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
         bookingType: bookingType,
         moveInDate: moveInDate,
         checkOutDate: checkOutDate,
+        checkOutTime: checkOutTime == null
+            ? null
+            : '${checkOutTime.hour.toString().padLeft(2, '0')}:${checkOutTime.minute.toString().padLeft(2, '0')}',
       );
       if (!mounted) return;
       if (paymentChoice == BookingPaymentChoice.online) {
@@ -692,15 +702,18 @@ class _PropertyHeader extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 50,
-                  height: 50,
-                  decoration: BoxDecoration(
-                    color: AppColors.fill,
-                    borderRadius: BorderRadius.circular(15),
-                  ),
-                  child: const Icon(Icons.apartment_rounded,
-                      color: AppColors.ink, size: 26),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(15),
+                  child: pg.photoUrl == null
+                      ? Container(
+                          width: 50,
+                          height: 50,
+                          color: AppColors.fill,
+                          child: const Icon(Icons.apartment_rounded,
+                              color: AppColors.ink, size: 26),
+                        )
+                      : Image.network(pg.photoUrl!,
+                          width: 50, height: 50, fit: BoxFit.cover),
                 ),
                 const SizedBox(width: 13),
                 Expanded(

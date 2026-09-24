@@ -36,6 +36,8 @@ class CustomerProfile {
   final String? phone;
   final bool phoneVerified;
   final String? permanentAddress;
+  final String? guardianName;
+  final String? guardianPhone;
   final IdentityType? identityType;
   final String? identityLast4;
   final String? termsAcceptedVersion;
@@ -50,6 +52,8 @@ class CustomerProfile {
     required this.phone,
     required this.phoneVerified,
     required this.permanentAddress,
+    this.guardianName,
+    this.guardianPhone,
     required this.identityType,
     required this.identityLast4,
     required this.termsAcceptedVersion,
@@ -66,6 +70,8 @@ class CustomerProfile {
         phone: json['phone'] as String?,
         phoneVerified: json['phoneVerified'] as bool? ?? false,
         permanentAddress: json['permanentAddress'] as String?,
+        guardianName: json['guardianName'] as String?,
+        guardianPhone: json['guardianPhone'] as String?,
         identityType: IdentityTypeX.fromApi(json['identityType'] as String?),
         identityLast4: json['identityLast4'] as String?,
         termsAcceptedVersion: json['termsAcceptedVersion'] as String?,

@@ -265,6 +265,13 @@ GoRouter buildRouter(AuthState authState) {
         ),
       ),
       GoRoute(
+        path: '/owner/pgs/:pgId/complaints',
+        builder: (context, state) => ComplaintListScreen(
+          pgId: state.pathParameters['pgId']!,
+          studentName: (state.extra as Pg?)?.name,
+        ),
+      ),
+      GoRoute(
         path: '/owner/students/:studentId/fees',
         builder: (context, state) => FeeListScreen(
           studentId: state.pathParameters['studentId']!,
