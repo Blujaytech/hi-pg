@@ -294,12 +294,15 @@ GoRouter buildRouter(AuthState authState) {
       ),
       GoRoute(
         path: '/owner/payment-requests',
-        builder: (context, state) => const DirectPaymentRequestsScreen(),
+        builder: (context, state) => DirectPaymentRequestsScreen(
+          bookingId: state.uri.queryParameters['bookingId'],
+        ),
       ),
       GoRoute(
         path: '/owner/pgs/:pgId/payment-requests',
         builder: (context, state) => DirectPaymentRequestsScreen(
           pgId: state.pathParameters['pgId']!,
+          bookingId: state.uri.queryParameters['bookingId'],
           pg: state.extra as Pg?,
         ),
       ),

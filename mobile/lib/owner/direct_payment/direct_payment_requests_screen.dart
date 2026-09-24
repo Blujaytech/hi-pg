@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/api_exception.dart';
@@ -11,11 +12,13 @@ import 'direct_payment_repository.dart';
 
 class DirectPaymentRequestsScreen extends StatefulWidget {
   final String? pgId;
+  final String? bookingId;
   final Pg? pg;
 
   const DirectPaymentRequestsScreen({
     super.key,
     this.pgId,
+    this.bookingId,
     this.pg,
   });
 
@@ -37,10 +40,21 @@ class _DirectPaymentRequestsScreenState
     _future = _load();
   }
 
-  Future<List<DirectPaymentRequest>> _load() => _repository.list(
-        status: _status,
-        pgId: widget.pgId,
-      );
+  Future<List<DirectPaymentRequest>> _load() async {
+    if (widget.bookingId == null) {
+      return _repository.list(status: _status, pgId: widget.pgId);
+    }
+    final openRequests = await Future.wait([
+      _repository.list(
+          status: DirectPaymentRequestStatus.pending, pgId: widget.pgId),
+      _repository.list(
+          status: DirectPaymentRequestStatus.reviewOverdue, pgId: widget.pgId),
+    ]);
+    return openRequests
+        .expand((requests) => requests)
+        .where((request) => request.bookingId == widget.bookingId)
+        .toList();
+  }
 
   void _reload() => setState(() => _future = _load());
 
@@ -81,7 +95,11 @@ class _DirectPaymentRequestsScreenState
               '${request.customerName}’s payment was verified and the booking approved.'),
         ),
       );
-      _reload();
+      if (widget.bookingId != null) {
+        Navigator.of(context).pop(true);
+      } else {
+        _reload();
+      }
     } on ApiException catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -105,7 +123,11 @@ class _DirectPaymentRequestsScreenState
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Payment request rejected.')),
       );
-      _reload();
+      if (widget.bookingId != null) {
+        Navigator.of(context).pop(true);
+      } else {
+        _reload();
+      }
     } on ApiException catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -123,17 +145,32 @@ class _DirectPaymentRequestsScreenState
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Direct payment requests'),
+            Text(widget.bookingId == null
+                ? 'Direct payment requests'
+                : 'Review customer payment'),
             if (widget.pg != null)
               Text(widget.pg!.name,
                   style: Theme.of(context).textTheme.bodySmall),
           ],
         ),
+        actions: [
+          if (widget.pgId != null)
+            IconButton(
+              tooltip: 'Direct payment settings',
+              onPressed: () => context.push(
+                '/owner/pgs/${widget.pgId}/direct-payment-settings',
+                extra: widget.pg,
+              ),
+              icon: const Icon(Icons.settings_outlined),
+            ),
+        ],
       ),
       body: Column(
         children: [
-          _StatusFilter(selected: _status, onSelected: _changeStatus),
-          const Divider(height: 1),
+          if (widget.bookingId == null) ...[
+            _StatusFilter(selected: _status, onSelected: _changeStatus),
+            const Divider(height: 1),
+          ],
           Expanded(
             child: FutureBuilder<List<DirectPaymentRequest>>(
               future: _future,
@@ -151,15 +188,21 @@ class _DirectPaymentRequestsScreenState
                 final requests = snapshot.data ?? const [];
                 if (requests.isEmpty) {
                   return AppEmptyView(
-                    icon: _status == DirectPaymentRequestStatus.pending
-                        ? Icons.verified_outlined
-                        : Icons.receipt_long_outlined,
-                    title: _status == DirectPaymentRequestStatus.pending
-                        ? 'No payments awaiting review'
-                        : 'No ${_status.label.toLowerCase()} requests',
-                    message: _status == DirectPaymentRequestStatus.pending
-                        ? 'New direct UPI payment claims will appear here. Always verify your bank account before approving.'
-                        : 'Choose another status to view its requests.',
+                    icon: widget.bookingId != null
+                        ? Icons.info_outline_rounded
+                        : _status == DirectPaymentRequestStatus.pending
+                            ? Icons.verified_outlined
+                            : Icons.receipt_long_outlined,
+                    title: widget.bookingId != null
+                        ? 'No payment awaiting review'
+                        : _status == DirectPaymentRequestStatus.pending
+                            ? 'No payments awaiting review'
+                            : 'No ${_status.label.toLowerCase()} requests',
+                    message: widget.bookingId != null
+                        ? 'This request may already have been approved or rejected. Go back and refresh the customer list.'
+                        : _status == DirectPaymentRequestStatus.pending
+                            ? 'New direct UPI payment claims will appear here. Always verify your bank account before approving.'
+                            : 'Choose another status to view its requests.',
                   );
                 }
                 return RefreshIndicator(

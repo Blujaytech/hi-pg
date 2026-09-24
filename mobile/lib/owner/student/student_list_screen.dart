@@ -186,6 +186,12 @@ class _StudentListScreenState extends State<StudentListScreen> {
                 subtitle: Text(student.phone),
               ),
               const Divider(height: 20),
+              if (student.bookingStatus == 'DIRECT_PAYMENT_REVIEW')
+                const _ActionTile(
+                  icon: Icons.verified_user_outlined,
+                  label: 'Review & approve payment',
+                  value: 'review_payment',
+                ),
               const _ActionTile(
                   icon: Icons.receipt_long_outlined,
                   label: 'Fees',
@@ -212,6 +218,12 @@ class _StudentListScreenState extends State<StudentListScreen> {
     );
     if (!mounted || action == null) return;
     switch (action) {
+      case 'review_payment':
+        final changed = await context.push<bool>(
+          '/owner/pgs/${student.pgId}/payment-requests?bookingId=${student.bookingId}',
+          extra: widget.pg,
+        );
+        if (changed == true && mounted) _reload();
       case 'fees':
         context.push('/owner/students/${student.id}/fees',
             extra: student.fullName);
@@ -378,7 +390,7 @@ class _StudentCard extends StatelessWidget {
                           ),
                         if (student.bookingStatus == 'DIRECT_PAYMENT_REVIEW')
                           const StatusPill(
-                            label: 'Payment verification pending',
+                            label: 'Awaiting owner approval',
                             tone: StatusTone.warning,
                           )
                         else if (student.bookingStatus == 'PAYMENT_PENDING')

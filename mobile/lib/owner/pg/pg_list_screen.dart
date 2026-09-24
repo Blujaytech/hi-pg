@@ -519,7 +519,7 @@ class _PropertyCard extends StatelessWidget {
                 _CardAction(
                   icon: Icons.account_balance_wallet_outlined,
                   label: 'Payments',
-                  onTap: () => onOpen('direct-payment-settings'),
+                  onTap: () => onOpen('payment-requests'),
                 ),
               ],
             ),
