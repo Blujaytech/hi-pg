@@ -27,5 +27,12 @@ public interface RoomRepository extends JpaRepository<Room, UUID> {
     @Query("select max(r.rentPerBed) from Room r where r.floor.pg.id = :pgId and r.deletedAt is null")
     java.math.BigDecimal findMaxRentForPg(@Param("pgId") UUID pgId);
 
+    @Query("select distinct r.bookingMode from Room r where r.floor.pg.id = :pgId and r.deletedAt is null")
+    List<RoomBookingMode> findBookingModesForPg(@Param("pgId") UUID pgId);
+
+    @Query("select min(r.dayWiseRate) from Room r where r.floor.pg.id = :pgId " +
+           "and r.deletedAt is null and r.dayWiseRate is not null")
+    java.math.BigDecimal findMinDayWiseRateForPg(@Param("pgId") UUID pgId);
+
     List<Room> findAllByFloorPgIdAndDeletedAtIsNullOrderByRoomNumberAsc(UUID pgId);
 }

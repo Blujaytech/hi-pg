@@ -17,6 +17,11 @@ public record PgSearchResultResponse(
         Double longitude,
         long availableBeds,
         BigDecimal minRentPerBed,
-        BigDecimal maxRentPerBed
+        BigDecimal maxRentPerBed,
+        // Stay types across the PG's rooms: MONTHLY and MIXED rooms take
+        // monthly stays, DAY_WISE and MIXED rooms take day-wise stays.
+        boolean offersMonthly,
+        boolean offersDayWise,
+        BigDecimal minDayWiseRate
 ) {
 }

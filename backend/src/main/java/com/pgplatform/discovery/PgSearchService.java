@@ -4,6 +4,7 @@ import com.pgplatform.common.NotFoundException;
 import com.pgplatform.common.PagedResponse;
 import com.pgplatform.discovery.dto.FloorAvailabilityResponse;
 import com.pgplatform.discovery.dto.AvailableBedSummary;
+import com.pgplatform.discovery.dto.BedSeatSummary;
 import com.pgplatform.discovery.dto.PgDetailsResponse;
 import com.pgplatform.discovery.dto.PgSearchResultResponse;
 import com.pgplatform.discovery.dto.RoomAvailabilityResponse;
@@ -17,6 +18,7 @@ import com.pgplatform.owner.PgRepository;
 import com.pgplatform.owner.PgDirectPaymentSettingsRepository;
 import com.pgplatform.owner.PgStatus;
 import com.pgplatform.owner.Room;
+import com.pgplatform.owner.RoomBookingMode;
 import com.pgplatform.owner.RoomRepository;
 import com.pgplatform.owner.BedBookingMode;
 import com.pgplatform.booking.BookingType;
@@ -134,11 +136,20 @@ public class PgSearchService {
                                 .stream()
                                 .map(bed -> new AvailableBedSummary(bed.getId(), bed.getLabel(), bed.getBookingMode()))
                                 .toList();
+                        Set<UUID> availableIds = availableBedOptions.stream()
+                                .map(AvailableBedSummary::id)
+                                .collect(java.util.stream.Collectors.toSet());
+                        List<BedSeatSummary> beds = bedRepository
+                                .findAllByRoomIdAndDeletedAtIsNullOrderByLabelAsc(room.getId())
+                                .stream()
+                                .map(bed -> new BedSeatSummary(bed.getId(), bed.getLabel(),
+                                        availableIds.contains(bed.getId())))
+                                .toList();
                         return new RoomAvailabilityResponse(
                                 room.getId(), room.getRoomNumber(), room.getRoomType(), room.getSharingCount(),
                                 room.getRentPerBed(), room.getDayWiseRate(), room.getBookingMode(),
                                 room.getNoticePeriodDays(), room.getSecurityDeposit(),
-                                availableBedOptions.size(), availableBedOptions
+                                availableBedOptions.size(), availableBedOptions, beds
                         );
                     })
                     .toList();
@@ -160,10 +171,15 @@ public class PgSearchService {
         long availableBeds = bedRepository.countByPgIdAndStatus(pg.getId(), BedStatus.AVAILABLE);
         BigDecimal minRent = roomRepository.findMinRentForPg(pg.getId());
         BigDecimal maxRent = roomRepository.findMaxRentForPg(pg.getId());
+        List<RoomBookingMode> modes = roomRepository.findBookingModesForPg(pg.getId());
+        boolean offersMonthly = modes.contains(RoomBookingMode.MONTHLY) || modes.contains(RoomBookingMode.MIXED);
+        boolean offersDayWise = modes.contains(RoomBookingMode.DAY_WISE) || modes.contains(RoomBookingMode.MIXED);
         return new PgSearchResultResponse(
                 pg.getId(), pg.getName(), pg.getCity(), pg.getAddress(), pg.getDescription(), photoUrl(pg),
                 pg.getGenderPreference(), pg.getLatitude(), pg.getLongitude(),
-                availableBeds, minRent, maxRent
+                availableBeds, minRent, maxRent,
+                offersMonthly, offersDayWise,
+                offersDayWise ? roomRepository.findMinDayWiseRateForPg(pg.getId()) : null
         );
     }
 

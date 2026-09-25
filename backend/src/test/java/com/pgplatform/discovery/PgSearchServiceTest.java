@@ -9,9 +9,14 @@ import com.pgplatform.common.NotFoundException;
 import com.pgplatform.common.PagedResponse;
 import com.pgplatform.discovery.dto.PgDetailsResponse;
 import com.pgplatform.discovery.dto.PgSearchResultResponse;
+import com.pgplatform.discovery.dto.BedSeatSummary;
+import com.pgplatform.discovery.dto.RoomAvailabilityResponse;
+import com.pgplatform.owner.BedRepository;
+import com.pgplatform.owner.BedStatus;
 import com.pgplatform.owner.FloorService;
 import com.pgplatform.owner.GenderPreference;
 import com.pgplatform.owner.PgService;
+import com.pgplatform.owner.RoomBookingMode;
 import com.pgplatform.owner.RoomService;
 import com.pgplatform.owner.RoomType;
 import com.pgplatform.owner.dto.FloorCreateRequest;
@@ -38,6 +43,8 @@ class PgSearchServiceTest extends AbstractIntegrationTest {
     private RoomService roomService;
     @Autowired
     private PgSearchService pgSearchService;
+    @Autowired
+    private BedRepository bedRepository;
 
     private UUID createOwner() {
         User owner = new User();
@@ -111,5 +118,48 @@ class PgSearchServiceTest extends AbstractIntegrationTest {
         // LIKE wildcards typed by a user are literal, not wildcards.
         assertThat(pgSearchService.search("%" + area, null, null, null, null, 0, 20).content()).isEmpty();
         assertThat(pgSearchService.search(area.replace('q', '_'), null, null, null, null, 0, 20).content()).isEmpty();
+    }
+
+    @Test
+    void searchReportsStayTypesAndDetailsListEveryBedWithItsAvailability() {
+        UUID ownerId = createOwner();
+        String city = "Bengaluru";
+        UUID mixedPgId = pgService.create(ownerId, new PgCreateRequest("Mixed Stay PG", "1 Main Rd", city,
+                null, null, null, null, null, GenderPreference.CO_ED)).id();
+        UUID floorId = floorService.create(mixedPgId, ownerId, new FloorCreateRequest("Ground Floor", 0)).id();
+        roomService.create(floorId, ownerId, new RoomCreateRequest("M1", 3, new BigDecimal("7000.00"),
+                RoomType.NON_AC, RoomBookingMode.MIXED, new BigDecimal("500.00"), 15, BigDecimal.ZERO));
+        UUID monthlyPgId = pgService.create(ownerId, new PgCreateRequest("Monthly Only PG", "2 Main Rd", city,
+                null, null, null, null, null, GenderPreference.CO_ED)).id();
+        UUID monthlyFloorId = floorService.create(monthlyPgId, ownerId, new FloorCreateRequest("Ground Floor", 0)).id();
+        roomService.create(monthlyFloorId, ownerId, new RoomCreateRequest("A1", 2, new BigDecimal("6000.00"), RoomType.AC));
+
+        PagedResponse<PgSearchResultResponse> results = pgSearchService.search(null, city, null, null, null, 0, 20);
+        PgSearchResultResponse mixed = results.content().stream()
+                .filter(pg -> pg.id().equals(mixedPgId)).findFirst().orElseThrow();
+        assertThat(mixed.offersMonthly()).isTrue();
+        assertThat(mixed.offersDayWise()).isTrue();
+        assertThat(mixed.minDayWiseRate()).isEqualByComparingTo("500.00");
+        PgSearchResultResponse monthly = results.content().stream()
+                .filter(pg -> pg.id().equals(monthlyPgId)).findFirst().orElseThrow();
+        assertThat(monthly.offersMonthly()).isTrue();
+        assertThat(monthly.offersDayWise()).isFalse();
+        assertThat(monthly.minDayWiseRate()).isNull();
+
+        // Take one bed out of service: it stays in the room's bed map, marked unavailable.
+        RoomAvailabilityResponse room = pgSearchService.getDetails(mixedPgId).floors().get(0).rooms().get(0);
+        UUID takenBedId = room.beds().get(1).id();
+        bedRepository.findById(takenBedId).ifPresent(bed -> {
+            bed.setStatus(BedStatus.MAINTENANCE);
+            bedRepository.save(bed);
+        });
+
+        room = pgSearchService.getDetails(mixedPgId).floors().get(0).rooms().get(0);
+        assertThat(room.beds()).hasSize(3);
+        assertThat(room.beds()).extracting(BedSeatSummary::label).containsExactly("Bed 1", "Bed 2", "Bed 3");
+        assertThat(room.beds()).filteredOn(BedSeatSummary::available).hasSize(2);
+        assertThat(room.beds()).filteredOn(bed -> !bed.available())
+                .extracting(BedSeatSummary::id).containsExactly(takenBedId);
+        assertThat(room.availableBedOptions()).hasSize(2);
     }
 }

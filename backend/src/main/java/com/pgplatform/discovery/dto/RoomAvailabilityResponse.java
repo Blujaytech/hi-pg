@@ -18,6 +18,9 @@ public record RoomAvailabilityResponse(
         int noticePeriodDays,
         BigDecimal securityDeposit,
         long availableBeds,
-        List<AvailableBedSummary> availableBedOptions
+        List<AvailableBedSummary> availableBedOptions,
+        // Every bed in the room, free or not, so clients can draw the whole
+        // room and grey out the taken beds.
+        List<BedSeatSummary> beds
 ) {
 }
