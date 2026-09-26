@@ -65,12 +65,21 @@ public abstract class AbstractIntegrationTest {
     protected void completeMonthlyCustomerProfile(UUID userId) {
         String fullName = jdbcTemplate.queryForObject(
                 "select full_name from users where id = ?", String.class, userId);
+        UUID profileId = UUID.randomUUID();
         jdbcTemplate.update("""
                 insert into customer_profiles
                     (id, user_id, full_name, occupation, permanent_address,
                      identity_type, identity_last_four, created_at, updated_at)
-                values (?, ?, ?, 'Student', '1 Test Address', 'VOTER_ID', 'A1B2', now(), now())
-                """, UUID.randomUUID(), userId, fullName);
+                values (?, ?, ?, 'Student', '1 Test Address', 'PASSPORT', null, now(), now())
+                """, profileId, userId, fullName);
+        jdbcTemplate.update("""
+                insert into customer_identity_documents
+                    (id, profile_id, identity_type, file_name, content_type,
+                     size_bytes, storage_key, created_at, updated_at)
+                values (?, ?, 'PASSPORT', 'passport.pdf', 'application/pdf',
+                        5, ?, now(), now())
+                """, UUID.randomUUID(), profileId,
+                "private/test/" + UUID.randomUUID() + "/passport.pdf");
         insertLegalAcceptance(userId, "TERMS");
         insertLegalAcceptance(userId, "PRIVACY");
     }

@@ -4,6 +4,8 @@ import com.pgplatform.auth.UserPrincipal;
 import com.pgplatform.document.DocumentService;
 import com.pgplatform.document.DocumentType;
 import com.pgplatform.document.dto.DocumentResponse;
+import com.pgplatform.student.CustomerIdentityDocumentService;
+import com.pgplatform.student.dto.CustomerIdentityDocumentResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -22,9 +24,12 @@ import java.util.UUID;
 public class DocumentController {
 
     private final DocumentService documentService;
+    private final CustomerIdentityDocumentService customerIdentityDocumentService;
 
-    public DocumentController(DocumentService documentService) {
+    public DocumentController(DocumentService documentService,
+                              CustomerIdentityDocumentService customerIdentityDocumentService) {
         this.documentService = documentService;
+        this.customerIdentityDocumentService = customerIdentityDocumentService;
     }
 
     /**
@@ -62,5 +67,17 @@ public class DocumentController {
     public ResponseEntity<Void> delete(@AuthenticationPrincipal UserPrincipal principal, @PathVariable UUID documentId) {
         documentService.delete(documentId, principal.getId());
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/api/v1/owner/students/{studentId}/identity-document")
+    public CustomerIdentityDocumentResponse customerIdentityDocument(
+            @AuthenticationPrincipal UserPrincipal principal, @PathVariable UUID studentId) {
+        return customerIdentityDocumentService.getForOwner(studentId, principal.getId());
+    }
+
+    @GetMapping("/api/v1/owner/students/{studentId}/identity-document/download-url")
+    public Map<String, String> customerIdentityDocumentDownloadUrl(
+            @AuthenticationPrincipal UserPrincipal principal, @PathVariable UUID studentId) {
+        return Map.of("url", customerIdentityDocumentService.downloadForOwner(studentId, principal.getId()));
     }
 }

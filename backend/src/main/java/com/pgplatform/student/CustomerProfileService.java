@@ -20,7 +20,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.UUID;
 
 @Service
@@ -30,6 +29,7 @@ public class CustomerProfileService {
     private final UserRepository userRepository;
     private final OtpService otpService;
     private final StudentRepository studentRepository;
+    private final CustomerIdentityDocumentRepository identityDocumentRepository;
 
     @Value("${app.legal.terms-version:2026-09-22}")
     private String termsVersion;
@@ -41,12 +41,14 @@ public class CustomerProfileService {
     public CustomerProfileService(CustomerProfileRepository profileRepository,
                                   LegalAcceptanceRepository acceptanceRepository,
                                   UserRepository userRepository, OtpService otpService,
-                                  StudentRepository studentRepository) {
+                                  StudentRepository studentRepository,
+                                  CustomerIdentityDocumentRepository identityDocumentRepository) {
         this.profileRepository = profileRepository;
         this.acceptanceRepository = acceptanceRepository;
         this.userRepository = userRepository;
         this.otpService = otpService;
         this.studentRepository = studentRepository;
+        this.identityDocumentRepository = identityDocumentRepository;
     }
 
     @Transactional(readOnly = true)
@@ -74,8 +76,7 @@ public class CustomerProfileService {
         profile.setGuardianName(trimToNull(request.guardianName()));
         profile.setGuardianPhone(normalizePhone(request.guardianPhone()));
         profile.setIdentityType(request.identityType());
-        profile.setIdentityLastFour(request.identityType() == null ? null
-                : request.identityLast4().trim().toUpperCase(Locale.ROOT));
+        profile.setIdentityLastFour(null);
         profile = profileRepository.save(profile);
 
         if (!fullName.equals(user.getFullName())) {
@@ -158,7 +159,10 @@ public class CustomerProfileService {
         if (!accepted(user.getId(), LegalDocumentType.PRIVACY, privacyVersion)) missing.add("PRIVACY_ACCEPTANCE");
         if (bookingType == BookingType.MONTHLY) {
             if (profile == null || isBlank(profile.getPermanentAddress())) missing.add("PERMANENT_ADDRESS");
-            if (profile == null || profile.getIdentityType() == null || isBlank(profile.getIdentityLastFour())) {
+            CustomerIdentityDocument document = profile == null ? null : identityDocumentRepository
+                    .findByProfileIdAndDeletedAtIsNull(profile.getId()).orElse(null);
+            if (profile == null || profile.getIdentityType() == null || document == null
+                    || document.getIdentityType() != profile.getIdentityType()) {
                 missing.add("IDENTITY");
             } else if (profile.getIdentityType() == IdentityType.AADHAAR
                     && !accepted(user.getId(), LegalDocumentType.AADHAAR_CONSENT, aadhaarConsentVersion)) {
@@ -169,17 +173,12 @@ public class CustomerProfileService {
     }
 
     private void validateIdentity(CustomerProfileUpdateRequest request) {
-        if (request.identityType() == null && !isBlank(request.identityLast4())) {
-            throw new ConflictException("Select an identity type before entering its last four characters");
+        if (!isBlank(request.identityLast4())) {
+            throw new ConflictException("ID numbers are not collected. Upload the document instead");
         }
-        if (request.identityType() != null) {
-            String lastFour = request.identityLast4();
-            if (lastFour == null || !lastFour.matches("[A-Za-z0-9]{4}")) {
-                throw new ConflictException("Identity reference must contain exactly the last four letters or digits");
-            }
-            if (request.identityType() == IdentityType.AADHAAR && !lastFour.matches("[0-9]{4}")) {
-                throw new ConflictException("Aadhaar reference must contain only its last four digits");
-            }
+        if (request.identityType() != null && request.identityType() != IdentityType.AADHAAR
+                && request.identityType() != IdentityType.PASSPORT) {
+            throw new ConflictException("Choose Aadhaar card or passport");
         }
     }
 
@@ -212,6 +211,9 @@ public class CustomerProfileService {
                 profile == null ? null : profile.getGuardianPhone(),
                 profile == null ? null : profile.getIdentityType(),
                 profile == null ? null : profile.getIdentityLastFour(),
+                profile == null ? null : identityDocumentRepository
+                        .findByProfileIdAndDeletedAtIsNull(profile.getId())
+                        .map(com.pgplatform.student.dto.CustomerIdentityDocumentResponse::from).orElse(null),
                 latestVersion(user.getId(), LegalDocumentType.TERMS),
                 latestVersion(user.getId(), LegalDocumentType.PRIVACY),
                 latestVersion(user.getId(), LegalDocumentType.AADHAAR_CONSENT),

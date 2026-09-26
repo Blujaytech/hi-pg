@@ -19,6 +19,8 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
+import java.util.UUID;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -48,9 +50,11 @@ class CustomerProfileEligibilityTest extends AbstractIntegrationTest {
 
         profileService.update(user.getId(), new CustomerProfileUpdateRequest(
                 "Customer One", "Student", "12 Test Road, Bengaluru",
-                IdentityType.VOTER_ID, "A1B2", false, false, false),
+                IdentityType.PASSPORT, null, false, false, false),
                 "127.0.0.1", "test", "en-IN");
 
+        assertThat(profileService.eligibility(user.getId(), BookingType.MONTHLY).eligible()).isFalse();
+        addIdentityDocument(user.getId(), "PASSPORT");
         assertThat(profileService.eligibility(user.getId(), BookingType.MONTHLY).eligible()).isTrue();
     }
 
@@ -88,27 +92,43 @@ class CustomerProfileEligibilityTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void aadhaarAcceptsOnlyLastFourDigitsAndRequiresSeparateConsent() {
+    void aadhaarRequiresUploadedDocumentAndSeparateConsent() {
         User user = student("Customer Two", "9000000012", true);
 
         assertThatThrownBy(() -> profileService.update(user.getId(),
                 new CustomerProfileUpdateRequest("Customer Two", "Engineer", "Address",
-                        IdentityType.AADHAAR, "123456789012", true, true, true),
+                        IdentityType.VOTER_ID, null, true, true, false),
                 null, null, null)).isInstanceOf(ConflictException.class);
 
         profileService.update(user.getId(), new CustomerProfileUpdateRequest(
                 "Customer Two", "Engineer", "45 Monthly Address",
-                IdentityType.AADHAAR, "9012", true, true, false),
+                IdentityType.AADHAAR, null, true, true, false),
                 null, null, null);
 
+        assertThat(profileService.eligibility(user.getId(), BookingType.MONTHLY)
+                .missingRequirements()).containsExactly("IDENTITY");
+
+        addIdentityDocument(user.getId(), "AADHAAR");
         assertThat(profileService.eligibility(user.getId(), BookingType.MONTHLY)
                 .missingRequirements()).containsExactly("AADHAAR_CONSENT");
 
         profileService.update(user.getId(), new CustomerProfileUpdateRequest(
                 "Customer Two", "Engineer", "45 Monthly Address",
-                IdentityType.AADHAAR, "9012", false, false, true),
+                IdentityType.AADHAAR, null, false, false, true),
                 null, null, null);
         assertThat(profileService.eligibility(user.getId(), BookingType.MONTHLY).eligible()).isTrue();
+    }
+
+    private void addIdentityDocument(UUID userId, String identityType) {
+        UUID profileId = jdbcTemplate.queryForObject(
+                "select id from customer_profiles where user_id = ?", UUID.class, userId);
+        jdbcTemplate.update("""
+                insert into customer_identity_documents
+                    (id, profile_id, identity_type, file_name, content_type,
+                     size_bytes, storage_key, created_at, updated_at)
+                values (?, ?, ?, 'identity.pdf', 'application/pdf', 5, ?, now(), now())
+                """, UUID.randomUUID(), profileId, identityType,
+                "private/test/" + UUID.randomUUID() + "/identity.pdf");
     }
 
     private User student(String name, String phone, boolean phoneVerified) {

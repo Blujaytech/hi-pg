@@ -17,6 +17,7 @@ public record CustomerProfileResponse(
         String guardianPhone,
         IdentityType identityType,
         String identityLast4,
+        CustomerIdentityDocumentResponse identityDocument,
         String termsAcceptedVersion,
         String privacyAcceptedVersion,
         String aadhaarConsentVersion,
