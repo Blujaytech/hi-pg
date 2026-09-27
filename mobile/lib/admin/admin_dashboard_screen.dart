@@ -9,6 +9,7 @@ import '../core/theme.dart';
 import '../owner/onboarding/owner_kyc_models.dart';
 import '../shared/app_states.dart';
 import 'admin_kyc_repository.dart';
+import 'admin_support_panel.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -233,77 +234,92 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('KYC administration'),
-        actions: [
-          IconButton(
-            tooltip: 'Owner workspace',
-            onPressed: () => context.go('/owner'),
-            icon: const Icon(Icons.business_outlined),
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Admin dashboard'),
+          bottom: const TabBar(
+            indicatorColor: AppColors.brand,
+            labelColor: Colors.white,
+            unselectedLabelColor: Colors.white70,
+            tabs: [
+              Tab(icon: Icon(Icons.fact_check_outlined), text: 'KYC reviews'),
+              Tab(icon: Icon(Icons.support_agent_outlined), text: 'Support'),
+            ],
           ),
-          IconButton(
-            tooltip: 'Log out',
-            onPressed: _logout,
-            icon: const Icon(Icons.logout_rounded),
-          ),
-        ],
-      ),
-      body: _loading
-          ? const AppLoadingView(label: 'Loading KYC submissions...')
-          : RefreshIndicator(
-              onRefresh: _load,
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(20, 4, 20, 36),
-                children: [
-                  const AppMessageBanner(
-                    icon: Icons.admin_panel_settings_outlined,
-                    message:
-                        'Admin access only. Owner mobile numbers are already verified by OTP; review the PG owner identity and uploaded documents here.',
-                  ),
-                  const SizedBox(height: 12),
-                  const AppMessageBanner(
-                    icon: Icons.lock_outline_rounded,
-                    message:
-                        'KYC metadata is stored in PostgreSQL. Files stay in private object storage and each document button creates a 10-minute signed review link.',
-                  ),
-                  if (_error != null) ...[
-                    const SizedBox(height: 12),
-                    AppMessageBanner(
-                      icon: Icons.error_outline_rounded,
-                      message: _error!,
-                      color: AppColors.danger,
-                      background: AppColors.dangerSoft,
-                    ),
-                  ],
-                  const SizedBox(height: 14),
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(children: [
-                      _chip('Pending', OwnerKycStatus.submitted),
-                      _chip('Verified', OwnerKycStatus.verified),
-                      _chip('Returned', OwnerKycStatus.rejected),
-                      _chip('All', null),
-                    ]),
-                  ),
-                  const SizedBox(height: 14),
-                  if (_visible.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 52),
-                      child: AppEmptyView(
-                        icon: Icons.fact_check_outlined,
-                        title: 'No KYC submissions',
-                        message: 'There are no records in this filter.',
-                      ),
-                    )
-                  else
-                    for (final submission in _visible) ...[
-                      _submissionCard(submission),
-                      const SizedBox(height: 14),
-                    ],
-                ],
-              ),
+          actions: [
+            IconButton(
+              tooltip: 'Owner workspace',
+              onPressed: () => context.go('/owner'),
+              icon: const Icon(Icons.business_outlined),
             ),
+            IconButton(
+              tooltip: 'Log out',
+              onPressed: _logout,
+              icon: const Icon(Icons.logout_rounded),
+            ),
+          ],
+        ),
+        body: TabBarView(children: [
+          _loading
+              ? const AppLoadingView(label: 'Loading KYC submissions...')
+              : RefreshIndicator(
+                  onRefresh: _load,
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 36),
+                    children: [
+                      const AppMessageBanner(
+                        icon: Icons.admin_panel_settings_outlined,
+                        message:
+                            'Admin access only. Owner mobile numbers are already verified by OTP; review the PG owner identity and uploaded documents here.',
+                      ),
+                      const SizedBox(height: 12),
+                      const AppMessageBanner(
+                        icon: Icons.lock_outline_rounded,
+                        message:
+                            'KYC metadata is stored in PostgreSQL. Files stay in private object storage and each document button creates a 10-minute signed review link.',
+                      ),
+                      if (_error != null) ...[
+                        const SizedBox(height: 12),
+                        AppMessageBanner(
+                          icon: Icons.error_outline_rounded,
+                          message: _error!,
+                          color: AppColors.danger,
+                          background: AppColors.dangerSoft,
+                        ),
+                      ],
+                      const SizedBox(height: 14),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(children: [
+                          _chip('Pending', OwnerKycStatus.submitted),
+                          _chip('Verified', OwnerKycStatus.verified),
+                          _chip('Returned', OwnerKycStatus.rejected),
+                          _chip('All', null),
+                        ]),
+                      ),
+                      const SizedBox(height: 14),
+                      if (_visible.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 52),
+                          child: AppEmptyView(
+                            icon: Icons.fact_check_outlined,
+                            title: 'No KYC submissions',
+                            message: 'There are no records in this filter.',
+                          ),
+                        )
+                      else
+                        for (final submission in _visible) ...[
+                          _submissionCard(submission),
+                          const SizedBox(height: 14),
+                        ],
+                    ],
+                  ),
+                ),
+          const AdminSupportPanel(),
+        ]),
+      ),
     );
   }
 

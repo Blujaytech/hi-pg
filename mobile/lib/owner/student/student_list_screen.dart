@@ -10,7 +10,7 @@ import '../pg/pg_models.dart';
 import 'student_models.dart';
 import 'student_repository.dart';
 
-enum _CustomerListFilter { active, movedOut }
+enum _CustomerListFilter { active, movedOut, withoutBed }
 
 class StudentListScreen extends StatefulWidget {
   final String pgId;
@@ -305,6 +305,9 @@ class _StudentListScreenState extends State<StudentListScreen> {
                 student.status != StudentStatus.movedOut,
               _CustomerListFilter.movedOut =>
                 student.status == StudentStatus.movedOut,
+              _CustomerListFilter.withoutBed =>
+                student.status != StudentStatus.movedOut &&
+                    student.bedLabel == null,
             })
         .toList();
     return RefreshIndicator(
@@ -318,28 +321,36 @@ class _StudentListScreenState extends State<StudentListScreen> {
           if (index == 0) {
             return Padding(
               padding: const EdgeInsets.only(bottom: 6),
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  ChoiceChip(
-                    label: Text('$active active'),
-                    selected: _filter == _CustomerListFilter.active,
-                    onSelected: (_) =>
-                        setState(() => _filter = _CustomerListFilter.active),
-                  ),
-                  ChoiceChip(
-                    label: Text('$movedOut moved out'),
-                    selected: _filter == _CustomerListFilter.movedOut,
-                    onSelected: (_) =>
-                        setState(() => _filter = _CustomerListFilter.movedOut),
-                  ),
-                  if (withoutBed > 0)
-                    StatusPill(
-                      label: '$withoutBed without a bed',
-                      tone: StatusTone.warning,
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    ChoiceChip(
+                      label: Text('$active active'),
+                      selected: _filter == _CustomerListFilter.active,
+                      onSelected: (_) =>
+                          setState(() => _filter = _CustomerListFilter.active),
                     ),
-                ],
+                    const SizedBox(width: 8),
+                    ChoiceChip(
+                      label: Text('$movedOut moved out'),
+                      selected: _filter == _CustomerListFilter.movedOut,
+                      onSelected: (_) => setState(
+                          () => _filter = _CustomerListFilter.movedOut),
+                    ),
+                    if (withoutBed > 0) ...[
+                      const SizedBox(width: 8),
+                      ChoiceChip(
+                        label: Text(
+                          '$withoutBed ${withoutBed == 1 ? 'bed not allocated' : 'beds not allocated'}',
+                        ),
+                        selected: _filter == _CustomerListFilter.withoutBed,
+                        onSelected: (_) => setState(
+                            () => _filter = _CustomerListFilter.withoutBed),
+                      ),
+                    ],
+                  ],
+                ),
               ),
             );
           }
@@ -424,7 +435,7 @@ class _StudentCard extends StatelessWidget {
                           )
                         else
                           const StatusPill(
-                            label: 'No bed yet',
+                            label: 'Bed not allocated',
                             tone: StatusTone.warning,
                             icon: Icons.bed_outlined,
                           ),

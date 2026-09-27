@@ -3,6 +3,7 @@ package com.pgplatform.auth;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 
 public interface UserRepository extends JpaRepository<User, UUID> {
@@ -14,4 +15,5 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     boolean existsByEmailAndDeletedAtIsNull(String email);
     boolean existsByEmailIgnoreCaseAndDeletedAtIsNull(String email);
     boolean existsByPhoneAndDeletedAtIsNull(String phone);
+    List<User> findAllByRoleAndDeletedAtIsNull(Role role);
 }

@@ -35,7 +35,7 @@ class _MyComplaintsScreenState extends State<MyComplaintsScreen> {
     if (created == true && mounted) {
       _reload();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Support request submitted successfully')),
+        const SnackBar(content: Text('Complaint sent to the property owner.')),
       );
     }
   }
@@ -45,12 +45,12 @@ class _MyComplaintsScreenState extends State<MyComplaintsScreen> {
     return FutureBuilder<List<Complaint>>(
       future: _future,
       builder: (context, snapshot) => Scaffold(
-        appBar: AppBar(title: const Text('Help & support')),
+        appBar: AppBar(title: const Text('Raise a complaint')),
         floatingActionButton: snapshot.hasData && snapshot.data!.isNotEmpty
             ? FloatingActionButton.extended(
                 onPressed: _openNewComplaint,
                 icon: const Icon(Icons.add_rounded),
-                label: const Text('New request'),
+                label: const Text('New complaint'),
               )
             : null,
         body: _buildBody(snapshot),
@@ -60,7 +60,7 @@ class _MyComplaintsScreenState extends State<MyComplaintsScreen> {
 
   Widget _buildBody(AsyncSnapshot<List<Complaint>> snapshot) {
     if (snapshot.connectionState == ConnectionState.waiting) {
-      return const AppLoadingView(label: 'Loading your requests...');
+      return const AppLoadingView(label: 'Loading your complaints...');
     }
     if (snapshot.hasError) {
       final message = snapshot.error is ApiException
@@ -72,7 +72,7 @@ class _MyComplaintsScreenState extends State<MyComplaintsScreen> {
           icon: Icons.home_work_outlined,
           title: 'Book a stay first',
           message:
-              'Support requests are connected to your PG. Once you have a booking, you can contact the property team here.',
+              'Complaints are connected to your PG. Once you have a booking, you can report a stay issue here.',
           actionLabel: 'Back to home',
           onAction: () => Navigator.of(context).pop(),
         );
@@ -84,10 +84,10 @@ class _MyComplaintsScreenState extends State<MyComplaintsScreen> {
     if (complaints.isEmpty) {
       return AppEmptyView(
         icon: Icons.support_agent_rounded,
-        title: 'No support requests',
+        title: 'No complaints',
         message:
-            'Need help with maintenance, billing, cleanliness, or safety? Send a request and track every update here.',
-        actionLabel: 'Create a request',
+            'Report maintenance, cleanliness, noise, billing, or safety issues directly to the property owner.',
+        actionLabel: 'Raise a complaint',
         actionIcon: Icons.add_rounded,
         onAction: _openNewComplaint,
       );
@@ -164,7 +164,7 @@ class _ComplaintOverview extends StatelessWidget {
                 Text(
                   active == 0
                       ? 'Everything is currently resolved.'
-                      : '$active request${active == 1 ? '' : 's'} need attention.',
+                      : '$active complaint${active == 1 ? '' : 's'} need attention.',
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: .66),
                     fontSize: 12.5,
@@ -380,9 +380,9 @@ class _NewComplaintSheetState extends State<_NewComplaintSheet> {
     return Form(
       key: _formKey,
       child: FormSheet(
-        icon: Icons.support_agent_rounded,
-        title: 'How can we help?',
-        subtitle: 'Your request goes directly to the property owner.',
+        icon: Icons.report_problem_outlined,
+        title: 'Raise a complaint',
+        subtitle: 'This complaint goes directly to the property owner.',
         children: [
           if (_error != null) ...[
             AppMessageBanner(
@@ -396,7 +396,7 @@ class _NewComplaintSheetState extends State<_NewComplaintSheet> {
           DropdownButtonFormField<ComplaintCategory>(
             initialValue: _category,
             decoration: InputDecoration(
-              labelText: 'Request category',
+              labelText: 'Complaint category',
               prefixIcon: Icon(_category.icon),
             ),
             items: ComplaintCategory.values
@@ -458,7 +458,7 @@ class _NewComplaintSheetState extends State<_NewComplaintSheet> {
                     ),
                   )
                 : const Icon(Icons.send_rounded, size: 18),
-            label: Text(_saving ? 'Submitting...' : 'Submit request'),
+            label: Text(_saving ? 'Submitting...' : 'Submit complaint'),
           ),
         ],
       ),

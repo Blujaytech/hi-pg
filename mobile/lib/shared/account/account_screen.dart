@@ -96,10 +96,28 @@ class AccountScreen extends StatelessWidget {
                 onTap: () => context.push('/student/fees'),
               ),
               _LinkTile(
+                icon: Icons.report_problem_outlined,
+                title: 'Raise a complaint',
+                subtitle: 'Report and track a PG or stay issue',
+                onTap: () => context.push('/student/complaints'),
+              ),
+              _LinkTile(
                 icon: Icons.support_agent_outlined,
                 title: 'Help & support',
-                subtitle: 'Raise and track requests',
-                onTap: () => context.push('/student/complaints'),
+                subtitle: 'Contact the hi pg admin team',
+                onTap: () => context.push('/support'),
+              ),
+            ]),
+          ],
+          if (isOwner && !isAdmin) ...[
+            const SizedBox(height: 28),
+            const _GroupLabel('Support'),
+            _LinkGroup(children: [
+              _LinkTile(
+                icon: Icons.support_agent_outlined,
+                title: 'Help & support',
+                subtitle: 'Contact the hi pg admin team',
+                onTap: () => context.push('/support'),
               ),
             ]),
           ],

@@ -28,6 +28,7 @@ import 'owner/room/room_models.dart';
 import 'owner/student/student_list_screen.dart';
 import 'shared/account/account_screen.dart';
 import 'shared/app_shell.dart';
+import 'shared/support/support_screen.dart';
 import 'student/booking/my_bookings_screen.dart';
 import 'student/booking/booking_models.dart';
 import 'student/complaint/my_complaints_screen.dart';
@@ -184,6 +185,10 @@ GoRouter buildRouter(AuthState authState) {
       GoRoute(
         path: '/admin',
         builder: (context, state) => const AdminDashboardScreen(),
+      ),
+      GoRoute(
+        path: '/support',
+        builder: (context, state) => const SupportScreen(),
       ),
 
       // Public PG browsing: no account needed until a bed is booked.
