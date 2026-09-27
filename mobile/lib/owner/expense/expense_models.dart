@@ -17,7 +17,8 @@ extension ExpenseCategoryX on ExpenseCategory {
         ExpenseCategory.other => 'Other',
       };
 
-  static ExpenseCategory fromApi(String value) => ExpenseCategory.values.firstWhere(
+  static ExpenseCategory fromApi(String value) =>
+      ExpenseCategory.values.firstWhere(
         (c) => c.apiValue == value,
         orElse: () => ExpenseCategory.other,
       );

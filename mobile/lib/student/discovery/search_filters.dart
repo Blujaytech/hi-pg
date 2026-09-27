@@ -4,6 +4,17 @@ import 'discovery_models.dart';
 
 enum SortOption { recommended, rentLowToHigh, rentHighToLow, mostBedsFree }
 
+/// How long the customer wants to stay.
+enum StayType { any, monthly, dayWise }
+
+extension StayTypeLabel on StayType {
+  String get label => switch (this) {
+        StayType.any => 'Any stay',
+        StayType.monthly => 'Monthly',
+        StayType.dayWise => 'Day-wise',
+      };
+}
+
 extension SortOptionLabel on SortOption {
   String get label => switch (this) {
         SortOption.recommended => 'Recommended',
@@ -29,6 +40,7 @@ class SearchFilters {
   final GenderPreference? gender;
   final RangeValues budget;
   final bool availableOnly;
+  final StayType stayType;
   final SortOption sort;
 
   const SearchFilters({
@@ -36,6 +48,7 @@ class SearchFilters {
     this.gender,
     this.budget = anyBudget,
     this.availableOnly = false,
+    this.stayType = StayType.any,
     this.sort = SortOption.recommended,
   });
 
@@ -45,6 +58,7 @@ class SearchFilters {
     bool clearGender = false,
     RangeValues? budget,
     bool? availableOnly,
+    StayType? stayType,
     SortOption? sort,
   }) {
     return SearchFilters(
@@ -52,6 +66,7 @@ class SearchFilters {
       gender: clearGender ? null : (gender ?? this.gender),
       budget: budget ?? this.budget,
       availableOnly: availableOnly ?? this.availableOnly,
+      stayType: stayType ?? this.stayType,
       sort: sort ?? this.sort,
     );
   }
@@ -65,7 +80,10 @@ class SearchFilters {
 
   /// Number shown on the Filters button (typing and sorting don't count).
   int get activeCount =>
-      (gender != null ? 1 : 0) + (hasBudget ? 1 : 0) + (availableOnly ? 1 : 0);
+      (gender != null ? 1 : 0) +
+      (hasBudget ? 1 : 0) +
+      (availableOnly ? 1 : 0) +
+      (stayType != StayType.any ? 1 : 0);
 
   bool get isEmpty => query.trim().isEmpty && activeCount == 0;
 
@@ -80,6 +98,14 @@ class SearchFilters {
     if (!words.every(text.contains)) return false;
     if (gender != null && pg.genderPreference != gender) return false;
     if (availableOnly && pg.availableBeds <= 0) return false;
+    // Unknown (null) stay types come from an older server; keep those PGs
+    // rather than hide everything.
+    if (stayType == StayType.monthly && pg.offersMonthly == false) {
+      return false;
+    }
+    if (stayType == StayType.dayWise && pg.offersDayWise == false) {
+      return false;
+    }
     if (hasBudget) {
       final low = pg.minRentPerBed;
       if (low == null) return false; // no rent listed can't meet a budget
@@ -100,8 +126,7 @@ class SearchFilters {
       case SortOption.rentLowToHigh:
         list.sort((a, b) => _compareRent(a.minRentPerBed, b.minRentPerBed));
       case SortOption.rentHighToLow:
-        list.sort((a, b) => _compareRent(
-            b.maxRentPerBed ?? b.minRentPerBed,
+        list.sort((a, b) => _compareRent(b.maxRentPerBed ?? b.minRentPerBed,
             a.maxRentPerBed ?? a.minRentPerBed));
       case SortOption.mostBedsFree:
         list.sort((a, b) => b.availableBeds.compareTo(a.availableBeds));
@@ -125,8 +150,7 @@ List<String> popularAreas(Iterable<PgSearchResult> pgs, {int limit = 6}) {
   final display = <String, String>{};
   void add(String raw) {
     final area = raw.trim().replaceFirst(
-        RegExp(r'^(near|opp\.?|opposite|behind)\s+', caseSensitive: false),
-        '');
+        RegExp(r'^(near|opp\.?|opposite|behind)\s+', caseSensitive: false), '');
     // Skip house numbers and fragments that aren't place names.
     if (area.length < 3 || RegExp(r'\d').hasMatch(area)) return;
     final key = area.toLowerCase();

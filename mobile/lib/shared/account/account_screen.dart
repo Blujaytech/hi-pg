@@ -59,7 +59,7 @@ class AccountScreen extends StatelessWidget {
             name: name,
             role: isAdmin
                 ? 'Administrator & PG owner'
-                : (isOwner ? 'PG owner' : 'Customer'),
+                : (isOwner ? 'PG owner' : null),
           ),
           if (isAdmin) ...[
             const SizedBox(height: 28),
@@ -80,7 +80,7 @@ class AccountScreen extends StatelessWidget {
               _LinkTile(
                 icon: Icons.badge_outlined,
                 title: 'Profile & verification',
-                subtitle: 'Booking details, mobile and government ID',
+                subtitle: 'Personal details and ID document',
                 onTap: () => context.push('/student/profile'),
               ),
               _LinkTile(
@@ -104,22 +104,6 @@ class AccountScreen extends StatelessWidget {
             ]),
           ],
           const SizedBox(height: 28),
-          const _GroupLabel('About'),
-          _LinkGroup(children: [
-            _LinkTile(
-              icon: Icons.description_outlined,
-              title: 'Open-source licences',
-              onTap: () => showLicensePage(
-                context: context,
-                applicationName: 'hi pg',
-                applicationIcon: const Padding(
-                  padding: EdgeInsets.all(16),
-                  child: HiPgAppIcon(size: 56),
-                ),
-              ),
-            ),
-          ]),
-          const SizedBox(height: 28),
           OutlinedButton.icon(
             onPressed: () => _confirmLogout(context),
             style: OutlinedButton.styleFrom(
@@ -134,6 +118,7 @@ class AccountScreen extends StatelessWidget {
             child: HiPgLockup(
               height: 18,
               color: AppColors.subtle,
+              wordColor: AppColors.subtle,
             ),
           ),
         ],
@@ -144,7 +129,7 @@ class AccountScreen extends StatelessWidget {
 
 class _ProfileCard extends StatelessWidget {
   final String name;
-  final String role;
+  final String? role;
 
   const _ProfileCard({required this.name, required this.role});
 
@@ -154,7 +139,7 @@ class _ProfileCard extends StatelessWidget {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AppColors.ink,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         children: [
@@ -191,23 +176,25 @@ class _ProfileCard extends StatelessWidget {
                     letterSpacing: -.3,
                   ),
                 ),
-                const SizedBox(height: 6),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: .14),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    role,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w700,
+                if (role != null) ...[
+                  const SizedBox(height: 6),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: .14),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      role!,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
-                ),
+                ],
               ],
             ),
           ),

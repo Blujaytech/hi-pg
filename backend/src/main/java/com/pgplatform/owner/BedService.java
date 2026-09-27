@@ -9,6 +9,9 @@ import com.pgplatform.common.ConflictException;
 import com.pgplatform.student.Student;
 import com.pgplatform.student.StudentRepository;
 import com.pgplatform.student.StudentStatus;
+import com.pgplatform.booking.Booking;
+import com.pgplatform.booking.BookingRepository;
+import com.pgplatform.booking.BookingStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,13 +25,15 @@ public class BedService {
     private final RoomService roomService;
     private final BedAvailabilityBroadcaster broadcaster;
     private final StudentRepository studentRepository;
+    private final BookingRepository bookingRepository;
 
     public BedService(BedRepository bedRepository, RoomService roomService, BedAvailabilityBroadcaster broadcaster,
-                       StudentRepository studentRepository) {
+                       StudentRepository studentRepository, BookingRepository bookingRepository) {
         this.bedRepository = bedRepository;
         this.roomService = roomService;
         this.broadcaster = broadcaster;
         this.studentRepository = studentRepository;
+        this.bookingRepository = bookingRepository;
     }
 
     /**
@@ -45,7 +50,13 @@ public class BedService {
                     Student occupant = bed.getStatus() == BedStatus.OCCUPIED
                             ? studentRepository.findByBedIdAndStatusAndDeletedAtIsNull(bed.getId(), StudentStatus.ACTIVE).orElse(null)
                             : null;
-                    return BedResponse.from(bed, occupant);
+                    Booking booking = occupant == null ? null : bookingRepository
+                            .findFirstByStudentIdAndStatusInAndDeletedAtIsNullOrderByCreatedAtDesc(
+                                    occupant.getId(), List.of(BookingStatus.PAYMENT_PENDING,
+                                            BookingStatus.DIRECT_PAYMENT_REVIEW, BookingStatus.CONFIRMED,
+                                            BookingStatus.CHECKED_IN))
+                            .orElse(null);
+                    return BedResponse.from(bed, occupant, booking);
                 })
                 .toList();
     }

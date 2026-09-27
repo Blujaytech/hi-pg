@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/api_exception.dart';
 import '../../core/theme.dart';
@@ -8,6 +9,8 @@ import '../../shared/app_states.dart';
 import '../pg/pg_models.dart';
 import 'student_models.dart';
 import 'student_repository.dart';
+
+enum _CustomerListFilter { active, movedOut }
 
 class StudentListScreen extends StatefulWidget {
   final String pgId;
@@ -22,6 +25,7 @@ class StudentListScreen extends StatefulWidget {
 class _StudentListScreenState extends State<StudentListScreen> {
   final _repository = StudentRepository();
   late Future<List<Student>> _future;
+  _CustomerListFilter _filter = _CustomerListFilter.active;
 
   @override
   void initState() {
@@ -193,6 +197,10 @@ class _StudentListScreenState extends State<StudentListScreen> {
                   value: 'review_payment',
                 ),
               const _ActionTile(
+                  icon: Icons.badge_outlined,
+                  label: 'Identity document',
+                  value: 'identity_document'),
+              const _ActionTile(
                   icon: Icons.receipt_long_outlined,
                   label: 'Fees',
                   value: 'fees'),
@@ -218,6 +226,17 @@ class _StudentListScreenState extends State<StudentListScreen> {
     );
     if (!mounted || action == null) return;
     switch (action) {
+      case 'identity_document':
+        try {
+          final url = await _repository.identityDocumentDownloadUrl(student.id);
+          final opened = await launchUrl(Uri.parse(url),
+              mode: LaunchMode.externalApplication);
+          if (!opened && mounted) {
+            _toast('The identity document could not be opened.');
+          }
+        } on ApiException catch (error) {
+          if (mounted) _toast(error.message);
+        }
       case 'review_payment':
         final changed = await context.push<bool>(
           '/owner/pgs/${student.pgId}/payment-requests?bookingId=${student.bookingId}',
@@ -275,16 +294,25 @@ class _StudentListScreenState extends State<StudentListScreen> {
       );
     }
     final active =
-        students.where((s) => s.status == StudentStatus.active).length;
+        students.where((s) => s.status != StudentStatus.movedOut).length;
+    final movedOut = students.length - active;
     final withoutBed = students
-        .where((s) => s.status == StudentStatus.active && s.bedLabel == null)
+        .where((s) => s.status != StudentStatus.movedOut && s.bedLabel == null)
         .length;
+    final visible = students
+        .where((student) => switch (_filter) {
+              _CustomerListFilter.active =>
+                student.status != StudentStatus.movedOut,
+              _CustomerListFilter.movedOut =>
+                student.status == StudentStatus.movedOut,
+            })
+        .toList();
     return RefreshIndicator(
       onRefresh: _refresh,
       child: ListView.separated(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(20, 6, 20, 100),
-        itemCount: students.length + 1,
+        itemCount: visible.length + 1,
         separatorBuilder: (_, __) => const SizedBox(height: 10),
         itemBuilder: (context, index) {
           if (index == 0) {
@@ -294,9 +322,18 @@ class _StudentListScreenState extends State<StudentListScreen> {
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  StatusPill(label: '$active active', tone: StatusTone.dark),
-                  if (students.length > active)
-                    StatusPill(label: '${students.length - active} moved out'),
+                  ChoiceChip(
+                    label: Text('$active active'),
+                    selected: _filter == _CustomerListFilter.active,
+                    onSelected: (_) =>
+                        setState(() => _filter = _CustomerListFilter.active),
+                  ),
+                  ChoiceChip(
+                    label: Text('$movedOut moved out'),
+                    selected: _filter == _CustomerListFilter.movedOut,
+                    onSelected: (_) =>
+                        setState(() => _filter = _CustomerListFilter.movedOut),
+                  ),
                   if (withoutBed > 0)
                     StatusPill(
                       label: '$withoutBed without a bed',
@@ -306,7 +343,7 @@ class _StudentListScreenState extends State<StudentListScreen> {
               ),
             );
           }
-          final student = students[index - 1];
+          final student = visible[index - 1];
           return _StudentCard(
             student: student,
             onTap: () => _openActions(student),
@@ -333,7 +370,10 @@ class _TitleWithSubtitle extends StatelessWidget {
           Text(subtitle!,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodySmall),
+              style: TextStyle(
+                  color: Colors.white.withValues(alpha: .72),
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w500)),
       ],
     );
   }

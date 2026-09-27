@@ -12,7 +12,7 @@ import 'auth_models.dart';
 import 'auth_state.dart';
 
 /// First route on every cold start. It continues exactly where Android's
-/// native splash stops -- same black, same mark, same size and position --
+/// native splash stops -- same rose, same mark, same size and position --
 /// then plays the brand moment: the house hops and winks, glides left while
 /// "hi pg" springs in letter by letter, then rushes toward the camera as the
 /// screen floods white and opens into the (white) app.
@@ -138,7 +138,7 @@ class _SplashScreenState extends State<SplashScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       key: const Key('launch-animation'),
-      backgroundColor: AppColors.ink,
+      backgroundColor: AppColors.brand,
       body: Semantics(
         label: 'hi pg',
         child: ExcludeSemantics(
@@ -216,7 +216,7 @@ class _SplashScreenState extends State<SplashScreen>
                   size: markSize,
                   color: AppColors.surface,
                   // The face melts away as the house rushes in.
-                  faceColor: Color.lerp(AppColors.ink, AppColors.surface,
+                  faceColor: Color.lerp(AppColors.brand, AppColors.surface,
                       (zoom * 4).clamp(0.0, 1.0)),
                   wink: _closeAndOpen.transform(_progress(t, _Timeline.wink)),
                   blink: _closeAndOpen.transform(_progress(t, _Timeline.blink)),
@@ -239,7 +239,7 @@ class _SplashScreenState extends State<SplashScreen>
                 textAlign: TextAlign.center,
                 textScaler: TextScaler.noScaling,
                 style: TextStyle(
-                  color: Colors.white.withValues(alpha: .6),
+                  color: Colors.white.withValues(alpha: .88),
                   fontSize: 13.5,
                   fontWeight: FontWeight.w600,
                   letterSpacing: .3,

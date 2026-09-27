@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_maps_flutter_android/google_maps_flutter_android.dart';
+import 'package:google_maps_flutter_platform_interface/google_maps_flutter_platform_interface.dart';
 import 'package:provider/provider.dart';
 
 import 'app_router.dart';
@@ -19,7 +21,16 @@ void main() {
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   SystemChrome.setSystemUIOverlayStyle(AppTheme.lightChrome);
   SystemChrome.setPreferredOrientations(const [DeviceOrientation.portraitUp]);
+  _configureMaps();
   runApp(const PgPlatformApp());
+}
+
+/// Some Android skins (MIUI among them) draw an empty beige map -- Google
+/// logo, no tiles, no marker -- under the default texture-layer platform
+/// view. Hybrid composition renders the native map view directly instead.
+void _configureMaps() {
+  final maps = GoogleMapsFlutterPlatform.instance;
+  if (maps is GoogleMapsFlutterAndroid) maps.useAndroidViewSurface = true;
 }
 
 class PgPlatformApp extends StatefulWidget {

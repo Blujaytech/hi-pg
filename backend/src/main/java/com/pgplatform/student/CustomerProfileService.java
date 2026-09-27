@@ -72,6 +72,7 @@ public class CustomerProfileService {
         String fullName = request.fullName().trim();
         profile.setFullName(fullName);
         profile.setOccupation(request.occupation().trim());
+        profile.setContactPhone(normalizePhone(request.contactPhone()));
         profile.setPermanentAddress(trimToNull(request.permanentAddress()));
         profile.setGuardianName(trimToNull(request.guardianName()));
         profile.setGuardianPhone(normalizePhone(request.guardianPhone()));
@@ -155,6 +156,7 @@ public class CustomerProfileService {
         String name = profile == null ? user.getFullName() : profile.getFullName();
         if (isBlank(name) || "Student".equalsIgnoreCase(name.trim())) missing.add("FULL_NAME");
         if (profile == null || isBlank(profile.getOccupation())) missing.add("OCCUPATION");
+        if (isBlank(effectiveContactPhone(user, profile))) missing.add("CONTACT_PHONE");
         if (!accepted(user.getId(), LegalDocumentType.TERMS, termsVersion)) missing.add("TERMS_ACCEPTANCE");
         if (!accepted(user.getId(), LegalDocumentType.PRIVACY, privacyVersion)) missing.add("PRIVACY_ACCEPTANCE");
         if (bookingType == BookingType.MONTHLY) {
@@ -205,7 +207,8 @@ public class CustomerProfileService {
         return new CustomerProfileResponse(
                 profile == null ? null : profile.getId(),
                 profile == null ? user.getFullName() : profile.getFullName(),
-                profile == null ? null : profile.getOccupation(), user.getPhone(), user.isPhoneVerified(),
+                profile == null ? null : profile.getOccupation(), effectiveContactPhone(user, profile),
+                user.isPhoneVerified(),
                 profile == null ? null : profile.getPermanentAddress(),
                 profile == null ? null : profile.getGuardianName(),
                 profile == null ? null : profile.getGuardianPhone(),
@@ -246,10 +249,16 @@ public class CustomerProfileService {
         User user = requireStudentUser(userId);
         CustomerProfile profile = profileRepository.findByUserIdAndDeletedAtIsNull(userId).orElse(null);
         student.setFullName(profile == null ? user.getFullName() : profile.getFullName());
-        student.setPhone(user.getPhone() == null ? "" : user.getPhone());
+        String contactPhone = effectiveContactPhone(user, profile);
+        student.setPhone(contactPhone == null ? "" : contactPhone);
         student.setGuardianName(profile == null ? null : profile.getGuardianName());
         student.setGuardianPhone(profile == null ? null : profile.getGuardianPhone());
         student.setPermanentAddress(profile == null ? null : profile.getPermanentAddress());
+    }
+
+    private static String effectiveContactPhone(User user, CustomerProfile profile) {
+        if (profile != null && !isBlank(profile.getContactPhone())) return profile.getContactPhone();
+        return trimToNull(user.getPhone());
     }
     private static String limit(String value, int length) {
         if (isBlank(value)) return null;

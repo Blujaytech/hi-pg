@@ -4,7 +4,11 @@ class Floor {
   final String name;
   final int floorNumber;
 
-  Floor({required this.id, required this.pgId, required this.name, required this.floorNumber});
+  Floor(
+      {required this.id,
+      required this.pgId,
+      required this.name,
+      required this.floorNumber});
 
   factory Floor.fromJson(Map<String, dynamic> json) => Floor(
         id: json['id'] as String,

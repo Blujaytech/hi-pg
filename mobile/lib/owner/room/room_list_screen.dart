@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/api_exception.dart';
 import '../../core/theme.dart';
@@ -62,6 +63,7 @@ class _RoomListScreenState extends State<RoomListScreen> {
   final _roomRepository = RoomRepository();
   final _bedRepository = BedRepository();
   late Future<List<Room>> _future;
+  RoomBookingMode? _modeFilter;
 
   @override
   void initState() {
@@ -72,15 +74,22 @@ class _RoomListScreenState extends State<RoomListScreen> {
   void _reload() =>
       setState(() => _future = _roomRepository.listForFloor(widget.floorId));
 
-  Future<void> _openCreateDialog() async {
-    final roomNumberController = TextEditingController();
-    final sharingController = TextEditingController(text: '1');
-    final rentController = TextEditingController();
-    final dayRateController = TextEditingController();
-    final depositController = TextEditingController(text: '0');
-    final noticeController = TextEditingController(text: '15');
-    var roomType = RoomType.nonAc;
-    var bookingMode = RoomBookingMode.monthly;
+  Future<void> _openRoomDialog([Room? existing]) async {
+    final editing = existing != null;
+    final roomNumberController =
+        TextEditingController(text: existing?.roomNumber ?? '');
+    final sharingController =
+        TextEditingController(text: '${existing?.sharingCount ?? 1}');
+    final rentController = TextEditingController(
+        text: existing == null ? '' : existing.rentPerBed.toStringAsFixed(0));
+    final dayRateController = TextEditingController(
+        text: existing?.dayWiseRate?.toStringAsFixed(0) ?? '');
+    final depositController = TextEditingController(
+        text: existing?.securityDeposit.toStringAsFixed(0) ?? '0');
+    final noticeController =
+        TextEditingController(text: '${existing?.noticePeriodDays ?? 15}');
+    var roomType = existing?.roomType ?? RoomType.nonAc;
+    var bookingMode = existing?.bookingMode ?? RoomBookingMode.monthly;
     String? error;
     var saving = false;
 
@@ -88,7 +97,7 @@ class _RoomListScreenState extends State<RoomListScreen> {
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (dialogContext, setDialogState) => AlertDialog(
-          title: const Text('Add a room'),
+          title: Text(editing ? 'Edit room & pricing' : 'Add a room'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -211,22 +220,41 @@ class _RoomListScreenState extends State<RoomListScreen> {
                         error = null;
                       });
                       try {
-                        await _roomRepository.create(
-                          floorId: widget.floorId,
-                          roomNumber: roomNumberController.text.trim(),
-                          sharingCount:
-                              int.parse(sharingController.text.trim()),
-                          rentPerBed: double.parse(rentController.text.trim()),
-                          roomType: roomType,
-                          bookingMode: bookingMode,
-                          dayWiseRate: bookingMode == RoomBookingMode.monthly
-                              ? null
-                              : double.parse(dayRateController.text.trim()),
-                          noticePeriodDays:
-                              int.parse(noticeController.text.trim()),
-                          securityDeposit:
-                              double.parse(depositController.text.trim()),
-                        );
+                        final roomNumber = roomNumberController.text.trim();
+                        final sharing =
+                            int.parse(sharingController.text.trim());
+                        final rent = double.parse(rentController.text.trim());
+                        final dayRate = bookingMode == RoomBookingMode.monthly
+                            ? null
+                            : double.parse(dayRateController.text.trim());
+                        final notice = int.parse(noticeController.text.trim());
+                        final deposit =
+                            double.parse(depositController.text.trim());
+                        if (existing == null) {
+                          await _roomRepository.create(
+                            floorId: widget.floorId,
+                            roomNumber: roomNumber,
+                            sharingCount: sharing,
+                            rentPerBed: rent,
+                            roomType: roomType,
+                            bookingMode: bookingMode,
+                            dayWiseRate: dayRate,
+                            noticePeriodDays: notice,
+                            securityDeposit: deposit,
+                          );
+                        } else {
+                          await _roomRepository.update(
+                            room: existing,
+                            roomNumber: roomNumber,
+                            sharingCount: sharing,
+                            rentPerBed: rent,
+                            roomType: roomType,
+                            bookingMode: bookingMode,
+                            dayWiseRate: dayRate,
+                            noticePeriodDays: notice,
+                            securityDeposit: deposit,
+                          );
+                        }
                         if (dialogContext.mounted) {
                           Navigator.of(dialogContext).pop(true);
                         }
@@ -238,7 +266,9 @@ class _RoomListScreenState extends State<RoomListScreen> {
                       } catch (_) {
                         setDialogState(() {
                           saving = false;
-                          error = 'The room could not be created. Try again.';
+                          error = editing
+                              ? 'The room could not be updated. Try again.'
+                              : 'The room could not be created. Try again.';
                         });
                       }
                     },
@@ -249,7 +279,7 @@ class _RoomListScreenState extends State<RoomListScreen> {
                       child: CircularProgressIndicator(
                           strokeWidth: 2, color: Colors.white),
                     )
-                  : const Text('Create room'),
+                  : Text(editing ? 'Save changes' : 'Create room'),
             ),
           ],
         ),
@@ -305,6 +335,30 @@ class _RoomListScreenState extends State<RoomListScreen> {
     };
   }
 
+  /// Bed-map "seat" look: free beds are outlined in green, taken beds are
+  /// solid charcoal, beds under maintenance are amber. Each also carries an
+  /// icon and a word, so the state never rests on colour alone.
+  ({Color background, Color border, Color foreground}) _seatStyle(
+      BedStatus status) {
+    return switch (status) {
+      BedStatus.available => (
+          background: AppColors.surface,
+          border: AppColors.successBright,
+          foreground: AppColors.success,
+        ),
+      BedStatus.occupied => (
+          background: AppColors.ink,
+          border: AppColors.ink,
+          foreground: Colors.white,
+        ),
+      BedStatus.maintenance => (
+          background: AppColors.warningSoft,
+          border: AppColors.warningBright,
+          foreground: AppColors.warning,
+        ),
+    };
+  }
+
   IconData _bedIcon(BedStatus status) {
     return switch (status) {
       BedStatus.available => Icons.bed_outlined,
@@ -317,111 +371,160 @@ class _RoomListScreenState extends State<RoomListScreen> {
     showModalBottomSheet(
       context: context,
       showDragHandle: true,
+      isScrollControlled: true,
       backgroundColor: AppColors.surface,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (sheetContext) {
         final color = _bedColor(bed.status);
         final occupant = bed.occupant;
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: color.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(14),
+        return FractionallySizedBox(
+          heightFactor: .86,
+          child: SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(_bedIcon(bed.status), color: color),
                       ),
-                      child: Icon(_bedIcon(bed.status), color: color),
-                    ),
-                    const SizedBox(width: 13),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(bed.label,
-                              style: Theme.of(context).textTheme.titleLarge),
-                          const SizedBox(height: 2),
-                          Text(bed.status.label,
-                              style: TextStyle(
-                                  color: color, fontWeight: FontWeight.w600)),
-                        ],
+                      const SizedBox(width: 13),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(bed.label,
+                                style: Theme.of(context).textTheme.titleLarge),
+                            const SizedBox(height: 2),
+                            Text(bed.status.label,
+                                style: TextStyle(
+                                    color: color, fontWeight: FontWeight.w600)),
+                          ],
+                        ),
                       ),
+                    ],
+                  ),
+                  if (occupant != null) ...[
+                    const Divider(height: 30),
+                    Text('Occupant details',
+                        style: Theme.of(context).textTheme.titleSmall),
+                    const SizedBox(height: 13),
+                    _detailRow(
+                        Icons.person_outline, 'Customer', occupant.fullName),
+                    _phoneRow(occupant.phone),
+                    if (occupant.guardianName != null &&
+                        occupant.guardianName!.isNotEmpty)
+                      _detailRow(
+                        Icons.family_restroom_rounded,
+                        'Guardian',
+                        '${occupant.guardianName}${occupant.guardianPhone != null ? ' · ${occupant.guardianPhone}' : ''}',
+                      ),
+                    _detailRow(Icons.calendar_today_outlined, 'Joined',
+                        occupant.dateOfJoining),
+                    if (occupant.bookingType != null)
+                      _detailRow(
+                        Icons.schedule_outlined,
+                        'Stay type',
+                        occupant.bookingType == 'DAY_WISE'
+                            ? 'Day-wise'
+                            : 'Monthly',
+                      ),
+                    if (occupant.checkInDate != null)
+                      _detailRow(Icons.login_rounded, 'Check-in',
+                          occupant.checkInDate!),
+                    if (occupant.checkOutDate != null)
+                      _detailRow(
+                        Icons.logout_rounded,
+                        'Checkout',
+                        '${occupant.checkOutDate!}${occupant.checkOutTime == null ? '' : ' at ${occupant.checkOutTime}'}',
+                      ),
+                  ],
+                  const Divider(height: 30),
+                  Text('Booking type',
+                      style: Theme.of(context).textTheme.titleSmall),
+                  const SizedBox(height: 8),
+                  Text(bed.bookingMode.label,
+                      style: const TextStyle(
+                          color: AppColors.brandText,
+                          fontWeight: FontWeight.w700)),
+                  if (room.bookingMode == RoomBookingMode.mixed) ...[
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      children: BedBookingMode.values
+                          .map((mode) => ChoiceChip(
+                                label: Text(mode.label),
+                                selected: bed.bookingMode == mode,
+                                onSelected: (_) =>
+                                    _setBedBookingMode(bed, mode),
+                              ))
+                          .toList(),
                     ),
                   ],
-                ),
-                if (occupant != null) ...[
-                  const Divider(height: 30),
-                  Text('Occupant details',
-                      style: Theme.of(context).textTheme.titleSmall),
-                  const SizedBox(height: 13),
-                  _detailRow(
-                      Icons.person_outline, 'Customer', occupant.fullName),
-                  _detailRow(Icons.call_outlined, 'Phone', occupant.phone),
-                  if (occupant.guardianName != null &&
-                      occupant.guardianName!.isNotEmpty)
-                    _detailRow(
-                      Icons.family_restroom_rounded,
-                      'Guardian',
-                      '${occupant.guardianName}${occupant.guardianPhone != null ? ' · ${occupant.guardianPhone}' : ''}',
-                    ),
-                  _detailRow(Icons.calendar_today_outlined, 'Joined',
-                      occupant.dateOfJoining),
-                ],
-                const Divider(height: 30),
-                Text('Booking type',
-                    style: Theme.of(context).textTheme.titleSmall),
-                const SizedBox(height: 8),
-                Text(bed.bookingMode.label,
-                    style: TextStyle(
-                        color: bed.bookingMode == BedBookingMode.monthly
-                            ? const Color(0xFF7B61FF)
-                            : bed.bookingMode == BedBookingMode.dayWise
-                                ? const Color(0xFF2F80ED)
-                                : const Color(0xFF1B998B),
-                        fontWeight: FontWeight.w700)),
-                if (room.bookingMode == RoomBookingMode.mixed) ...[
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    children: BedBookingMode.values
-                        .map((mode) => ChoiceChip(
-                              label: Text(mode.label),
-                              selected: bed.bookingMode == mode,
-                              onSelected: (_) => _setBedBookingMode(bed, mode),
-                            ))
-                        .toList(),
+                  const SizedBox(height: 18),
+                  SizedBox(
+                    width: double.infinity,
+                    child: bed.status == BedStatus.available
+                        ? OutlinedButton.icon(
+                            onPressed: () =>
+                                _setBedStatus(bed, BedStatus.maintenance),
+                            icon: const Icon(Icons.build_outlined),
+                            label: const Text('Mark as maintenance'),
+                          )
+                        : OutlinedButton.icon(
+                            onPressed: () =>
+                                _setBedStatus(bed, BedStatus.available),
+                            icon:
+                                const Icon(Icons.check_circle_outline_rounded),
+                            label: const Text('Mark as available'),
+                          ),
                   ),
                 ],
-                const SizedBox(height: 18),
-                SizedBox(
-                  width: double.infinity,
-                  child: bed.status == BedStatus.available
-                      ? OutlinedButton.icon(
-                          onPressed: () =>
-                              _setBedStatus(bed, BedStatus.maintenance),
-                          icon: const Icon(Icons.build_outlined),
-                          label: const Text('Mark as maintenance'),
-                        )
-                      : OutlinedButton.icon(
-                          onPressed: () =>
-                              _setBedStatus(bed, BedStatus.available),
-                          icon: const Icon(Icons.check_circle_outline_rounded),
-                          label: const Text('Mark as available'),
-                        ),
-                ),
-              ],
+              ),
             ),
           ),
         );
       },
+    );
+  }
+
+  Widget _phoneRow(String phone) {
+    final canCall = phone.trim().isNotEmpty;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 11),
+      child: Row(
+        children: [
+          const Icon(Icons.call_outlined, size: 18, color: AppColors.muted),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Phone',
+                    style: TextStyle(fontSize: 11, color: AppColors.muted)),
+                const SizedBox(height: 2),
+                Text(canCall ? phone : 'Not provided',
+                    style: const TextStyle(fontWeight: FontWeight.w600)),
+              ],
+            ),
+          ),
+          if (canCall)
+            IconButton(
+              tooltip: 'Call customer',
+              onPressed: () => launchUrl(Uri(scheme: 'tel', path: phone),
+                  mode: LaunchMode.externalApplication),
+              icon: const Icon(Icons.call_rounded, color: AppColors.brand),
+            ),
+        ],
+      ),
     );
   }
 
@@ -452,14 +555,19 @@ class _RoomListScreenState extends State<RoomListScreen> {
     );
   }
 
-  Widget _legendDot(Color color, String label) {
+  Widget _legendDot(BedStatus status, String label) {
+    final seat = _seatStyle(status);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-            width: 9,
-            height: 9,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+            width: 14,
+            height: 14,
+            decoration: BoxDecoration(
+              color: seat.background,
+              border: Border.all(color: seat.border, width: 1.5),
+              borderRadius: BorderRadius.circular(3),
+            )),
         const SizedBox(width: 5),
         Text(label,
             style: const TextStyle(fontSize: 11, color: AppColors.muted)),
@@ -472,9 +580,7 @@ class _RoomListScreenState extends State<RoomListScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Rooms & beds')),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: _openCreateDialog,
-        backgroundColor: AppColors.ink,
-        foregroundColor: Colors.white,
+        onPressed: () => _openRoomDialog(),
         icon: const Icon(Icons.add_rounded),
         label: const Text('Add room'),
       ),
@@ -498,8 +604,8 @@ class _RoomListScreenState extends State<RoomListScreen> {
             );
           }
 
-          final rooms = snapshot.data ?? [];
-          if (rooms.isEmpty) {
+          final allRooms = snapshot.data ?? [];
+          if (allRooms.isEmpty) {
             return const _RoomMessageState(
               icon: Icons.meeting_room_outlined,
               title: 'No rooms added',
@@ -508,6 +614,11 @@ class _RoomListScreenState extends State<RoomListScreen> {
             );
           }
 
+          final rooms = allRooms.where((room) {
+            if (_modeFilter == null) return true;
+            if (room.bookingMode == RoomBookingMode.mixed) return true;
+            return room.bookingMode == _modeFilter;
+          }).toList();
           final allBeds = rooms.expand((room) => room.beds).toList();
           final availableCount =
               allBeds.where((bed) => bed.status == BedStatus.available).length;
@@ -520,7 +631,7 @@ class _RoomListScreenState extends State<RoomListScreen> {
             },
             child: ListView.separated(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 96),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
               itemCount: rooms.length + 1,
               separatorBuilder: (_, __) => const SizedBox(height: 12),
               itemBuilder: (context, index) {
@@ -530,6 +641,9 @@ class _RoomListScreenState extends State<RoomListScreen> {
                     roomCount: rooms.length,
                     availableCount: availableCount,
                     occupiedCount: occupiedCount,
+                    modeFilter: _modeFilter,
+                    onModeFilterChanged: (value) =>
+                        setState(() => _modeFilter = value),
                   );
                 }
                 final room = rooms[index - 1];
@@ -548,15 +662,17 @@ class _RoomListScreenState extends State<RoomListScreen> {
                       width: 43,
                       height: 43,
                       decoration: BoxDecoration(
-                          color: AppColors.fill,
-                          borderRadius: BorderRadius.circular(12)),
+                          color: AppColors.brandSoft,
+                          borderRadius: BorderRadius.circular(8)),
                       child: const Icon(Icons.meeting_room_outlined,
-                          color: AppColors.ink, size: 22),
+                          color: AppColors.brandText, size: 22),
                     ),
                     title: Text('Room ${room.roomNumber}',
                         style: Theme.of(context).textTheme.titleMedium),
                     subtitle: Text(
-                      '${room.roomType.label} · ${room.bookingMode.label} · ₹${room.rentPerBed.toStringAsFixed(0)}/bed',
+                      '${room.roomType.label} · ${room.bookingMode.label} · '
+                      '₹${room.rentPerBed.toStringAsFixed(0)}/month'
+                      '${room.dayWiseRate == null ? '' : ' · ₹${room.dayWiseRate!.toStringAsFixed(0)}/day'}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall,
@@ -576,6 +692,15 @@ class _RoomListScreenState extends State<RoomListScreen> {
                       ],
                     ),
                     children: [
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () => _openRoomDialog(room),
+                          icon: const Icon(Icons.edit_outlined),
+                          label: const Text('Edit room, stay type & pricing'),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
                       SizedBox(
                         width: double.infinity,
                         child: OutlinedButton.icon(
@@ -600,16 +725,20 @@ class _RoomListScreenState extends State<RoomListScreen> {
                             spacing: 9,
                             runSpacing: 9,
                             children: room.beds.map((bed) {
-                              final color = _bedColor(bed.status);
+                              final seat = _seatStyle(bed.status);
+                              final color = seat.foreground;
+                              final secondary = bed.status == BedStatus.occupied
+                                  ? Colors.white.withValues(alpha: .78)
+                                  : AppColors.muted;
                               return SizedBox(
                                 width: bedWidth,
                                 height: 94,
                                 child: Material(
-                                  color: color.withValues(alpha: 0.08),
+                                  color: seat.background,
                                   shape: RoundedRectangleBorder(
                                     side: BorderSide(
-                                        color: color.withValues(alpha: 0.35)),
-                                    borderRadius: BorderRadius.circular(13),
+                                        color: seat.border, width: 1.5),
+                                    borderRadius: BorderRadius.circular(8),
                                   ),
                                   clipBehavior: Clip.antiAlias,
                                   child: InkWell(
@@ -637,17 +766,17 @@ class _RoomListScreenState extends State<RoomListScreen> {
                                             bed.status.label,
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(
-                                                fontSize: 9,
-                                                color: AppColors.muted),
+                                            style: TextStyle(
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.w600,
+                                                color: secondary),
                                           ),
                                           Text(
                                             bed.bookingMode.label,
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(
-                                                fontSize: 8,
-                                                color: AppColors.muted),
+                                            style: TextStyle(
+                                                fontSize: 9, color: secondary),
                                           ),
                                         ],
                                       ),
@@ -664,9 +793,9 @@ class _RoomListScreenState extends State<RoomListScreen> {
                         spacing: 14,
                         runSpacing: 6,
                         children: [
-                          _legendDot(AppColors.success, 'Available'),
-                          _legendDot(AppColors.ink, 'Occupied'),
-                          _legendDot(AppColors.warning, 'Maintenance'),
+                          _legendDot(BedStatus.available, 'Available'),
+                          _legendDot(BedStatus.occupied, 'Occupied'),
+                          _legendDot(BedStatus.maintenance, 'Maintenance'),
                         ],
                       ),
                     ],
@@ -686,12 +815,16 @@ class _FloorSummary extends StatelessWidget {
   final int roomCount;
   final int availableCount;
   final int occupiedCount;
+  final RoomBookingMode? modeFilter;
+  final ValueChanged<RoomBookingMode?> onModeFilterChanged;
 
   const _FloorSummary({
     required this.name,
     required this.roomCount,
     required this.availableCount,
     required this.occupiedCount,
+    required this.modeFilter,
+    required this.onModeFilterChanged,
   });
 
   @override
@@ -699,7 +832,10 @@ class _FloorSummary extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-          color: AppColors.fill, borderRadius: BorderRadius.circular(18)),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.border),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -719,6 +855,28 @@ class _FloorSummary extends StatelessWidget {
                   value: '$occupiedCount',
                   label: 'Occupied',
                   color: AppColors.ink),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              ChoiceChip(
+                label: const Text('All stays'),
+                selected: modeFilter == null,
+                onSelected: (_) => onModeFilterChanged(null),
+              ),
+              ChoiceChip(
+                label: const Text('Monthly'),
+                selected: modeFilter == RoomBookingMode.monthly,
+                onSelected: (_) => onModeFilterChanged(RoomBookingMode.monthly),
+              ),
+              ChoiceChip(
+                label: const Text('Day-wise'),
+                selected: modeFilter == RoomBookingMode.dayWise,
+                onSelected: (_) => onModeFilterChanged(RoomBookingMode.dayWise),
+              ),
             ],
           ),
         ],
@@ -776,8 +934,8 @@ class _RoomMessageState extends StatelessWidget {
               width: 64,
               height: 64,
               decoration: const BoxDecoration(
-                  color: AppColors.fill, shape: BoxShape.circle),
-              child: Icon(icon, color: AppColors.ink, size: 30),
+                  color: AppColors.brandSoft, shape: BoxShape.circle),
+              child: Icon(icon, color: AppColors.brandText, size: 30),
             ),
             const SizedBox(height: 16),
             Text(title, style: Theme.of(context).textTheme.titleMedium),

@@ -6,7 +6,8 @@ import 'payment_models.dart';
 class PaymentRepository {
   final ApiClient _client = ApiClient.instance;
 
-  String _idempotencyKey() => '${DateTime.now().microsecondsSinceEpoch}-${Random.secure().nextInt(1 << 32)}';
+  String _idempotencyKey() =>
+      '${DateTime.now().microsecondsSinceEpoch}-${Random.secure().nextInt(1 << 32)}';
 
   Future<PaymentOrder> createBookingOrder(String bookingId) async {
     final response = await _client.post<Map<String, dynamic>>(
@@ -24,7 +25,8 @@ class PaymentRepository {
     return PaymentOrder.fromJson(response.data!);
   }
 
-  Future<PaymentOrder> verify(PaymentOrder order, String paymentId, String signature) async {
+  Future<PaymentOrder> verify(
+      PaymentOrder order, String paymentId, String signature) async {
     final response = await _client.post<Map<String, dynamic>>(
       '/student/payment-orders/${order.id}/verify',
       data: {'razorpayPaymentId': paymentId, 'razorpaySignature': signature},
@@ -33,7 +35,9 @@ class PaymentRepository {
   }
 
   Future<AutoPayMandate> enableAutoPay(int dueDay) async {
-    final response = await _client.post<Map<String, dynamic>>('/student/autopay', data: {'dueDay': dueDay});
+    final response = await _client.post<Map<String, dynamic>>(
+        '/student/autopay',
+        data: {'dueDay': dueDay});
     return AutoPayMandate.fromJson(response.data!);
   }
 }

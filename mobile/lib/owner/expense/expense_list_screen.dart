@@ -64,16 +64,9 @@ class _ExpenseListScreenState extends State<ExpenseListScreen> {
             !snapshot.hasError;
         return Scaffold(
           appBar: AppBar(
-            title: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Expenses'),
-                if (widget.pg != null)
-                  Text(widget.pg!.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall),
-              ],
+            title: AppBarTitle(
+              title: 'Expenses',
+              subtitle: widget.pg?.name,
             ),
           ),
           floatingActionButton: ready && expenses.isNotEmpty
@@ -126,7 +119,7 @@ class _ExpenseListScreenState extends State<ExpenseListScreen> {
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 color: AppColors.ink,
-                borderRadius: BorderRadius.circular(24),
+                borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
                 children: [

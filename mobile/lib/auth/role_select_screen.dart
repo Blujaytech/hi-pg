@@ -5,10 +5,11 @@ import 'package:go_router/go_router.dart';
 import '../core/theme.dart';
 import '../shared/brand/hi_pg_brand.dart';
 
-/// Welcome screen the launch animation wipes into: what hi pg is, and the
-/// app's only two entry points, grouped together a little above centre.
-/// Content eases in once and then stays still, so nothing competes with the
-/// choice.
+/// Welcome screen the launch animation wipes into: the brand, one line on
+/// what hi pg does, and the app's two entry points at the bottom where a
+/// thumb lands. Customer sign-in leads into the customer home, while owners
+/// use the secondary button. Content eases in once and then stays still, so
+/// nothing competes with the choice.
 class RoleSelectScreen extends StatefulWidget {
   const RoleSelectScreen({super.key});
 
@@ -18,17 +19,17 @@ class RoleSelectScreen extends StatefulWidget {
 
 class _RoleSelectScreenState extends State<RoleSelectScreen>
     with SingleTickerProviderStateMixin {
-  static const _stepCount = 6;
+  static const _stepCount = 5;
 
   late final AnimationController _entrance = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 1100),
+    duration: const Duration(milliseconds: 1000),
   );
   late final List<CurvedAnimation> _steps = [
     for (var i = 0; i < _stepCount; i++)
       CurvedAnimation(
         parent: _entrance,
-        curve: Interval(i * .08, .5 + i * .08, curve: Curves.easeOutCubic),
+        curve: Interval(i * .09, .55 + i * .09, curve: Curves.easeOutCubic),
       ),
   ];
 
@@ -60,7 +61,7 @@ class _RoleSelectScreenState extends State<RoleSelectScreen>
       builder: (context, child) => Opacity(
         opacity: animation.value,
         child: Transform.translate(
-          offset: Offset(0, (1 - animation.value) * 22),
+          offset: Offset(0, (1 - animation.value) * 18),
           child: child,
         ),
       ),
@@ -93,56 +94,98 @@ class _RoleSelectScreenState extends State<RoleSelectScreen>
                             child: HiPgLockup(height: 28),
                           ),
                         ),
-                        // Less space above than below lifts the message and
-                        // both choices a little above centre.
                         const Spacer(flex: 2),
-                        const SizedBox(height: 20),
-                        _step(1, const _LiveBanner()),
-                        const SizedBox(height: 56),
-                        _step(
-                          2,
-                          Text(
-                            'PG life, made simple.',
-                            style: textTheme.headlineMedium,
-                          ),
-                        ),
                         const SizedBox(height: 16),
+                        _step(1, const _Hero()),
+                        const SizedBox(height: 28),
                         _step(
                           2,
-                          Text(
-                            "Find a PG that fits your budget, or run your property's rooms, customers and rent, all in one app.",
-                            style: textTheme.bodyMedium
-                                ?.copyWith(color: AppColors.muted),
+                          Column(
+                            children: [
+                              Text(
+                                'Paying guest life, made simple.',
+                                textAlign: TextAlign.center,
+                                style: textTheme.headlineMedium?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: -.4,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                'Stay by the month or just for a few days, '
+                                "or run your property's rooms, customers "
+                                'and rent, all in one app.',
+                                textAlign: TextAlign.center,
+                                style: textTheme.bodyLarge
+                                    ?.copyWith(color: AppColors.muted),
+                              ),
+                            ],
                           ),
                         ),
-                        const SizedBox(height: 64),
+                        const SizedBox(height: 28),
                         _step(
-                          3,
-                          _RoleCard(
-                            buttonKey: const Key('owner-entry-button'),
-                            icon: Icons.domain_rounded,
-                            title: "I'm a PG owner",
-                            subtitle: 'Manage rooms, customers & rent',
-                            primary: true,
-                            onTap: () => context.push('/owner/login'),
-                          ),
-                        ),
-                        const SizedBox(height: 18),
-                        _step(
-                          4,
-                          _RoleCard(
-                            buttonKey: const Key('student-entry-button'),
-                            icon: Icons.search_rounded,
-                            title: 'Search for a stay',
-                            subtitle: 'Browse PGs, no sign-up needed',
-                            primary: false,
-                            onTap: () => context.push('/explore'),
+                          2,
+                          const Row(
+                            children: [
+                              Expanded(
+                                child: _Benefit(
+                                  icon: Icons.bed_outlined,
+                                  label: 'Live bed\navailability',
+                                ),
+                              ),
+                              Expanded(
+                                child: _Benefit(
+                                  icon: Icons.calendar_month_outlined,
+                                  label: 'Monthly or\nday-wise stays',
+                                ),
+                              ),
+                              Expanded(
+                                child: _Benefit(
+                                  icon: Icons.verified_user_outlined,
+                                  label: 'Secure\npayments',
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                         const Spacer(flex: 3),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 28),
                         _step(
-                          5,
+                          3,
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              FilledButton.icon(
+                                key: const Key('student-entry-button'),
+                                onPressed: () => context.push('/student/login'),
+                                style: FilledButton.styleFrom(
+                                    minimumSize: const Size(0, 54)),
+                                icon:
+                                    const Icon(Icons.search_rounded, size: 21),
+                                label: const Text('Search for a stay'),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Sign in or create an account to continue',
+                                textAlign: TextAlign.center,
+                                style: textTheme.bodySmall,
+                              ),
+                              const SizedBox(height: 16),
+                              OutlinedButton.icon(
+                                key: const Key('owner-entry-button'),
+                                onPressed: () => context.push('/owner/login'),
+                                style: OutlinedButton.styleFrom(
+                                    minimumSize: const Size(0, 54)),
+                                icon:
+                                    const Icon(Icons.domain_rounded, size: 20),
+                                label: const Text("I'm a PG owner"),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 22),
+                        _step(
+                          4,
                           const Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
@@ -170,155 +213,59 @@ class _RoleSelectScreenState extends State<RoleSelectScreen>
   }
 }
 
-/// Compact banner: the customer promise in one line, with the brand mark.
-class _LiveBanner extends StatelessWidget {
-  const _LiveBanner();
+/// The house mark on a soft rose disc.
+class _Hero extends StatelessWidget {
+  const _Hero();
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(18, 16, 16, 16),
-      decoration: BoxDecoration(
-        color: AppColors.ink,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 6,
-                      height: 6,
-                      decoration: const BoxDecoration(
-                        color: AppColors.live,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      'LIVE AVAILABILITY',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: .7),
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: .8,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'See which beds are free before you visit.',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 15,
-                    height: 1.3,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: -.2,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 14),
-          const HiPgMark(
-            size: 46,
-            color: AppColors.surface,
-            faceColor: AppColors.ink,
-          ),
-        ],
+    return Center(
+      child: Container(
+        width: 120,
+        height: 120,
+        alignment: Alignment.center,
+        decoration: const BoxDecoration(
+          color: AppColors.brandSoft,
+          shape: BoxShape.circle,
+        ),
+        child: const HiPgMark(size: 64),
       ),
     );
   }
 }
 
-class _RoleCard extends StatelessWidget {
-  final Key buttonKey;
+class _Benefit extends StatelessWidget {
   final IconData icon;
-  final String title;
-  final String subtitle;
-  final bool primary;
-  final VoidCallback onTap;
+  final String label;
 
-  const _RoleCard({
-    required this.buttonKey,
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.primary,
-    required this.onTap,
-  });
+  const _Benefit({required this.icon, required this.label});
 
   @override
   Widget build(BuildContext context) {
-    final foreground = primary ? Colors.white : AppColors.ink;
-    return Semantics(
-      button: true,
-      child: Material(
-        color: primary ? AppColors.ink : AppColors.fill,
-        borderRadius: BorderRadius.circular(16),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          key: buttonKey,
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(10, 10, 14, 10),
-            child: Row(
-              children: [
-                Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: primary ? Colors.white : AppColors.ink,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    icon,
-                    size: 19,
-                    color: primary ? AppColors.ink : Colors.white,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        title,
-                        style: TextStyle(
-                          color: foreground,
-                          fontSize: 14.5,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: -.1,
-                        ),
-                      ),
-                      const SizedBox(height: 1),
-                      Text(
-                        subtitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: primary
-                              ? Colors.white.withValues(alpha: .62)
-                              : AppColors.muted,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(Icons.arrow_forward_rounded, color: foreground, size: 19),
-              ],
-            ),
+    return Column(
+      children: [
+        Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            shape: BoxShape.circle,
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Icon(icon, color: AppColors.brand, size: 21),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          label,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            color: AppColors.ink,
+            fontSize: 12,
+            height: 1.3,
+            fontWeight: FontWeight.w500,
           ),
         ),
-      ),
+      ],
     );
   }
 }

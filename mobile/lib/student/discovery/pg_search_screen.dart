@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -9,8 +10,12 @@ import '../../auth/auth_state.dart';
 import '../../core/api_exception.dart';
 import '../../core/theme.dart';
 import '../../shared/app_states.dart';
+import 'city_picker_sheet.dart';
 import 'discovery_models.dart';
 import 'discovery_repository.dart';
+import 'location_lookup.dart';
+import 'location_preference_store.dart';
+import 'pg_poster_card.dart';
 import 'search_filters.dart';
 
 final _money = NumberFormat.currency(
@@ -19,12 +24,10 @@ final _money = NumberFormat.currency(
   decimalDigits: 0,
 );
 
-const _underEightK = RangeValues(SearchFilters.budgetFloor, 8000);
-
 String _genderLabel(GenderPreference gender) => switch (gender) {
       GenderPreference.male => 'Men',
       GenderPreference.female => 'Women',
-      GenderPreference.coEd => 'Co-ed',
+      GenderPreference.coEd => 'Co-Living',
     };
 
 String _budgetLabel(RangeValues budget) {
@@ -36,17 +39,26 @@ String _budgetLabel(RangeValues budget) {
   return '${_money.format(budget.start)} – ${_money.format(budget.end)}';
 }
 
-/// PG search: one box that narrows results as you type (area, PG name or
-/// city), quick filter chips, a full Filters sheet and a Sort menu.
+/// PG search: a location (all cities, one city, or near me) chosen from the
+/// header or the pin in the search box, one box that narrows results as you
+/// type (area, PG name or pincode), focused gender chips and a full Filters
+/// sheet.
 class PgSearchScreen extends StatefulWidget {
-  const PgSearchScreen({super.key});
+  /// Injectable for tests; defaults to the public discovery API.
+  final DiscoveryRepository? repository;
+
+  const PgSearchScreen({super.key, this.repository});
 
   @override
   State<PgSearchScreen> createState() => _PgSearchScreenState();
 }
 
 class _PgSearchScreenState extends State<PgSearchScreen> {
-  final _repository = DiscoveryRepository();
+  /// "Near me" keeps PGs within this straight-line distance.
+  static const double _nearRadiusKm = 15;
+
+  late final DiscoveryRepository _repository =
+      widget.repository ?? DiscoveryRepository();
   final _queryController = TextEditingController();
   Timer? _debounce;
   SearchFilters _filters = const SearchFilters();
@@ -60,19 +72,47 @@ class _PgSearchScreenState extends State<PgSearchScreen> {
   String? _error;
   int _generation = 0;
 
-  /// Results only show once something is searched or filtered, unless
-  /// the customer asks to browse everything.
+  /// Results only show once something is searched, filtered or a place is
+  /// chosen, unless the customer asks to browse everything.
   bool _browseAll = false;
+  bool _locating = false;
 
-  /// Kept for the app session so the start page can offer them again.
+  // Kept for the app session so leaving and coming back to Explore keeps the
+  // customer's place and history.
   static final List<String> _recentSearches = [];
+  static LocationChoice _location = const LocationChoice.allCities();
+  static double? _latitude;
+  static double? _longitude;
+  final _locationStore = LocationPreferenceStore();
 
-  bool get _showResults => _browseAll || !_filters.isEmpty;
+  bool get _nearMe =>
+      _location.nearMe && _latitude != null && _longitude != null;
+
+  bool get _showResults =>
+      _browseAll || !_filters.isEmpty || _nearMe || _location.city != null;
 
   @override
   void initState() {
     super.initState();
-    _search();
+    _restoreLocation();
+  }
+
+  Future<void> _restoreLocation() async {
+    if (_location.nearMe && !_nearMe) {
+      _location = const LocationChoice.allCities();
+    }
+    final saved = await _locationStore.read();
+    if (!mounted) return;
+    if (saved.nearMe) {
+      _latitude = saved.latitude;
+      _longitude = saved.longitude;
+      _location = const LocationChoice.nearMe();
+    } else if (saved.city != null) {
+      _latitude = null;
+      _longitude = null;
+      _location = LocationChoice.city(saved.city!);
+    }
+    await _search();
   }
 
   @override
@@ -86,6 +126,7 @@ class _PgSearchScreenState extends State<PgSearchScreen> {
 
   Future<PagedResult<PgSearchResult>> _fetch(int page) => _repository.search(
         query: _filters.query,
+        city: _nearMe ? null : _location.city,
         genderPreference: _filters.gender,
         minRent: _filters.minRent,
         maxRent: _filters.maxRent,
@@ -191,6 +232,93 @@ class _PgSearchScreenState extends State<PgSearchScreen> {
           ? _filters.copyWith(clearGender: true)
           : _filters.copyWith(gender: gender));
 
+  void _toggleStayType(StayType type) => _update(
+        _filters.copyWith(
+            stayType: _filters.stayType == type ? StayType.any : type),
+        refetch: false,
+      );
+
+  Future<void> _setLocation(LocationChoice choice) async {
+    if (choice.sameAs(_location) && !choice.nearMe) return;
+    setState(() => _location = choice);
+    if (choice.city != null) {
+      _latitude = null;
+      _longitude = null;
+      await _locationStore.saveCity(choice.city!);
+    } else if (!choice.nearMe) {
+      _latitude = null;
+      _longitude = null;
+      await _locationStore.saveDismissed();
+    }
+    await _search();
+  }
+
+  Future<void> _chooseLocation() async {
+    FocusScope.of(context).unfocus();
+    final picked = await showCityPicker(
+      context,
+      current: _nearMe ? const LocationChoice.nearMe() : _location,
+    );
+    if (picked == null || !mounted) return;
+    if (picked.nearMe) {
+      await _useNearMe();
+    } else {
+      await _setLocation(picked);
+    }
+  }
+
+  Future<void> _useNearMe() async {
+    if (_locating) return;
+    FocusScope.of(context).unfocus();
+    setState(() => _locating = true);
+    final lookup = await lookUpLocation();
+    if (!mounted) return;
+    setState(() => _locating = false);
+    if (!lookup.ok) {
+      _explainLocationProblem(lookup.problem!);
+      return;
+    }
+    _latitude = lookup.position!.latitude;
+    _longitude = lookup.position!.longitude;
+    await _locationStore.saveNearMe(_latitude!, _longitude!);
+    await _setLocation(const LocationChoice.nearMe());
+  }
+
+  void _explainLocationProblem(LocationProblem problem) {
+    final (message, action, onAction) = switch (problem) {
+      LocationProblem.serviceOff => (
+          'Turn on location to see PGs near you.',
+          'Turn on',
+          Geolocator.openLocationSettings,
+        ),
+      LocationProblem.deniedForever => (
+          'Location access is off for hi pg. Allow it in settings to see PGs near you.',
+          'Settings',
+          Geolocator.openAppSettings,
+        ),
+      LocationProblem.denied => (
+          'Allow location access to see PGs near you, or pick your city instead.',
+          'Pick city',
+          () async {
+            await _chooseLocation();
+            return true;
+          },
+        ),
+      LocationProblem.unavailable => (
+          "Couldn't find your location right now. Try again, or pick your city.",
+          'Pick city',
+          () async {
+            await _chooseLocation();
+            return true;
+          },
+        ),
+    };
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(message),
+      action: SnackBarAction(label: action, onPressed: () => onAction()),
+    ));
+  }
+
   Future<void> _openFilters() async {
     FocusScope.of(context).unfocus();
     final result = await showModalBottomSheet<SearchFilters>(
@@ -203,43 +331,31 @@ class _PgSearchScreenState extends State<PgSearchScreen> {
     if (result != null && mounted) _update(result);
   }
 
-  Future<void> _openSort() async {
-    FocusScope.of(context).unfocus();
-    final picked = await showModalBottomSheet<SortOption>(
-      context: context,
-      showDragHandle: true,
-      builder: (sheetContext) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                child: Text('Sort by',
-                    style: Theme.of(sheetContext).textTheme.titleLarge),
-              ),
-              for (final option in SortOption.values)
-                _OptionTile(
-                  label: option.label,
-                  selected: _filters.sort == option,
-                  onTap: () => Navigator.pop(sheetContext, option),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-    // Sorting reorders what's loaded; no need to ask the server again.
-    if (picked != null && mounted) {
-      _update(_filters.copyWith(sort: picked), refetch: false);
+  /// What's on screen, plus each PG's distance when searching near the
+  /// customer (PGs without a map pin can't be placed, so they're left out).
+  (List<PgSearchResult>, Map<String, double>) _visible() {
+    final list = _filters.apply(_loaded);
+    final latitude = _latitude;
+    final longitude = _longitude;
+    if (!_nearMe || latitude == null || longitude == null) {
+      return (list, const {});
     }
+    final distances = <String, double>{};
+    for (final pg in list) {
+      if (pg.latitude == null || pg.longitude == null) continue;
+      final km = distanceKm(latitude, longitude, pg.latitude!, pg.longitude!);
+      if (km <= _nearRadiusKm) distances[pg.id] = km;
+    }
+    final near = list.where((pg) => distances.containsKey(pg.id)).toList();
+    if (_filters.sort == SortOption.recommended) {
+      near.sort((a, b) => distances[a.id]!.compareTo(distances[b.id]!));
+    }
+    return (near, distances);
   }
 
   @override
   Widget build(BuildContext context) {
-    final visible = _filters.apply(_loaded);
+    final (visible, distances) = _visible();
     // Keep filling the list when local filters leave too little on screen.
     if (_showResults &&
         !_loading &&
@@ -250,38 +366,34 @@ class _PgSearchScreenState extends State<PgSearchScreen> {
       WidgetsBinding.instance.addPostFrameCallback((_) => _loadMore());
     }
     return Scaffold(
-      appBar: _exploreAppBar(context),
+      appBar: _appBar(),
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
-            child: TextField(
-              controller: _queryController,
-              textInputAction: TextInputAction.search,
-              onChanged: _onQueryChanged,
-              onSubmitted: (text) {
-                _rememberSearch(text);
-                _search();
-              },
-              decoration: InputDecoration(
-                hintText: 'Search area, PG name or city',
-                prefixIcon: const Icon(Icons.search_rounded),
-                suffixIcon: _queryController.text.isEmpty
-                    ? null
-                    : IconButton(
-                        tooltip: 'Clear',
-                        icon: const Icon(Icons.close_rounded),
-                        onPressed: _clearQuery,
-                      ),
-              ),
-            ),
+          _SearchBand(
+            controller: _queryController,
+            hint: _nearMe
+                ? 'Search PGs near you'
+                : _location.city != null
+                    ? 'Search areas or PGs in ${_location.city}'
+                    : 'Search area, PG name or pincode',
+            locating: _locating,
+            onChanged: _onQueryChanged,
+            onSubmitted: (text) {
+              _rememberSearch(text);
+              _search();
+            },
+            onClear: _clearQuery,
+            onPickLocation: _chooseLocation,
           ),
-          const SizedBox(height: 12),
-          SizedBox(
-            height: 40,
+          Container(
+            height: 58,
+            decoration: const BoxDecoration(
+              color: AppColors.surface,
+              border: Border(bottom: BorderSide(color: AppColors.border)),
+            ),
             child: ListView(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 20),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               children: [
                 _QuickFilter(
                   label: 'Filters',
@@ -290,30 +402,20 @@ class _PgSearchScreenState extends State<PgSearchScreen> {
                   badge: _filters.activeCount,
                   onTap: _openFilters,
                 ),
-                const SizedBox(width: 8),
-                _QuickFilter(
-                  label: _filters.sort == SortOption.recommended
-                      ? 'Sort'
-                      : _filters.sort.label,
-                  leading: Icons.swap_vert_rounded,
-                  trailing: Icons.expand_more_rounded,
-                  selected: _filters.sort != SortOption.recommended,
-                  onTap: _openSort,
-                ),
-                Container(
-                  width: 1,
-                  margin:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  color: AppColors.border,
-                ),
-                _QuickFilter(
-                  label: 'Available now',
-                  selected: _filters.availableOnly,
-                  onTap: () => _update(
-                    _filters.copyWith(availableOnly: !_filters.availableOnly),
-                    refetch: false,
+                if (_showResults) ...[
+                  const SizedBox(width: 8),
+                  _QuickFilter(
+                    label: 'Monthly',
+                    selected: _filters.stayType == StayType.monthly,
+                    onTap: () => _toggleStayType(StayType.monthly),
                   ),
-                ),
+                  const SizedBox(width: 8),
+                  _QuickFilter(
+                    label: 'Day-wise',
+                    selected: _filters.stayType == StayType.dayWise,
+                    onTap: () => _toggleStayType(StayType.dayWise),
+                  ),
+                ],
                 for (final gender in GenderPreference.values) ...[
                   const SizedBox(width: 8),
                   _QuickFilter(
@@ -322,48 +424,145 @@ class _PgSearchScreenState extends State<PgSearchScreen> {
                     onTap: () => _toggleGender(gender),
                   ),
                 ],
-                const SizedBox(width: 8),
-                _QuickFilter(
-                  label: 'Under ₹8k',
-                  selected: _filters.budget == _underEightK,
-                  onTap: () => _update(_filters.copyWith(
-                    budget: _filters.budget == _underEightK
-                        ? SearchFilters.anyBudget
-                        : _underEightK,
-                  )),
-                ),
               ],
             ),
           ),
-          const SizedBox(height: 6),
           Expanded(
-            child: _showResults ? _buildResults(visible) : _buildStartPage(),
+            child: _showResults
+                ? _buildResults(visible, distances)
+                : _buildStartPage(),
           ),
         ],
       ),
     );
   }
 
+  /// Guests reach search from the welcome screen (`/explore`) without an
+  /// account, so they get a back arrow and a sign-in shortcut instead of
+  /// tabs. The title doubles as the location switcher.
+  PreferredSizeWidget _appBar() {
+    final guestMode = _isGuestExplore(context);
+    final signedIn =
+        context.watch<AuthState>().status == AuthStatus.authenticated;
+    return AppBar(
+      title: Semantics(
+        button: true,
+        label: 'Location: ${_nearMe ? 'near you' : _location.label}. Change',
+        child: ExcludeSemantics(
+          child: InkWell(
+            onTap: _chooseLocation,
+            borderRadius: BorderRadius.circular(6),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Explore'),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        _nearMe
+                            ? Icons.my_location_rounded
+                            : Icons.location_on_rounded,
+                        size: 14,
+                        color: const Color(0xFFFF8FA3),
+                      ),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text(
+                          _nearMe ? 'Near you' : _location.label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: .85),
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0,
+                          ),
+                        ),
+                      ),
+                      Icon(Icons.expand_more_rounded,
+                          size: 16, color: Colors.white.withValues(alpha: .7)),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        if (guestMode)
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: Colors.white),
+            onPressed: () {
+              if (signedIn) {
+                context.go('/student');
+              } else {
+                context.push('/student/login');
+              }
+            },
+            child: Text(signedIn ? 'My account' : 'Sign in'),
+          ),
+        const SizedBox(width: 8),
+      ],
+    );
+  }
+
   Widget _buildStartPage() {
     final textTheme = Theme.of(context).textTheme;
-    final areas = popularAreas(_loaded);
-    final total = _hasMore ? '${_loaded.length}+' : '${_loaded.length}';
     return ListView(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+      padding: const EdgeInsets.fromLTRB(16, 28, 16, 32),
       children: [
-        Text('Where do you want to stay?', style: textTheme.headlineSmall),
-        const SizedBox(height: 6),
-        Text(
-          'Search an area, PG name or city, or pick a filter above.',
-          style: textTheme.bodyMedium?.copyWith(color: AppColors.muted),
+        Center(
+          child: Text(
+            'How long are you staying?',
+            textAlign: TextAlign.center,
+            style: textTheme.titleMedium,
+          ),
+        ),
+        const SizedBox(height: 14),
+        Center(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: 126,
+                height: 96,
+                child: _StayTypeCard(
+                  icon: Icons.calendar_month_outlined,
+                  title: 'Monthly',
+                  onTap: () {
+                    _browseAll = true;
+                    _toggleStayType(StayType.monthly);
+                  },
+                ),
+              ),
+              const SizedBox(width: 12),
+              SizedBox(
+                width: 126,
+                height: 96,
+                child: _StayTypeCard(
+                  icon: Icons.nights_stay_outlined,
+                  title: 'Day-wise',
+                  onTap: () {
+                    _browseAll = true;
+                    _toggleStayType(StayType.dayWise);
+                  },
+                ),
+              ),
+            ],
+          ),
         ),
         if (_recentSearches.isNotEmpty) ...[
-          const SizedBox(height: 26),
+          const SizedBox(height: 22),
           Row(
             children: [
               Expanded(
-                  child: Text('Recent searches', style: textTheme.titleSmall)),
+                  child: Text('Recent searches', style: textTheme.titleMedium)),
               TextButton(
                 onPressed: () => setState(_recentSearches.clear),
                 child: const Text('Clear'),
@@ -381,108 +580,270 @@ class _PgSearchScreenState extends State<PgSearchScreen> {
               onTap: () => _searchFor(query),
             ),
         ],
-        if (areas.isNotEmpty) ...[
-          const SizedBox(height: 26),
-          Text('Popular areas', style: textTheme.titleSmall),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final area in areas)
-                _QuickFilter(
-                  label: area,
-                  leading: Icons.place_outlined,
-                  selected: false,
-                  onTap: () => _searchFor(area),
-                ),
-            ],
-          ),
-        ],
-        const SizedBox(height: 30),
-        OutlinedButton.icon(
-          onPressed: () => setState(() => _browseAll = true),
-          icon: const Icon(Icons.apartment_rounded, size: 19),
-          label: Text(
-              _loaded.isEmpty ? 'Browse all PGs' : 'Browse all $total PGs'),
-        ),
       ],
     );
   }
 
-  Widget _buildResults(List<PgSearchResult> visible) {
+  Widget _buildResults(
+      List<PgSearchResult> visible, Map<String, double> distances) {
     if (_loading && _loaded.isEmpty) {
-      return const AppLoadingView(label: 'Finding stays...');
+      return AppLoadingView(
+          label: _nearMe ? 'Finding stays near you...' : 'Finding stays...');
     }
     if (_error != null) {
       return AppErrorView(message: _error!, onRetry: _search);
     }
     final query = _filters.query.trim();
     if (visible.isEmpty && !_hasMore) {
+      if (_nearMe && _filters.isEmpty) {
+        return AppEmptyView(
+          icon: Icons.location_searching_rounded,
+          title: 'No PGs within ${_nearRadiusKm.round()} km of you yet',
+          message: 'Pick your city to see every PG listed there.',
+          actionLabel: 'Pick city',
+          actionIcon: Icons.location_city_rounded,
+          onAction: _chooseLocation,
+        );
+      }
       return AppEmptyView(
         icon: Icons.search_off_rounded,
         title: query.isEmpty
             ? 'No PGs match these filters'
             : 'No PGs match "$query"',
-        message: 'Try an area, PG name or city, or loosen a filter.',
-        actionLabel: _filters.isEmpty ? null : 'Clear all',
-        actionIcon: Icons.close_rounded,
-        onAction: _filters.isEmpty ? null : _clearAll,
+        message: _location.city != null
+            ? 'Try another area of ${_location.city}, loosen a filter, or change the city.'
+            : 'Try an area, PG name or pincode, or loosen a filter.',
+        actionLabel: _filters.isEmpty ? 'Change city' : 'Clear filters',
+        actionIcon: _filters.isEmpty
+            ? Icons.location_city_rounded
+            : Icons.close_rounded,
+        onAction: _filters.isEmpty ? _chooseLocation : _clearAll,
       );
     }
+    final count = '${visible.length}${_hasMore ? '+' : ''}';
+    final where = _nearMe
+        ? ' near you'
+        : _location.city != null
+            ? ' in ${_location.city}'
+            : '';
     return RefreshIndicator(
       onRefresh: _search,
-      child: ListView.separated(
+      child: CustomScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-        padding: const EdgeInsets.fromLTRB(20, 6, 20, 24),
-        itemCount: visible.length + 2,
-        separatorBuilder: (_, __) => const SizedBox(height: 12),
-        itemBuilder: (context, index) {
-          if (index == 0) {
-            final count = '${visible.length}${_hasMore ? '+' : ''}';
-            return Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    '$count ${visible.length == 1 && !_hasMore ? 'stay' : 'stays'}'
-                    '${query.isEmpty ? '' : ' for "$query"'}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleSmall,
-                  ),
+        slivers: [
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+            sliver: SliverToBoxAdapter(
+              child: SizedBox(
+                height: 44,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '$count ${visible.length == 1 && !_hasMore ? 'stay' : 'stays'}'
+                        '${query.isEmpty ? where : ' for "$query"$where'}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                    ),
+                    if (_loading)
+                      const Padding(
+                        padding: EdgeInsets.only(right: 8),
+                        child: SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      )
+                  ],
                 ),
-                if (_loading)
-                  const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                else if (!_filters.isEmpty)
-                  TextButton(
-                      onPressed: _clearAll, child: const Text('Clear all')),
+              ),
+            ),
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            sliver: SliverLayoutBuilder(
+              builder: (context, constraints) {
+                const spacing = 12.0;
+                final cellWidth = (constraints.crossAxisExtent - spacing) / 2;
+                final cellHeight = cellWidth * pgPosterImageHeightRatio +
+                    MediaQuery.textScalerOf(context).scale(pgPosterTextHeight);
+                return SliverGrid(
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: spacing,
+                    mainAxisSpacing: 18,
+                    mainAxisExtent: cellHeight,
+                  ),
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final pg = visible[index];
+                      return PgPosterCard(
+                        pg: pg,
+                        distanceKm: distances[pg.id],
+                        onTap: () {
+                          _rememberSearch(_filters.query);
+                          final type = switch (_filters.stayType) {
+                            StayType.monthly => 'MONTHLY',
+                            StayType.dayWise => 'DAY_WISE',
+                            StayType.any => null,
+                          };
+                          context.push(Uri(
+                            path: '${_detailsBase(context)}/${pg.id}',
+                            queryParameters:
+                                type == null ? null : {'stayType': type},
+                          ).toString());
+                        },
+                      );
+                    },
+                    childCount: visible.length,
+                  ),
+                );
+              },
+            ),
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
+            sliver: SliverToBoxAdapter(
+              child: !_hasMore
+                  ? const SizedBox.shrink()
+                  : OutlinedButton(
+                      onPressed: _loadingMore ? null : _loadMore,
+                      style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(0, 48)),
+                      child: _loadingMore
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text('Show more'),
+                    ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Charcoal band under the app bar: the search box, with a pin at its right
+/// edge that opens the location picker.
+class _SearchBand extends StatelessWidget {
+  final TextEditingController controller;
+  final String hint;
+  final bool locating;
+  final ValueChanged<String> onChanged;
+  final ValueChanged<String> onSubmitted;
+  final VoidCallback onClear;
+  final VoidCallback onPickLocation;
+
+  const _SearchBand({
+    required this.controller,
+    required this.hint,
+    required this.locating,
+    required this.onChanged,
+    required this.onSubmitted,
+    required this.onClear,
+    required this.onPickLocation,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: AppColors.ink,
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 14),
+      child: ValueListenableBuilder<TextEditingValue>(
+        valueListenable: controller,
+        builder: (context, value, _) => TextField(
+          controller: controller,
+          textInputAction: TextInputAction.search,
+          onChanged: onChanged,
+          onSubmitted: onSubmitted,
+          decoration: InputDecoration(
+            hintText: hint,
+            contentPadding: const EdgeInsets.symmetric(vertical: 13),
+            enabledBorder: const OutlineInputBorder(
+              borderRadius: BorderRadius.all(Radius.circular(8)),
+              borderSide: BorderSide.none,
+            ),
+            prefixIcon: const Icon(Icons.search_rounded),
+            suffixIcon: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (value.text.isNotEmpty)
+                  IconButton(
+                    tooltip: 'Clear',
+                    icon: const Icon(Icons.close_rounded),
+                    onPressed: onClear,
+                  ),
+                Container(width: 1, height: 24, color: AppColors.border),
+                IconButton(
+                  tooltip: 'Choose city or use your location',
+                  onPressed: onPickLocation,
+                  icon: locating
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.location_on_rounded,
+                          color: AppColors.brand),
+                ),
+                const SizedBox(width: 2),
               ],
-            );
-          }
-          if (index == visible.length + 1) {
-            if (!_hasMore) return const SizedBox.shrink();
-            return OutlinedButton(
-              onPressed: _loadingMore ? null : _loadMore,
-              style: OutlinedButton.styleFrom(minimumSize: const Size(0, 48)),
-              child: _loadingMore
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('Show more'),
-            );
-          }
-          return _PgResultCard(
-            pg: visible[index - 1],
-            onOpen: () => _rememberSearch(_filters.query),
-          );
-        },
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StayTypeCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final VoidCallback onTap;
+
+  const _StayTypeCard({
+    required this.icon,
+    required this.title,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: AppColors.border),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: AppColors.brand, size: 22),
+              const SizedBox(height: 6),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                style: const TextStyle(
+                  color: AppColors.ink,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -531,6 +892,22 @@ class _FiltersSheetState extends State<_FiltersSheet> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  Text('Stay type', style: textTheme.titleSmall),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final type in StayType.values)
+                        _QuickFilter(
+                          label: type == StayType.any ? 'Any' : type.label,
+                          selected: _draft.stayType == type,
+                          onTap: () => setState(
+                              () => _draft = _draft.copyWith(stayType: type)),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 26),
                   Text('PG for', style: textTheme.titleSmall),
                   const SizedBox(height: 10),
                   Wrap(
@@ -620,7 +997,6 @@ class _QuickFilter extends StatelessWidget {
   final String label;
   final bool selected;
   final IconData? leading;
-  final IconData? trailing;
   final int badge;
   final VoidCallback onTap;
 
@@ -629,22 +1005,23 @@ class _QuickFilter extends StatelessWidget {
     required this.selected,
     required this.onTap,
     this.leading,
-    this.trailing,
     this.badge = 0,
   });
 
   @override
   Widget build(BuildContext context) {
-    final foreground = selected ? Colors.white : AppColors.ink;
+    final foreground = selected ? AppColors.brandText : AppColors.ink;
     return Material(
-      color: selected ? AppColors.ink : AppColors.fill,
-      shape: const StadiumBorder(),
+      color: selected ? AppColors.brandSoft : AppColors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(6),
+        side: BorderSide(color: selected ? AppColors.brand : AppColors.line),
+      ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: EdgeInsets.fromLTRB(
-              leading == null ? 16 : 12, 9, trailing == null ? 16 : 10, 9),
+          padding: EdgeInsets.fromLTRB(leading == null ? 14 : 10, 8, 14, 8),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -657,7 +1034,7 @@ class _QuickFilter extends StatelessWidget {
                 style: TextStyle(
                   color: foreground,
                   fontSize: 13,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
               if (badge > 0) ...[
@@ -667,208 +1044,25 @@ class _QuickFilter extends StatelessWidget {
                   height: 18,
                   alignment: Alignment.center,
                   decoration: const BoxDecoration(
-                    color: Colors.white,
+                    color: AppColors.brand,
                     shape: BoxShape.circle,
                   ),
                   child: Text(
                     '$badge',
                     style: const TextStyle(
-                      color: AppColors.ink,
+                      color: Colors.white,
                       fontSize: 11,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
                 ),
               ],
-              if (trailing != null) ...[
-                const SizedBox(width: 2),
-                Icon(trailing, size: 18, color: foreground),
-              ],
             ],
           ),
         ),
       ),
     );
   }
-}
-
-class _OptionTile extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _OptionTile({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      title: Text(
-        label,
-        style: TextStyle(
-          fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-        ),
-      ),
-      trailing: selected
-          ? const Icon(Icons.check_circle_rounded, color: AppColors.ink)
-          : null,
-      onTap: onTap,
-    );
-  }
-}
-
-class _PgResultCard extends StatelessWidget {
-  final PgSearchResult pg;
-  final VoidCallback? onOpen;
-
-  const _PgResultCard({required this.pg, this.onOpen});
-
-  String _rentLabel() {
-    final min = pg.minRentPerBed;
-    if (min == null) return 'Rent on request';
-    final max = pg.maxRentPerBed;
-    return max == null || max == min
-        ? '${_money.format(min)}/mo'
-        : 'from ${_money.format(min)}';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final available = pg.availableBeds > 0;
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () {
-          onOpen?.call();
-          context.push('${_detailsBase(context)}/${pg.id}');
-        },
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(15),
-                child: pg.photoUrl == null
-                    ? Container(
-                        width: 56,
-                        height: 68,
-                        color: AppColors.ink,
-                        child: const Icon(Icons.apartment_rounded,
-                            color: Colors.white, size: 26),
-                      )
-                    : Image.network(
-                        pg.photoUrl!,
-                        width: 56,
-                        height: 68,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(
-                          width: 56,
-                          height: 68,
-                          color: AppColors.ink,
-                          child: const Icon(Icons.apartment_rounded,
-                              color: Colors.white, size: 26),
-                        ),
-                      ),
-              ),
-              const SizedBox(width: 13),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      pg.name,
-                      style: Theme.of(context).textTheme.titleMedium,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        const Icon(Icons.place_outlined,
-                            size: 15, color: AppColors.muted),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            '${pg.address}, ${pg.city}',
-                            style: Theme.of(context).textTheme.bodySmall,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Wrap(
-                            spacing: 6,
-                            runSpacing: 6,
-                            children: [
-                              StatusPill(
-                                  label: _genderLabel(pg.genderPreference)),
-                              StatusPill(
-                                label: available
-                                    ? '${pg.availableBeds} ${pg.availableBeds == 1 ? 'bed' : 'beds'} free'
-                                    : 'Full',
-                                tone: available
-                                    ? StatusTone.success
-                                    : StatusTone.neutral,
-                                dot: available,
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          _rentLabel(),
-                          style: const TextStyle(
-                            color: AppColors.ink,
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Guests reach search from the welcome screen (`/explore`) without an
-/// account, so they get a back arrow and a sign-in shortcut instead of tabs.
-PreferredSizeWidget _exploreAppBar(BuildContext context) {
-  final guestMode = _isGuestExplore(context);
-  final signedIn =
-      context.watch<AuthState>().status == AuthStatus.authenticated;
-  return AppBar(
-    title: const Text('Explore'),
-    actions: [
-      if (guestMode)
-        TextButton(
-          onPressed: () {
-            if (signedIn) {
-              context.go('/student');
-            } else {
-              context.push('/student/login');
-            }
-          },
-          child: Text(signedIn ? 'My account' : 'Sign in'),
-        ),
-      const SizedBox(width: 8),
-    ],
-  );
 }
 
 bool _isGuestExplore(BuildContext context) =>

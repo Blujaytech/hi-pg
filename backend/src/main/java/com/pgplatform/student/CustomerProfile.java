@@ -28,6 +28,10 @@ public class CustomerProfile extends BaseEntity {
     @Column(length = 120)
     private String occupation;
 
+    /** Owner-visible booking contact; it is deliberately not an OTP/auth field. */
+    @Column(name = "contact_phone", length = 16)
+    private String contactPhone;
+
     @Column(name = "permanent_address", columnDefinition = "text")
     private String permanentAddress;
 

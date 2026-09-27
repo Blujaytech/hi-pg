@@ -52,18 +52,18 @@ void _foreground(Canvas canvas, double size) => _mark(
       size * HiPgMarkPainter.adaptiveMarkFraction,
     );
 
-/// Pre-Android 8 launchers: a full black tile (square or round) with the mark.
+/// Pre-Android 8 launchers: a full rose tile (square or round) with the mark.
 void _legacy(Canvas canvas, double size, {required bool round}) {
   final inset = size * 2 / 48;
   final tile = Rect.fromLTRB(inset, inset, size - inset, size - inset);
-  final paint = Paint()..color = AppColors.ink;
+  final paint = Paint()..color = AppColors.brand;
   if (round) {
     canvas.drawOval(tile, paint);
   } else {
     canvas.drawRRect(
         RRect.fromRectAndRadius(tile, Radius.circular(size * .22)), paint);
   }
-  _mark(canvas, tile.center, size * (round ? .54 : .6), face: AppColors.ink);
+  _mark(canvas, tile.center, size * (round ? .54 : .6), face: AppColors.brand);
 }
 
 void main() {
@@ -84,9 +84,9 @@ void main() {
       await _render('android/app/src/main/ic_launcher-playstore.png', 512,
           (canvas, size) {
         canvas.drawRect(
-            Offset.zero & Size.square(size), Paint()..color = AppColors.ink);
+            Offset.zero & Size.square(size), Paint()..color = AppColors.brand);
         _mark(canvas, Offset(size / 2, size / 2), size * .6,
-            face: AppColors.ink);
+            face: AppColors.brand);
       });
     });
   });

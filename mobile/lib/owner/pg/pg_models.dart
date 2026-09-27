@@ -10,7 +10,7 @@ extension GenderPreferenceX on GenderPreference {
   String get label => switch (this) {
         GenderPreference.male => 'Male',
         GenderPreference.female => 'Female',
-        GenderPreference.coEd => 'Co-ed',
+        GenderPreference.coEd => 'Co-Living',
       };
 
   static GenderPreference fromApi(String value) => switch (value) {

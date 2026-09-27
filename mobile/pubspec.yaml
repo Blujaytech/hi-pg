@@ -32,8 +32,14 @@ dependencies:
 
   intl: ^0.19.0
 
-  # Native Google Maps view for student property details.
+  # Native Google Maps view for student property details. The Android and
+  # platform-interface packages are listed only so main.dart can pick the
+  # map's renderer and view mode (see _configureMaps there).
   google_maps_flutter: ^2.18.0
+  google_maps_flutter_android: ^2.19.10
+  google_maps_flutter_platform_interface: ^2.16.1
+  # Device location for "PGs near me" on the search screen.
+  geolocator: ^14.0.2
   url_launcher: ^6.3.0
   razorpay_flutter: ^1.4.6
   file_picker: ^8.1.7

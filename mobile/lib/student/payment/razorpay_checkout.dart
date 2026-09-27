@@ -21,11 +21,16 @@ class RazorpayCheckout {
   Future<void> pay(PaymentOrder order, {required String description}) async {
     final razorpay = Razorpay();
     final completer = Completer<PaymentSuccessResponse>();
-    razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, (PaymentSuccessResponse response) {
+    razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS,
+        (PaymentSuccessResponse response) {
       if (!completer.isCompleted) completer.complete(response);
     });
-    razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, (PaymentFailureResponse response) {
-      if (!completer.isCompleted) completer.completeError(Exception(response.message ?? 'Payment failed'));
+    razorpay.on(Razorpay.EVENT_PAYMENT_ERROR,
+        (PaymentFailureResponse response) {
+      if (!completer.isCompleted) {
+        completer
+            .completeError(Exception(response.message ?? 'Payment failed'));
+      }
     });
     razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, (_) {});
 

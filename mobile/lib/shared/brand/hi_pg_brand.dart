@@ -52,7 +52,16 @@ class HiPgMarkPainter extends CustomPainter {
       Offset(28, 86), // speech tail ends
       Offset(6, 86), // bottom left
       Offset(6, 45), // left eave
-    ], const [13, 8, 12, 5, 3, 4, 12, 8]);
+    ], const [
+      13,
+      8,
+      12,
+      5,
+      3,
+      4,
+      12,
+      8
+    ]);
     final chimney = Path()
       ..addRRect(RRect.fromLTRBR(70, 12, 81, 34, const Radius.circular(2.5)));
     return Path.combine(PathOperation.union, body, chimney);
@@ -168,7 +177,7 @@ class HiPgMark extends StatelessWidget {
   const HiPgMark({
     super.key,
     this.size = 40,
-    this.color = AppColors.ink,
+    this.color = AppColors.brand,
     this.faceColor = AppColors.surface,
     this.blink = 0,
     this.wink = 0,
@@ -190,7 +199,7 @@ class HiPgMark extends StatelessWidget {
   }
 }
 
-/// The mark inside the black app-icon tile, as it appears on the home screen.
+/// The mark inside the rose app-icon tile, as it appears on the home screen.
 class HiPgAppIcon extends StatelessWidget {
   final double size;
 
@@ -203,13 +212,13 @@ class HiPgAppIcon extends StatelessWidget {
       height: size,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: AppColors.ink,
+        color: AppColors.brand,
         borderRadius: BorderRadius.circular(size * .3),
       ),
       child: HiPgMark(
         size: size * .6,
         color: AppColors.surface,
-        faceColor: AppColors.ink,
+        faceColor: AppColors.brand,
       ),
     );
   }
@@ -246,17 +255,20 @@ TextStyle brandWordStyle(double fontSize, Color color) => TextStyle(
       height: 1,
     );
 
-/// Mark + wordmark, used in app bars and on the welcome screen.
+/// Mark + wordmark, used in app bars and on the welcome screen. The house is
+/// rose by default; [wordColor] lets "hi pg" go white on the charcoal bar.
 class HiPgLockup extends StatelessWidget {
   final double height;
   final Color color;
   final Color faceColor;
+  final Color wordColor;
 
   const HiPgLockup({
     super.key,
     this.height = 28,
-    this.color = AppColors.ink,
+    this.color = AppColors.brand,
     this.faceColor = AppColors.surface,
+    this.wordColor = AppColors.ink,
   });
 
   @override
@@ -269,7 +281,7 @@ class HiPgLockup extends StatelessWidget {
           children: [
             HiPgMark(size: height, color: color, faceColor: faceColor),
             SizedBox(width: height * .3),
-            HiPgWordmark(fontSize: height * .82, color: color),
+            HiPgWordmark(fontSize: height * .82, color: wordColor),
           ],
         ),
       ),

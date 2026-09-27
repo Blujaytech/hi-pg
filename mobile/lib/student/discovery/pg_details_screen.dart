@@ -32,8 +32,13 @@ enum _GuestSignInChoice { google, mobile }
 /// after which booking resumes for the bed they picked.
 class PgDetailsScreen extends StatefulWidget {
   final String pgId;
+  final BookingType? preferredBookingType;
 
-  const PgDetailsScreen({super.key, required this.pgId});
+  const PgDetailsScreen({
+    super.key,
+    required this.pgId,
+    this.preferredBookingType,
+  });
 
   @override
   State<PgDetailsScreen> createState() => _PgDetailsScreenState();
@@ -55,6 +60,9 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
   bool _live = false;
   bool _booking = false;
   bool _googleSignInInProgress = false;
+  BookingType? _selectedBookingType;
+  late DateTime _selectedCheckIn;
+  DateTime? _selectedCheckOut;
 
   /// Bed a guest chose before signing in; booked once they are back.
   AvailableBedOption? _pendingBed;
@@ -64,6 +72,12 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
     super.initState();
     _auth = context.read<AuthState>()..addListener(_resumeAfterSignIn);
     _checkout = RazorpayCheckout(_paymentRepository);
+    final now = DateTime.now();
+    _selectedCheckIn = DateTime(now.year, now.month, now.day);
+    _selectedBookingType = widget.preferredBookingType;
+    _selectedCheckOut = _selectedBookingType == BookingType.dayWise
+        ? _selectedCheckIn.add(const Duration(days: 1))
+        : null;
     _loadDetails();
     _subscribeToLiveAvailability();
   }
@@ -265,10 +279,78 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
   }
 
   void _loadDetails() {
-    _future = _repository.getDetails(widget.pgId);
+    _future = _repository.getDetails(
+      widget.pgId,
+      bookingType: _selectedBookingType?.apiValue,
+      checkIn: _selectedBookingType == null ? null : _selectedCheckIn,
+      checkOut: _selectedBookingType == BookingType.dayWise
+          ? _selectedCheckOut
+          : null,
+    );
   }
 
   void _reload() => setState(_loadDetails);
+
+  void _selectBookingType(BookingType type) {
+    setState(() {
+      _selectedBookingType = type;
+      _selectedCheckOut = type == BookingType.dayWise
+          ? _selectedCheckIn.add(const Duration(days: 1))
+          : null;
+      _loadDetails();
+    });
+  }
+
+  Future<void> _chooseAvailabilityDates() async {
+    final type = _selectedBookingType;
+    if (type == null) return;
+    final today = DateTime.now();
+    final first = DateTime(today.year, today.month, today.day);
+    if (type == BookingType.monthly) {
+      final date = await showDatePicker(
+        context: context,
+        initialDate:
+            _selectedCheckIn.isBefore(first) ? first : _selectedCheckIn,
+        firstDate: first,
+        lastDate: first.add(const Duration(days: 365)),
+        helpText: 'Choose monthly move-in date',
+      );
+      if (date == null || !mounted) return;
+      setState(() {
+        _selectedCheckIn = date;
+        _selectedCheckOut = null;
+        _loadDetails();
+      });
+      return;
+    }
+    final range = await showDateRangePicker(
+      context: context,
+      firstDate: first,
+      lastDate: first.add(const Duration(days: 365)),
+      initialDateRange: DateTimeRange(
+        start: _selectedCheckIn.isBefore(first) ? first : _selectedCheckIn,
+        end:
+            (_selectedCheckOut ?? _selectedCheckIn.add(const Duration(days: 1)))
+                    .isAfter(first)
+                ? (_selectedCheckOut ??
+                    _selectedCheckIn.add(const Duration(days: 1)))
+                : first.add(const Duration(days: 1)),
+      ),
+      helpText: 'Choose day-wise stay dates',
+    );
+    if (range == null || !mounted) return;
+    if (range.duration.inDays > 27) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Day-wise stays can be booked for up to 27 nights.'),
+      ));
+      return;
+    }
+    setState(() {
+      _selectedCheckIn = range.start;
+      _selectedCheckOut = range.end;
+      _loadDetails();
+    });
+  }
 
   void _subscribeToLiveAvailability() {
     _availabilitySubscription = ApiClient.instance.sseStream(
@@ -307,10 +389,11 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
               'Beds are booked from a customer account. Sign in with Google or your mobile number to book.')));
       return;
     }
-    var bookingType = bed.bookingMode == 'DAY_WISE'
-        ? BookingType.dayWise
-        : BookingType.monthly;
-    if (bed.bookingMode == 'FLEXIBLE') {
+    var bookingType = _selectedBookingType ??
+        (bed.bookingMode == 'DAY_WISE'
+            ? BookingType.dayWise
+            : BookingType.monthly);
+    if (bed.bookingMode == 'FLEXIBLE' && _selectedBookingType == null) {
       final selected = await showModalBottomSheet<BookingType>(
         context: context,
         showDragHandle: true,
@@ -343,27 +426,38 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
 
     if (!await _ensureBookingEligible(bookingType) || !mounted) return;
 
-    final now = DateTime.now();
-    final moveInDate = await showDatePicker(
-      context: context,
-      initialDate: now,
-      firstDate: DateTime(now.year, now.month, now.day),
-      lastDate: now.add(const Duration(days: 180)),
-      helpText: 'Choose a move-in date',
-    );
-    if (moveInDate == null || !mounted) return;
-
+    DateTime? moveInDate;
     DateTime? checkOutDate;
     TimeOfDay? checkOutTime;
-    if (bookingType == BookingType.dayWise) {
-      checkOutDate = await showDatePicker(
+    if (_selectedBookingType == bookingType) {
+      moveInDate = _selectedCheckIn;
+      checkOutDate =
+          bookingType == BookingType.dayWise ? _selectedCheckOut : null;
+    } else {
+      final now = DateTime.now();
+      moveInDate = await showDatePicker(
         context: context,
-        initialDate: moveInDate.add(const Duration(days: 1)),
-        firstDate: moveInDate.add(const Duration(days: 1)),
-        lastDate: moveInDate.add(const Duration(days: 27)),
-        helpText: 'Choose checkout date',
+        initialDate: now,
+        firstDate: DateTime(now.year, now.month, now.day),
+        lastDate: now.add(const Duration(days: 180)),
+        helpText: 'Choose a move-in date',
       );
-      if (checkOutDate == null || !mounted) return;
+      if (moveInDate == null || !mounted) return;
+      if (bookingType == BookingType.dayWise) {
+        checkOutDate = await showDatePicker(
+          context: context,
+          initialDate: moveInDate.add(const Duration(days: 1)),
+          firstDate: moveInDate.add(const Duration(days: 1)),
+          lastDate: moveInDate.add(const Duration(days: 27)),
+          helpText: 'Choose checkout date',
+        );
+        if (checkOutDate == null || !mounted) return;
+      }
+    }
+    if (bookingType == BookingType.dayWise && checkOutDate == null) {
+      return;
+    }
+    if (bookingType == BookingType.dayWise) {
       checkOutTime = await showTimePicker(
         context: context,
         initialTime: const TimeOfDay(hour: 11, minute: 0),
@@ -600,8 +694,12 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
           }
 
           final pg = snapshot.data!;
-          final availableBeds = _liveAvailableBeds ?? pg.availableBeds;
-          final totalBeds = _liveTotalBeds ?? pg.totalBeds;
+          final availableBeds = _selectedBookingType == null
+              ? (_liveAvailableBeds ?? pg.availableBeds)
+              : pg.availableBeds;
+          final totalBeds = _selectedBookingType == null
+              ? (_liveTotalBeds ?? pg.totalBeds)
+              : pg.totalBeds;
           return RefreshIndicator(
             onRefresh: () async {
               _reload();
@@ -609,7 +707,7 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
             },
             child: ListView(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
               children: [
                 _PropertyHeader(
                   pg: pg,
@@ -639,7 +737,15 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
                         _openRouteInGoogleMaps(pg.latitude!, pg.longitude!),
                   ),
                 ],
-                const SizedBox(height: 28),
+                const SizedBox(height: 22),
+                _StayAvailabilityControls(
+                  selected: _selectedBookingType,
+                  checkIn: _selectedCheckIn,
+                  checkOut: _selectedCheckOut,
+                  onSelect: _selectBookingType,
+                  onChangeDates: _chooseAvailabilityDates,
+                ),
+                const SizedBox(height: 22),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
@@ -647,13 +753,13 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
                         child: Text('Rooms & beds',
                             style: Theme.of(context).textTheme.titleLarge)),
                     Text(
-                      '${pg.floors.length} floor${pg.floors.length == 1 ? '' : 's'}',
+                      '${pg.floors.length} floor/block${pg.floors.length == 1 ? '' : 's'}',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ],
                 ),
                 const SizedBox(height: 5),
-                Text('Choose a floor, then select an available bed.',
+                Text('Choose a floor/block, then select an available bed.',
                     style: Theme.of(context).textTheme.bodySmall),
                 const SizedBox(height: 14),
                 if (pg.floors.isEmpty)
@@ -662,7 +768,7 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
                   for (var index = 0; index < pg.floors.length; index++) ...[
                     _FloorCard(
                       floor: pg.floors[index],
-                      initiallyExpanded: index == 0,
+                      initiallyExpanded: false,
                       booking: _booking,
                       onBookBed: _bookBed,
                     ),
@@ -673,6 +779,70 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+class _StayAvailabilityControls extends StatelessWidget {
+  final BookingType? selected;
+  final DateTime checkIn;
+  final DateTime? checkOut;
+  final ValueChanged<BookingType> onSelect;
+  final VoidCallback onChangeDates;
+
+  const _StayAvailabilityControls({
+    required this.selected,
+    required this.checkIn,
+    required this.checkOut,
+    required this.onSelect,
+    required this.onChangeDates,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final dateLabel = selected == null
+        ? 'Select a stay type to see matching rooms and beds'
+        : selected == BookingType.monthly
+            ? 'Move in ${DateFormat('d MMM yyyy').format(checkIn)}'
+            : '${DateFormat('d MMM').format(checkIn)} – '
+                '${DateFormat('d MMM yyyy').format(checkOut!)}';
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Choose your stay',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ChoiceChip(
+                  label: const Text('Monthly'),
+                  selected: selected == BookingType.monthly,
+                  onSelected: (_) => onSelect(BookingType.monthly),
+                ),
+                const SizedBox(width: 10),
+                ChoiceChip(
+                  label: const Text('Day-wise'),
+                  selected: selected == BookingType.dayWise,
+                  onSelected: (_) => onSelect(BookingType.dayWise),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            TextButton.icon(
+              onPressed: selected == null ? null : onChangeDates,
+              icon: const Icon(Icons.calendar_today_outlined, size: 17),
+              label: Text(dateLabel, textAlign: TextAlign.center),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -693,124 +863,142 @@ class _PropertyHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: AppColors.ink,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (pg.photoUrl != null)
+            SizedBox(
+              height: 145,
+              child: Image.network(
+                pg.photoUrl!,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const ColoredBox(
+                  color: AppColors.inkSoft,
+                  child: Center(
+                    child: Icon(Icons.apartment_rounded,
+                        color: Colors.white54, size: 40),
+                  ),
+                ),
+              ),
+            ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 13, 14, 14),
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(15),
-                  child: pg.photoUrl == null
-                      ? Container(
-                          width: 50,
-                          height: 50,
-                          color: AppColors.fill,
-                          child: const Icon(Icons.apartment_rounded,
-                              color: AppColors.ink, size: 26),
-                        )
-                      : Image.network(pg.photoUrl!,
-                          width: 50, height: 50, fit: BoxFit.cover),
+                Text(
+                  pg.name,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    height: 1.2,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -.3,
+                  ),
                 ),
-                const SizedBox(width: 13),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(pg.name,
-                          style: Theme.of(context).textTheme.titleLarge),
-                      const SizedBox(height: 5),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Padding(
-                            padding: EdgeInsets.only(top: 2),
-                            child: Icon(Icons.location_on_outlined,
-                                size: 16, color: AppColors.muted),
-                          ),
-                          const SizedBox(width: 5),
-                          Expanded(
-                            child: Text(
-                              '${pg.address}, ${pg.city}${pg.state != null ? ', ${pg.state}' : ''}',
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                          ),
-                        ],
+                const SizedBox(height: 6),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 1),
+                      child: Icon(Icons.location_on_outlined,
+                          size: 16, color: Colors.white.withValues(alpha: .72)),
+                    ),
+                    const SizedBox(width: 5),
+                    Expanded(
+                      child: Text(
+                        '${pg.address}, ${pg.city}${pg.state != null ? ', ${pg.state}' : ''}',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: .78),
+                          fontSize: 13,
+                          height: 1.35,
+                        ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 11),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _HeaderMetric(
+                        label: 'Stay type',
+                        value: pg.genderPreference.label,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _HeaderMetric(
+                        label: live ? 'Live availability' : 'Availability',
+                        value: '$availableBeds of $totalBeds beds',
+                        accent: availableBeds > 0
+                            ? AppColors.successBright
+                            : Colors.white.withValues(alpha: .6),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
-            const SizedBox(height: 17),
-            const Divider(height: 1),
-            const SizedBox(height: 15),
-            Row(
-              children: [
-                Expanded(
-                  child: _HeaderMetric(
-                    icon: Icons.people_alt_outlined,
-                    label: 'Property type',
-                    value: pg.genderPreference.label,
-                  ),
-                ),
-                Container(width: 1, height: 40, color: AppColors.border),
-                Expanded(
-                  child: _HeaderMetric(
-                    icon: Icons.bed_rounded,
-                    label: live ? 'Live availability' : 'Availability',
-                    value: '$availableBeds of $totalBeds beds',
-                    accent:
-                        availableBeds > 0 ? AppColors.success : AppColors.muted,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 }
 
 class _HeaderMetric extends StatelessWidget {
-  final IconData icon;
   final String label;
   final String value;
   final Color accent;
 
   const _HeaderMetric({
-    required this.icon,
     required this.label,
     required this.value,
-    this.accent = AppColors.ink,
+    this.accent = Colors.white,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
+    return Container(
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 9),
+      decoration: BoxDecoration(
+        color: AppColors.inkSoft,
+        borderRadius: BorderRadius.circular(8),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(icon, color: accent, size: 17),
-              const SizedBox(width: 5),
-              Expanded(
-                  child: Text(label,
-                      style: Theme.of(context).textTheme.bodySmall)),
-            ],
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: accent == Colors.white
+                  ? Colors.white.withValues(alpha: .72)
+                  : accent,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w600,
+            ),
           ),
-          const SizedBox(height: 5),
-          Text(value,
-              style: Theme.of(context)
-                  .textTheme
-                  .labelLarge
-                  ?.copyWith(color: AppColors.ink)),
+          const SizedBox(height: 3),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
         ],
       ),
     );
@@ -842,7 +1030,7 @@ class _LocationSectionState extends State<_LocationSection> {
   Future<void> _recenter() async {
     await _controller?.animateCamera(
       CameraUpdate.newCameraPosition(
-        CameraPosition(target: _point, zoom: 16.8, tilt: 32, bearing: -8),
+        CameraPosition(target: _point, zoom: 16.8),
       ),
     );
   }
@@ -869,7 +1057,7 @@ class _LocationSectionState extends State<_LocationSection> {
           clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
             color: AppColors.fill,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(12),
             border: Border.all(color: AppColors.border),
           ),
           child: Stack(
@@ -878,8 +1066,6 @@ class _LocationSectionState extends State<_LocationSection> {
                 initialCameraPosition: CameraPosition(
                   target: _point,
                   zoom: 16.8,
-                  tilt: 32,
-                  bearing: -8,
                 ),
                 onMapCreated: (controller) => _controller = controller,
                 markers: {
@@ -893,11 +1079,15 @@ class _LocationSectionState extends State<_LocationSection> {
                   ),
                 },
                 mapType: MapType.normal,
-                buildingsEnabled: true,
-                indoorViewEnabled: true,
-                compassEnabled: true,
-                rotateGesturesEnabled: true,
-                tiltGesturesEnabled: true,
+                // Lite mode renders a stable bitmap-backed preview on Android
+                // skins that otherwise show a beige native map surface. The
+                // dedicated directions button remains the full-map action.
+                liteModeEnabled: true,
+                buildingsEnabled: false,
+                indoorViewEnabled: false,
+                compassEnabled: false,
+                rotateGesturesEnabled: false,
+                tiltGesturesEnabled: false,
                 scrollGesturesEnabled: true,
                 zoomGesturesEnabled: true,
                 zoomControlsEnabled: false,
@@ -1035,19 +1225,14 @@ class _FloorCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: ExpansionTile(
         initiallyExpanded: initiallyExpanded,
-        tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-        childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+        tilePadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+        childrenPadding: const EdgeInsets.fromLTRB(11, 0, 11, 11),
         collapsedShape: const Border(),
         shape: const Border(),
-        leading: Container(
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
-              color: AppColors.fill, borderRadius: BorderRadius.circular(12)),
-          child:
-              const Icon(Icons.layers_rounded, color: AppColors.ink, size: 21),
+        title: Text(
+          'Floor/Block · ${floor.name}',
+          style: Theme.of(context).textTheme.titleSmall,
         ),
-        title: Text(floor.name, style: Theme.of(context).textTheme.titleMedium),
         subtitle: Text(
           '${floor.rooms.length} room${floor.rooms.length == 1 ? '' : 's'} · $available beds available',
           style: Theme.of(context).textTheme.bodySmall,
@@ -1072,6 +1257,12 @@ class _FloorCard extends StatelessWidget {
   }
 }
 
+final _rupees = NumberFormat.currency(
+  locale: 'en_IN',
+  symbol: '₹',
+  decimalDigits: 0,
+);
+
 class _RoomCard extends StatelessWidget {
   final RoomAvailability room;
   final bool booking;
@@ -1084,10 +1275,10 @@ class _RoomCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final available = room.availableBeds > 0;
     return Container(
-      padding: const EdgeInsets.all(15),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFFFAFAFA),
-        borderRadius: BorderRadius.circular(15),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.border),
       ),
       child: Column(
@@ -1114,7 +1305,7 @@ class _RoomCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
-                    '₹${room.rentPerBed.toStringAsFixed(0)}',
+                    _rupees.format(room.rentPerBed),
                     style: Theme.of(context)
                         .textTheme
                         .titleSmall
@@ -1125,16 +1316,27 @@ class _RoomCard extends StatelessWidget {
                           .textTheme
                           .bodySmall
                           ?.copyWith(fontSize: 10)),
+                  if (room.dayWiseRate != null &&
+                      room.bookingMode != 'MONTHLY') ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      '${_rupees.format(room.dayWiseRate)} / day',
+                      style: Theme.of(context)
+                          .textTheme
+                          .labelMedium
+                          ?.copyWith(color: AppColors.brandText),
+                    ),
+                  ],
                 ],
               ),
             ],
           ),
-          const SizedBox(height: 13),
+          const SizedBox(height: 10),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
             decoration: BoxDecoration(
               color: available ? AppColors.successSoft : AppColors.fill,
-              borderRadius: BorderRadius.circular(9),
+              borderRadius: BorderRadius.circular(6),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -1156,41 +1358,140 @@ class _RoomCard extends StatelessWidget {
               ],
             ),
           ),
-          if (room.availableBedOptions.isNotEmpty) ...[
-            const SizedBox(height: 14),
-            Text('Select a bed', style: Theme.of(context).textTheme.labelLarge),
-            const SizedBox(height: 9),
+          if (room.beds.isNotEmpty) ...[
+            const SizedBox(height: 11),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    available ? 'Select a bed' : 'Beds',
+                    style: Theme.of(context).textTheme.labelLarge,
+                  ),
+                ),
+                const _SeatLegend(),
+              ],
+            ),
+            const SizedBox(height: 8),
             LayoutBuilder(
               builder: (context, constraints) {
-                final itemWidth = (constraints.maxWidth - 9) / 2;
+                const gap = 8.0;
+                final itemWidth = (constraints.maxWidth - gap * 2) / 3;
                 return Wrap(
-                  spacing: 9,
-                  runSpacing: 9,
-                  children: room.availableBedOptions
-                      .map(
-                        (bed) => SizedBox(
-                          width: itemWidth,
-                          child: OutlinedButton.icon(
-                            onPressed: booking ? null : () => onBookBed(bed),
-                            icon: const Icon(Icons.bed_outlined, size: 18),
-                            label: Text(bed.label,
-                                overflow: TextOverflow.ellipsis),
-                            style: OutlinedButton.styleFrom(
-                              backgroundColor: Colors.white,
-                              side: const BorderSide(color: AppColors.border),
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 11),
-                            ),
-                          ),
+                  spacing: gap,
+                  runSpacing: gap,
+                  children: [
+                    for (final seat in room.beds)
+                      SizedBox(
+                        width: itemWidth,
+                        child: _BedSeatTile(
+                          seat: seat,
+                          onTap: booking || seat.option == null
+                              ? null
+                              : () => onBookBed(seat.option!),
                         ),
-                      )
-                      .toList(),
+                      ),
+                  ],
                 );
               },
             ),
           ],
         ],
       ),
+    );
+  }
+}
+
+/// One bed in the room's bed map. Free beds are outlined in green and can be
+/// tapped to book; taken beds are greyed out, like a sold-out seat, and keep
+/// their label so the room's layout stays readable.
+class _BedSeatTile extends StatelessWidget {
+  final BedSeat seat;
+  final VoidCallback? onTap;
+
+  const _BedSeatTile({required this.seat, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final free = seat.available;
+    final foreground = free ? AppColors.success : AppColors.subtle;
+    return Semantics(
+      button: free,
+      enabled: onTap != null,
+      label: '${seat.label}, ${free ? 'available' : 'taken'}',
+      child: ExcludeSemantics(
+        child: Material(
+          color: free ? AppColors.surface : AppColors.fill,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+            side: BorderSide(
+              color: free ? AppColors.successBright : AppColors.border,
+              width: free ? 1.5 : 1,
+            ),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            child: SizedBox(
+              height: 48,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    free ? Icons.bed_outlined : Icons.bed_rounded,
+                    size: 17,
+                    color: foreground,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    seat.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: free ? AppColors.success : AppColors.muted,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                      decoration: free ? null : TextDecoration.lineThrough,
+                      decorationColor: AppColors.subtle,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SeatLegend extends StatelessWidget {
+  const _SeatLegend();
+
+  @override
+  Widget build(BuildContext context) {
+    Widget key(Color fill, Color border, String label) => Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 12,
+              height: 12,
+              decoration: BoxDecoration(
+                color: fill,
+                border: Border.all(color: border, width: 1.5),
+                borderRadius: BorderRadius.circular(3),
+              ),
+            ),
+            const SizedBox(width: 5),
+            Text(label, style: Theme.of(context).textTheme.bodySmall),
+          ],
+        );
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        key(AppColors.surface, AppColors.successBright, 'Free'),
+        const SizedBox(width: 12),
+        key(AppColors.fill, AppColors.border, 'Taken'),
+      ],
     );
   }
 }
@@ -1204,7 +1505,7 @@ class _NoRoomsState extends StatelessWidget {
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.border),
       ),
       child: const Row(

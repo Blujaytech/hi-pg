@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Android 7-11 launch window: the brand mark on black, identical to the
+    <!-- Android 7-11 launch window: the brand mark on rose, identical to the
          first frame of the Flutter launch animation (lib/auth/splash_screen.dart)
          so the hand-off is seamless. Android 12+ uses values-v31 instead. -->
     <style name="LaunchTheme" parent="@android:style/Theme.Black.NoTitleBar">

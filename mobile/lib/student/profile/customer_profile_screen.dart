@@ -1,5 +1,5 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/api_exception.dart';
@@ -11,10 +11,12 @@ import 'customer_profile_repository.dart';
 
 class CustomerProfileScreen extends StatefulWidget {
   final BookingType? requiredFor;
+  final CustomerProfileRepository? repository;
 
   const CustomerProfileScreen({
     super.key,
     this.requiredFor,
+    this.repository,
   });
 
   @override
@@ -22,23 +24,23 @@ class CustomerProfileScreen extends StatefulWidget {
 }
 
 class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
-  final _repository = CustomerProfileRepository();
+  late final CustomerProfileRepository _repository =
+      widget.repository ?? CustomerProfileRepository();
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _occupationController = TextEditingController();
   final _phoneController = TextEditingController();
   final _addressController = TextEditingController();
-  final _guardianNameController = TextEditingController();
-  final _guardianPhoneController = TextEditingController();
-  final _identityLast4Controller = TextEditingController();
 
   CustomerProfile? _profile;
   IdentityType? _identityType;
+  PlatformFile? _selectedIdentityDocument;
   bool _acceptTerms = false;
   bool _acceptPrivacy = false;
   bool _acceptAadhaarConsent = false;
   bool _loading = true;
   bool _saving = false;
+  bool _editing = true;
   String? _error;
 
   bool get _monthlyRequired => widget.requiredFor == BookingType.monthly;
@@ -55,9 +57,6 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
     _occupationController.dispose();
     _phoneController.dispose();
     _addressController.dispose();
-    _guardianNameController.dispose();
-    _guardianPhoneController.dispose();
-    _identityLast4Controller.dispose();
     super.dispose();
   }
 
@@ -70,7 +69,10 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
       final profile = await _repository.getMine();
       if (!mounted) return;
       _applyProfile(profile);
-      setState(() => _loading = false);
+      setState(() {
+        _loading = false;
+        _editing = _mustComplete(profile);
+      });
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -88,58 +90,53 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
     _occupationController.text = profile.occupation;
     _phoneController.text = profile.phone ?? '';
     _addressController.text = profile.permanentAddress ?? '';
-    _guardianNameController.text = profile.guardianName ?? '';
-    _guardianPhoneController.text = profile.guardianPhone ?? '';
     _identityType = profile.identityType;
-    _identityLast4Controller.text = profile.identityLast4 ?? '';
+    _selectedIdentityDocument = null;
     _acceptTerms = profile.termsAcceptedVersion != null;
     _acceptPrivacy = profile.privacyAcceptedVersion != null;
     _acceptAadhaarConsent = profile.aadhaarConsentVersion != null;
   }
 
-  Future<void> _verifyMobile() async {
-    final phone = _phoneController.text.replaceAll(RegExp(r'[\s-]'), '');
-    if (!RegExp(r'^\+?[1-9][0-9]{9,14}$').hasMatch(phone)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter a valid mobile number first.')),
-      );
+  bool _mustComplete(CustomerProfile profile) {
+    final requiredFor = widget.requiredFor;
+    return requiredFor == null
+        ? !profile.hasBasicProfile
+        : !profile.eligibilityFor(requiredFor).eligible;
+  }
+
+  void _startEditing() {
+    setState(() {
+      _editing = true;
+      _error = null;
+    });
+  }
+
+  void _cancelEditing() {
+    final profile = _profile;
+    if (profile == null || _mustComplete(profile)) return;
+    setState(() {
+      _applyProfile(profile);
+      _editing = false;
+      _error = null;
+    });
+  }
+
+  Future<void> _pickIdentityDocument() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['jpg', 'jpeg', 'png', 'pdf'],
+      withData: true,
+    );
+    if (result == null || !mounted) return;
+    final file = result.files.single;
+    if (file.size == 0 || file.size > 10 * 1024 * 1024) {
+      setState(() => _error = 'Choose a JPG, PNG, or PDF up to 10 MB.');
       return;
     }
     setState(() {
-      _saving = true;
+      _selectedIdentityDocument = file;
       _error = null;
     });
-    try {
-      await _repository.requestPhoneOtp(phone);
-      if (!mounted) return;
-      setState(() => _saving = false);
-      final verified = await showDialog<CustomerProfile>(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => _PhoneOtpDialog(
-          repository: _repository,
-          phone: phone,
-        ),
-      );
-      if (verified == null || !mounted) return;
-      // Verification returns the persisted profile. Keep any unsaved form
-      // edits the customer made before requesting the code.
-      setState(() {
-        _profile = verified;
-        _phoneController.text = verified.phone ?? phone;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Mobile number verified.')),
-      );
-    } on ApiException catch (error) {
-      if (mounted) setState(() => _error = error.message);
-    } catch (_) {
-      if (mounted) {
-        setState(() => _error = 'The verification code could not be sent.');
-      }
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
   }
 
   Future<void> _save() async {
@@ -152,7 +149,11 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
     }
     if (_monthlyRequired && !_hasMonthlyDetails()) {
       setState(() => _error =
-          'Permanent address and a government ID ending are required for monthly bookings.');
+          'Permanent address and an Aadhaar card or passport document are required for monthly bookings.');
+      return;
+    }
+    if (_identityType != null && !_hasIdentityDocument()) {
+      setState(() => _error = 'Upload the selected ID document to continue.');
       return;
     }
     if (_identityType == IdentityType.aadhaar && !_acceptAadhaarConsent) {
@@ -166,19 +167,23 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
       _error = null;
     });
     try {
-      final saved = await _repository.save(
+      var saved = await _repository.save(
         fullName: _nameController.text,
         occupation: _occupationController.text,
+        contactPhone: _phoneController.text,
         permanentAddress: _addressController.text,
-        guardianName: _guardianNameController.text,
-        guardianPhone: _guardianPhoneController.text,
         identityType: _identityType,
-        identityLast4: _identityLast4Controller.text,
         acceptTerms: _acceptTerms,
         acceptPrivacy: _acceptPrivacy,
         acceptAadhaarConsent:
             _identityType == IdentityType.aadhaar && _acceptAadhaarConsent,
       );
+      if (_selectedIdentityDocument != null && _identityType != null) {
+        saved = await _repository.uploadIdentityDocument(
+          identityType: _identityType!,
+          file: _selectedIdentityDocument!,
+        );
+      }
       if (!mounted) return;
       setState(() => _applyProfile(saved));
 
@@ -198,6 +203,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Profile saved securely.')),
       );
+      setState(() => _editing = false);
     } on ApiException catch (error) {
       if (mounted) setState(() => _error = error.message);
     } catch (_) {
@@ -212,24 +218,210 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
   bool _hasMonthlyDetails() =>
       _addressController.text.trim().isNotEmpty &&
       _identityType != null &&
-      RegExp(r'^[A-Za-z0-9]{4}$')
-          .hasMatch(_identityLast4Controller.text.trim());
+      _hasIdentityDocument();
+
+  bool _hasIdentityDocument() =>
+      _selectedIdentityDocument != null ||
+      (_profile?.identityDocument?.identityType == _identityType);
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.requiredFor == null
-            ? 'Profile & verification'
-            : 'Complete your profile'),
+        title: Text(_editing && widget.requiredFor != null
+            ? 'Complete your profile'
+            : _editing
+                ? 'Edit profile'
+                : 'Profile & verification'),
+        actions: [
+          if (!_loading && !_editing && _profile != null)
+            TextButton.icon(
+              onPressed: _startEditing,
+              icon: const Icon(Icons.edit_outlined),
+              label: const Text('Edit'),
+            ),
+        ],
       ),
       body: _loading
           ? const AppLoadingView(label: 'Loading your profile...')
           : _error != null && _profile == null
               ? AppErrorView(message: _error!, onRetry: _load)
-              : _buildForm(),
+              : _editing
+                  ? _buildForm()
+                  : _buildSummary(),
     );
   }
+
+  Widget _buildSummary() {
+    final profile = _profile!;
+    final document = profile.identityDocument;
+    final updatedAt = profile.updatedAt;
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
+      children: [
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: AppColors.ink,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 58,
+                height: 58,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  _initials(profile.fullName),
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: AppColors.ink,
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      profile.fullName,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                          ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      profile.occupation,
+                      style: const TextStyle(color: Colors.white70),
+                    ),
+                    const SizedBox(height: 10),
+                    const _StatusPill(
+                      icon: Icons.check_circle_rounded,
+                      label: 'Profile complete',
+                      color: AppColors.success,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
+        _SummaryCard(
+          title: 'Personal details',
+          children: [
+            _SummaryRow(
+              icon: Icons.phone_outlined,
+              label: 'Contact mobile',
+              value: profile.phone ?? 'Not provided',
+            ),
+            if (profile.permanentAddress?.trim().isNotEmpty ?? false)
+              _SummaryRow(
+                icon: Icons.home_outlined,
+                label: 'Permanent address',
+                value: profile.permanentAddress!.trim(),
+              ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        _SummaryCard(
+          title: 'Identity proof',
+          trailing: document == null
+              ? null
+              : const _StatusPill(
+                  icon: Icons.lock_outline_rounded,
+                  label: 'Submitted securely',
+                  color: AppColors.success,
+                ),
+          children: [
+            if (document != null) ...[
+              _SummaryRow(
+                icon: document.identityType == IdentityType.aadhaar
+                    ? Icons.badge_outlined
+                    : Icons.menu_book_outlined,
+                label: 'Document type',
+                value: document.identityType.label,
+              ),
+              const _SummaryRow(
+                icon: Icons.description_outlined,
+                label: 'Document',
+                value: 'Document submitted',
+              ),
+              Text(
+                'Your document is stored privately. Its number is not collected or displayed.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ] else ...[
+              const _EmptyIdentitySummary(),
+            ],
+            const SizedBox(height: 14),
+            OutlinedButton.icon(
+              onPressed: _startEditing,
+              icon: Icon(document == null
+                  ? Icons.upload_file_outlined
+                  : Icons.change_circle_outlined),
+              label: Text(document == null
+                  ? 'Add identity document'
+                  : 'Replace document'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        const _SummaryCard(
+          title: 'Agreements',
+          children: [
+            _SummaryRow(
+              icon: Icons.check_circle_outline_rounded,
+              label: 'Terms of Service',
+              value: 'Accepted',
+              valueColor: AppColors.success,
+            ),
+            _SummaryRow(
+              icon: Icons.privacy_tip_outlined,
+              label: 'Privacy Policy',
+              value: 'Accepted',
+              valueColor: AppColors.success,
+            ),
+          ],
+        ),
+        if (updatedAt != null) ...[
+          const SizedBox(height: 14),
+          Text(
+            'Last updated ${_formatDate(updatedAt)}',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+        const SizedBox(height: 20),
+        FilledButton.icon(
+          onPressed: _startEditing,
+          icon: const Icon(Icons.edit_outlined),
+          label: const Text('Edit profile'),
+        ),
+      ],
+    );
+  }
+
+  String _initials(String name) {
+    final words = name
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((word) => word.isNotEmpty)
+        .take(2)
+        .toList();
+    return words.isEmpty
+        ? '?'
+        : words.map((word) => word[0].toUpperCase()).join();
+  }
+
+  String _formatDate(DateTime date) =>
+      '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
 
   Widget _buildForm() {
     return Form(
@@ -241,7 +433,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
             AppMessageBanner(
               icon: Icons.verified_user_outlined,
               message: widget.requiredFor == BookingType.monthly
-                  ? 'Monthly stays need your permanent address and government ID ending.'
+                  ? 'Monthly stays need your permanent address and one ID document.'
                   : 'Complete your basic profile to book a day-wise stay.',
             ),
             const SizedBox(height: 20),
@@ -286,105 +478,32 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                     ? 'Enter your profession or occupation'
                     : null,
               ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          _SectionCard(
-            title: 'Emergency contact',
-            subtitle:
-                'Shown to the PG owner only for stay safety and emergencies.',
-            children: [
-              TextFormField(
-                controller: _guardianNameController,
-                enabled: !_saving,
-                textCapitalization: TextCapitalization.words,
-                textInputAction: TextInputAction.next,
-                decoration: const InputDecoration(
-                  labelText: 'Guardian name (optional)',
-                  prefixIcon: Icon(Icons.family_restroom_rounded),
-                ),
-              ),
               const SizedBox(height: 14),
               TextFormField(
-                controller: _guardianPhoneController,
+                controller: _phoneController,
                 enabled: !_saving,
                 keyboardType: TextInputType.phone,
-                textInputAction: TextInputAction.next,
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'[0-9+\s-]')),
-                  LengthLimitingTextInputFormatter(16),
-                ],
+                autofillHints: const [AutofillHints.telephoneNumber],
                 decoration: const InputDecoration(
-                  labelText: 'Guardian mobile number (optional)',
+                  labelText: 'Contact mobile number',
+                  hintText: '10-digit mobile number',
                   prefixIcon: Icon(Icons.phone_outlined),
+                  helperText: 'Shared with the PG owner for your stay.',
                 ),
                 validator: (value) {
-                  final phone = (value ?? '').replaceAll(RegExp(r'[\s-]'), '');
-                  if (phone.isEmpty) return null;
+                  final phone = (value ?? '').trim();
                   return RegExp(r'^\+?[1-9][0-9]{9,14}$').hasMatch(phone)
                       ? null
-                      : 'Enter a valid guardian mobile number';
+                      : 'Enter a valid mobile number';
                 },
               ),
             ],
           ),
           const SizedBox(height: 16),
-          if (widget.requiredFor == null) ...[
-            _SectionCard(
-              title: 'Verified mobile',
-              subtitle: 'Used only for booking and stay-related communication.',
-              children: [
-                TextFormField(
-                  controller: _phoneController,
-                  enabled: !_saving && !(_profile?.phoneVerified ?? false),
-                  keyboardType: TextInputType.phone,
-                  autofillHints: const [AutofillHints.telephoneNumber],
-                  decoration: InputDecoration(
-                    labelText: 'Mobile number',
-                    prefixIcon: const Icon(Icons.phone_iphone_rounded),
-                    suffixIcon: (_profile?.phoneVerified ?? false)
-                        ? const Icon(Icons.verified_rounded,
-                            color: AppColors.success)
-                        : null,
-                  ),
-                  validator: (value) {
-                    if ((value ?? '').trim().isEmpty) {
-                      return null;
-                    }
-                    final phone =
-                        (value ?? '').replaceAll(RegExp(r'[\s-]'), '');
-                    return RegExp(r'^\+?[1-9][0-9]{9,14}$').hasMatch(phone)
-                        ? null
-                        : 'Enter a valid mobile number';
-                  },
-                ),
-                const SizedBox(height: 10),
-                if (_profile?.phoneVerified ?? false)
-                  const Row(
-                    children: [
-                      Icon(Icons.check_circle_rounded,
-                          color: AppColors.success, size: 18),
-                      SizedBox(width: 7),
-                      Text('Mobile number verified',
-                          style: TextStyle(
-                              color: AppColors.success,
-                              fontWeight: FontWeight.w700)),
-                    ],
-                  )
-                else
-                  OutlinedButton.icon(
-                    onPressed: _saving ? null : _verifyMobile,
-                    icon: const Icon(Icons.sms_outlined, size: 18),
-                    label: const Text('Send verification code'),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 16),
-          ],
           _SectionCard(
-            title: 'For monthly stays',
+            title: 'Address & identity proof',
             subtitle:
-                'Not required for day-wise bookings. We never ask for or store your complete Aadhaar number.',
+                'For monthly stays. Upload one Aadhaar card or passport file; no ID number is collected.',
             children: [
               TextFormField(
                 controller: _addressController,
@@ -403,53 +522,44 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                         : null,
               ),
               const SizedBox(height: 14),
-              DropdownButtonFormField<IdentityType>(
-                initialValue: _identityType,
-                decoration: const InputDecoration(
-                  labelText: 'Government ID type',
-                  prefixIcon: Icon(Icons.badge_outlined),
-                ),
-                items: IdentityType.values
-                    .map((type) => DropdownMenuItem(
-                          value: type,
-                          child: Text(type.label),
-                        ))
-                    .toList(),
-                onChanged: _saving
+              Text('Choose one document',
+                  style: Theme.of(context).textTheme.titleSmall),
+              const SizedBox(height: 10),
+              SegmentedButton<IdentityType>(
+                segments: const [
+                  ButtonSegment(
+                    value: IdentityType.aadhaar,
+                    icon: Icon(Icons.badge_outlined),
+                    label: Text('Aadhaar card'),
+                  ),
+                  ButtonSegment(
+                    value: IdentityType.passport,
+                    icon: Icon(Icons.menu_book_outlined),
+                    label: Text('Passport'),
+                  ),
+                ],
+                selected: _identityType == null
+                    ? const <IdentityType>{}
+                    : {_identityType!},
+                emptySelectionAllowed: true,
+                onSelectionChanged: _saving
                     ? null
-                    : (value) => setState(() {
-                          _identityType = value;
-                          if (value != IdentityType.aadhaar) {
+                    : (selection) => setState(() {
+                          _identityType =
+                              selection.isEmpty ? null : selection.first;
+                          _selectedIdentityDocument = null;
+                          if (_identityType != IdentityType.aadhaar) {
                             _acceptAadhaarConsent = false;
                           }
                         }),
-                validator: (value) => _monthlyRequired && value == null
-                    ? 'Choose a government ID type'
-                    : null,
               ),
               const SizedBox(height: 14),
-              TextFormField(
-                controller: _identityLast4Controller,
+              _DocumentUploadTile(
                 enabled: !_saving && _identityType != null,
-                maxLength: 4,
-                textCapitalization: TextCapitalization.characters,
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9]')),
-                  LengthLimitingTextInputFormatter(4),
-                ],
-                decoration: const InputDecoration(
-                  labelText: 'Last 4 characters only',
-                  helperText: 'Do not enter the complete ID number.',
-                  counterText: '',
-                  prefixIcon: Icon(Icons.lock_outline_rounded),
-                ),
-                validator: (value) {
-                  if (!_monthlyRequired && _identityType == null) return null;
-                  return RegExp(r'^[A-Za-z0-9]{4}$')
-                          .hasMatch((value ?? '').trim())
-                      ? null
-                      : 'Enter exactly the last 4 characters';
-                },
+                selectedFile: _selectedIdentityDocument,
+                uploadedDocument: _profile?.identityDocument,
+                identityType: _identityType,
+                onTap: _pickIdentityDocument,
               ),
               if (_identityType == IdentityType.aadhaar) ...[
                 const SizedBox(height: 8),
@@ -463,7 +573,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                   controlAffinity: ListTileControlAffinity.leading,
                   title: const Text('I consent to Aadhaar detail use'),
                   subtitle: const Text(
-                    'Only the final four digits are stored to identify the document used for monthly-stay verification. You may choose another ID.',
+                    'I consent to securely storing this Aadhaar document for stay verification. I may choose passport instead.',
                   ),
                 ),
               ],
@@ -518,10 +628,163 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                     ? 'Save profile'
                     : 'Save & continue booking'),
           ),
+          if (_profile?.hasBasicProfile == true && widget.requiredFor == null)
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: TextButton(
+                onPressed: _saving ? null : _cancelEditing,
+                child: const Text('Cancel editing'),
+              ),
+            ),
         ],
       ),
     );
   }
+}
+
+class _SummaryCard extends StatelessWidget {
+  final String title;
+  final Widget? trailing;
+  final List<Widget> children;
+
+  const _SummaryCard({
+    required this.title,
+    this.trailing,
+    required this.children,
+  });
+
+  @override
+  Widget build(BuildContext context) => Card(
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(title,
+                        style: Theme.of(context).textTheme.titleMedium),
+                  ),
+                  if (trailing != null) trailing!,
+                ],
+              ),
+              const SizedBox(height: 14),
+              ...children,
+            ],
+          ),
+        ),
+      );
+}
+
+class _SummaryRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color? valueColor;
+
+  const _SummaryRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.valueColor,
+  });
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(bottom: 14),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: AppColors.fill,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, size: 21, color: AppColors.ink),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: Theme.of(context).textTheme.bodySmall),
+                  const SizedBox(height: 2),
+                  Text(
+                    value,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          color: valueColor,
+                        ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
+class _StatusPill extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  const _StatusPill({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.14),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 15, color: color),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
+class _EmptyIdentitySummary extends StatelessWidget {
+  const _EmptyIdentitySummary();
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppColors.fill,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.info_outline_rounded, color: AppColors.muted),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Add an Aadhaar card or passport before making a monthly booking.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+          ],
+        ),
+      );
 }
 
 class _SectionCard extends StatelessWidget {
@@ -555,85 +818,75 @@ class _SectionCard extends StatelessWidget {
   }
 }
 
-class _PhoneOtpDialog extends StatefulWidget {
-  final CustomerProfileRepository repository;
-  final String phone;
+class _DocumentUploadTile extends StatelessWidget {
+  final bool enabled;
+  final PlatformFile? selectedFile;
+  final CustomerIdentityDocument? uploadedDocument;
+  final IdentityType? identityType;
+  final VoidCallback onTap;
 
-  const _PhoneOtpDialog({required this.repository, required this.phone});
-
-  @override
-  State<_PhoneOtpDialog> createState() => _PhoneOtpDialogState();
-}
-
-class _PhoneOtpDialogState extends State<_PhoneOtpDialog> {
-  final _controller = TextEditingController();
-  bool _loading = false;
-  String? _error;
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  Future<void> _verify() async {
-    if (!RegExp(r'^\d{6}$').hasMatch(_controller.text.trim())) {
-      setState(() => _error = 'Enter the complete 6-digit code.');
-      return;
-    }
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    try {
-      final profile = await widget.repository
-          .verifyPhoneOtp(widget.phone, _controller.text);
-      if (mounted) Navigator.pop(context, profile);
-    } on ApiException catch (error) {
-      if (mounted) setState(() => _error = error.message);
-    } catch (_) {
-      if (mounted) setState(() => _error = 'Verification failed. Try again.');
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
+  const _DocumentUploadTile({
+    required this.enabled,
+    required this.selectedFile,
+    required this.uploadedDocument,
+    required this.identityType,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Verify mobile number'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text('Enter the code sent to ${widget.phone}.'),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _controller,
-            enabled: !_loading,
-            autofocus: true,
-            keyboardType: TextInputType.number,
-            maxLength: 6,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            onSubmitted: (_) => _verify(),
-            decoration: InputDecoration(
-              labelText: '6-digit code',
-              errorText: _error,
-              counterText: '',
-            ),
+    final existingMatches = uploadedDocument?.identityType == identityType;
+    final fileName = selectedFile?.name ??
+        (existingMatches ? uploadedDocument?.fileName : null);
+    return Material(
+      color: fileName == null ? AppColors.fill : AppColors.successSoft,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: enabled ? onTap : null,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              Icon(
+                fileName == null
+                    ? Icons.upload_file_outlined
+                    : Icons.check_circle_outline_rounded,
+                color: fileName == null ? AppColors.ink : AppColors.success,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      fileName ?? 'Upload ID document',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      identityType == null
+                          ? 'Choose Aadhaar card or passport first'
+                          : selectedFile != null
+                              ? 'Ready to upload securely'
+                              : fileName != null
+                                  ? 'Stored securely · Tap to replace'
+                                  : 'JPG, PNG or PDF · Maximum 10 MB',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+              if (enabled)
+                Text(fileName == null ? 'Choose' : 'Replace',
+                    style: const TextStyle(
+                        color: AppColors.brand, fontWeight: FontWeight.w700)),
+            ],
           ),
-        ],
+        ),
       ),
-      actions: [
-        TextButton(
-          onPressed: _loading ? null : () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: _loading ? null : _verify,
-          child: Text(_loading ? 'Verifying...' : 'Verify'),
-        ),
-      ],
     );
   }
 }

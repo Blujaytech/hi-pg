@@ -11,7 +11,7 @@ void main() {
     bool phoneVerified = true,
     String? permanentAddress,
     IdentityType? identityType,
-    String? identityLast4,
+    CustomerIdentityDocument? identityDocument,
     String? termsAcceptedVersion = 'v1',
     String? privacyAcceptedVersion = 'v1',
     String? aadhaarConsentVersion,
@@ -24,7 +24,8 @@ void main() {
         phoneVerified: phoneVerified,
         permanentAddress: permanentAddress,
         identityType: identityType,
-        identityLast4: identityLast4,
+        identityLast4: null,
+        identityDocument: identityDocument,
         termsAcceptedVersion: termsAcceptedVersion,
         privacyAcceptedVersion: privacyAcceptedVersion,
         aadhaarConsentVersion: aadhaarConsentVersion,
@@ -66,14 +67,44 @@ void main() {
 
   test('complete day-wise profile does not require monthly identity fields',
       () {
-    expect(profile().eligibilityFor(BookingType.dayWise).eligible, isTrue);
+    final complete = profile();
+
+    expect(complete.hasBasicProfile, isTrue);
+    expect(complete.hasMonthlyProfile, isFalse);
+    expect(complete.eligibilityFor(BookingType.dayWise).eligible, isTrue);
+  });
+
+  test('monthly profile is complete only with address and submitted identity',
+      () {
+    final complete = profile(
+      permanentAddress: '1 Test Road, Hyderabad',
+      identityType: IdentityType.passport,
+      identityDocument: const CustomerIdentityDocument(
+        id: 'document-id',
+        identityType: IdentityType.passport,
+        fileName: 'passport.pdf',
+        contentType: 'application/pdf',
+        sizeBytes: 100,
+        uploadedAt: null,
+      ),
+    );
+
+    expect(complete.hasBasicProfile, isTrue);
+    expect(complete.hasMonthlyProfile, isTrue);
   });
 
   test('monthly Aadhaar selection requires its separate consent', () {
     final eligibility = profile(
       permanentAddress: '1 Test Road',
       identityType: IdentityType.aadhaar,
-      identityLast4: '1234',
+      identityDocument: const CustomerIdentityDocument(
+        id: 'document-id',
+        identityType: IdentityType.aadhaar,
+        fileName: 'aadhaar.pdf',
+        contentType: 'application/pdf',
+        sizeBytes: 100,
+        uploadedAt: null,
+      ),
     ).eligibilityFor(BookingType.monthly);
 
     expect(

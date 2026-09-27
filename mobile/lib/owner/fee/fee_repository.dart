@@ -5,8 +5,11 @@ class FeeRepository {
   final ApiClient _client = ApiClient.instance;
 
   Future<List<Fee>> listForStudent(String studentId) async {
-    final response = await _client.get<List<dynamic>>('/owner/students/$studentId/fees');
-    return response.data!.map((e) => Fee.fromJson(e as Map<String, dynamic>)).toList();
+    final response =
+        await _client.get<List<dynamic>>('/owner/students/$studentId/fees');
+    return response.data!
+        .map((e) => Fee.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
   Future<Fee> create({
@@ -17,7 +20,8 @@ class FeeRepository {
     required DateTime dueDate,
     String? notes,
   }) async {
-    final response = await _client.post<Map<String, dynamic>>('/owner/students/$studentId/fees', data: {
+    final response = await _client
+        .post<Map<String, dynamic>>('/owner/students/$studentId/fees', data: {
       'periodMonth': periodMonth,
       'periodYear': periodYear,
       'amount': amount,
@@ -35,7 +39,8 @@ class FeeRepository {
     String? reference,
     String? note,
   }) async {
-    final response = await _client.post<Map<String, dynamic>>('/owner/fees/$feeId/payments', data: {
+    final response = await _client
+        .post<Map<String, dynamic>>('/owner/fees/$feeId/payments', data: {
       'amountPaid': amountPaid,
       'paidOn': paidOn.toIso8601String().substring(0, 10),
       'method': method.apiValue,
@@ -45,8 +50,12 @@ class FeeRepository {
     return Fee.fromJson(response.data!);
   }
 
-  Future<Fee> extendDueDate({required String feeId, required DateTime newDueDate, String? note}) async {
-    final response = await _client.post<Map<String, dynamic>>('/owner/fees/$feeId/extensions', data: {
+  Future<Fee> extendDueDate(
+      {required String feeId,
+      required DateTime newDueDate,
+      String? note}) async {
+    final response = await _client
+        .post<Map<String, dynamic>>('/owner/fees/$feeId/extensions', data: {
       'newDueDate': newDueDate.toIso8601String().substring(0, 10),
       'note': note,
     });

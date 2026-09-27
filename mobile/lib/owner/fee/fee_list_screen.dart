@@ -48,8 +48,8 @@ class _FeeListScreenState extends State<FeeListScreen> {
   Future<void> _openCreateSheet() async {
     final created = await showFormSheet<bool>(
       context,
-      (_) => _FeeFormSheet(
-          repository: _repository, studentId: widget.studentId),
+      (_) =>
+          _FeeFormSheet(repository: _repository, studentId: widget.studentId),
     );
     if (created == true && mounted) _reload();
   }
@@ -85,11 +85,16 @@ class _FeeListScreenState extends State<FeeListScreen> {
       if (mounted) {
         _reload();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Due date extended to ${DateFormat('d MMM yyyy').format(selected)}.')),
+          SnackBar(
+              content: Text(
+                  'Due date extended to ${DateFormat('d MMM yyyy').format(selected)}.')),
         );
       }
     } on ApiException catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.message)));
+      }
     }
   }
 
@@ -103,14 +108,9 @@ class _FeeListScreenState extends State<FeeListScreen> {
             !snapshot.hasError;
         return Scaffold(
           appBar: AppBar(
-            title: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Fees'),
-                if (widget.studentName != null)
-                  Text(widget.studentName!,
-                      style: Theme.of(context).textTheme.bodySmall),
-              ],
+            title: AppBarTitle(
+              title: 'Fees',
+              subtitle: widget.studentName,
             ),
           ),
           floatingActionButton: ready && fees.isNotEmpty
@@ -204,7 +204,7 @@ class _BalanceSummary extends StatelessWidget {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AppColors.ink,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         children: [
@@ -236,7 +236,10 @@ class _FeeCard extends StatelessWidget {
   final VoidCallback onRecordPayment;
   final VoidCallback onExtend;
 
-  const _FeeCard({required this.fee, required this.onRecordPayment, required this.onExtend});
+  const _FeeCard(
+      {required this.fee,
+      required this.onRecordPayment,
+      required this.onExtend});
 
   @override
   Widget build(BuildContext context) {
@@ -474,7 +477,8 @@ class _FeeFormSheetState extends State<_FeeFormSheet> {
                     for (var m = 1; m <= 12; m++)
                       DropdownMenuItem(
                         value: m,
-                        child: Text(DateFormat('MMMM').format(DateTime(2000, m))),
+                        child:
+                            Text(DateFormat('MMMM').format(DateTime(2000, m))),
                       ),
                   ],
                   onChanged: _saving

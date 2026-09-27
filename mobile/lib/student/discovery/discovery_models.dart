@@ -10,7 +10,7 @@ extension GenderPreferenceX on GenderPreference {
   String get label => switch (this) {
         GenderPreference.male => 'Male',
         GenderPreference.female => 'Female',
-        GenderPreference.coEd => 'Co-ed',
+        GenderPreference.coEd => 'Co-Living',
       };
 
   static GenderPreference fromApi(String value) =>
@@ -34,6 +34,12 @@ class PgSearchResult {
   final double? minRentPerBed;
   final double? maxRentPerBed;
 
+  /// Stay types across the PG's rooms. Null when the server predates these
+  /// fields -- treat as unknown, not as "no".
+  final bool? offersMonthly;
+  final bool? offersDayWise;
+  final double? minDayWiseRate;
+
   PgSearchResult({
     required this.id,
     required this.name,
@@ -47,6 +53,9 @@ class PgSearchResult {
     required this.availableBeds,
     required this.minRentPerBed,
     required this.maxRentPerBed,
+    this.offersMonthly,
+    this.offersDayWise,
+    this.minDayWiseRate,
   });
 
   factory PgSearchResult.fromJson(Map<String, dynamic> json) => PgSearchResult(
@@ -63,6 +72,9 @@ class PgSearchResult {
         availableBeds: json['availableBeds'] as int,
         minRentPerBed: (json['minRentPerBed'] as num?)?.toDouble(),
         maxRentPerBed: (json['maxRentPerBed'] as num?)?.toDouble(),
+        offersMonthly: json['offersMonthly'] as bool?,
+        offersDayWise: json['offersDayWise'] as bool?,
+        minDayWiseRate: (json['minDayWiseRate'] as num?)?.toDouble(),
       );
 }
 
@@ -94,6 +106,16 @@ class AvailableBedOption {
           bookingMode: json['bookingMode'] as String? ?? 'MONTHLY');
 }
 
+/// One bed in a room's bed map. [option] is set when the bed can be booked.
+class BedSeat {
+  final String label;
+  final AvailableBedOption? option;
+
+  const BedSeat({required this.label, this.option});
+
+  bool get available => option != null;
+}
+
 class RoomAvailability {
   final String roomId;
   final String roomNumber;
@@ -107,6 +129,9 @@ class RoomAvailability {
   final int availableBeds;
   final List<AvailableBedOption> availableBedOptions;
 
+  /// Every bed in the room, free or taken, in bed order.
+  final List<BedSeat> beds;
+
   RoomAvailability({
     required this.roomId,
     required this.roomNumber,
@@ -119,10 +144,40 @@ class RoomAvailability {
     required this.securityDeposit,
     required this.availableBeds,
     required this.availableBedOptions,
-  });
+    List<BedSeat>? beds,
+  }) : beds = beds ?? _inferBeds(sharingCount, availableBedOptions);
 
-  factory RoomAvailability.fromJson(Map<String, dynamic> json) =>
-      RoomAvailability(
+  /// Servers without the `beds` field only list the free beds. Beds are
+  /// created as "Bed 1".."Bed N" (N = sharing count), so the missing labels
+  /// are the taken ones.
+  static List<BedSeat> _inferBeds(
+      int sharingCount, List<AvailableBedOption> options) {
+    final byLabel = {for (final option in options) option.label: option};
+    final seats = [
+      for (var i = 1; i <= sharingCount; i++)
+        BedSeat(label: 'Bed $i', option: byLabel.remove('Bed $i')),
+    ];
+    // Any free bed whose label doesn't follow the pattern still shows.
+    seats.addAll(byLabel.values
+        .map((option) => BedSeat(label: option.label, option: option)));
+    return seats;
+  }
+
+  factory RoomAvailability.fromJson(Map<String, dynamic> json) {
+    final options = (json['availableBedOptions'] as List<dynamic>? ?? [])
+        .map((b) => AvailableBedOption.fromJson(b as Map<String, dynamic>))
+        .toList();
+    final byId = {for (final option in options) option.id: option};
+    final beds = (json['beds'] as List<dynamic>?)?.map((raw) {
+      final bed = raw as Map<String, dynamic>;
+      final option = byId[bed['id'] as String];
+      return BedSeat(
+        label: bed['label'] as String,
+        option: (bed['available'] as bool? ?? false) ? option : null,
+      );
+    }).toList()
+      ?..sort((a, b) => _bedOrder(a.label).compareTo(_bedOrder(b.label)));
+    return RoomAvailability(
         roomId: json['roomId'] as String,
         roomNumber: json['roomNumber'] as String,
         roomType: json['roomType'] as String,
@@ -133,11 +188,13 @@ class RoomAvailability {
         noticePeriodDays: json['noticePeriodDays'] as int? ?? 15,
         securityDeposit: (json['securityDeposit'] as num? ?? 0).toDouble(),
         availableBeds: json['availableBeds'] as int,
-        availableBedOptions: (json['availableBedOptions'] as List<dynamic>? ??
-                [])
-            .map((b) => AvailableBedOption.fromJson(b as Map<String, dynamic>))
-            .toList(),
-      );
+        availableBedOptions: options,
+        beds: beds);
+  }
+
+  /// "Bed 10" sorts after "Bed 9", not after "Bed 1".
+  static int _bedOrder(String label) =>
+      int.tryParse(label.replaceAll(RegExp(r'[^0-9]'), '')) ?? 1 << 20;
 }
 
 class FloorAvailability {

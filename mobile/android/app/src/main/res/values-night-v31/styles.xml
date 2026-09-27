@@ -5,9 +5,9 @@
          to values-night and lose the branded system splash. Keep identical
          to values-v31/styles.xml. -->
     <style name="LaunchTheme" parent="@android:style/Theme.Black.NoTitleBar">
-        <item name="android:windowSplashScreenBackground">@color/brand_ink</item>
+        <item name="android:windowSplashScreenBackground">@color/brand_launch</item>
         <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_mark</item>
-        <item name="android:windowBackground">@color/brand_ink</item>
+        <item name="android:windowBackground">@color/brand_launch</item>
     </style>
 
     <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">

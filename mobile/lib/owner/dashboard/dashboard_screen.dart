@@ -20,15 +20,25 @@ final _money = NumberFormat.currency(
 /// portfolio occupancy, this month's money and open work, all from the
 /// backend summary.
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({super.key});
+  /// Injectable for tests; default to the live API.
+  final DashboardRepository? repository;
+  final OwnerDirectPaymentRepository? directPaymentRepository;
+
+  const DashboardScreen({
+    super.key,
+    this.repository,
+    this.directPaymentRepository,
+  });
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  final _repository = DashboardRepository();
-  final _directPaymentRepository = OwnerDirectPaymentRepository();
+  late final DashboardRepository _repository =
+      widget.repository ?? DashboardRepository();
+  late final OwnerDirectPaymentRepository _directPaymentRepository =
+      widget.directPaymentRepository ?? OwnerDirectPaymentRepository();
   late Future<DashboardSummary> _future;
   late Future<int> _pendingDirectPayments;
 
@@ -83,7 +93,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             onRefresh: _refresh,
             child: ListView(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
               children: [
                 _OccupancyHero(summary: summary),
                 const SizedBox(height: 16),
@@ -237,10 +247,10 @@ class _OccupancyHero extends StatelessWidget {
     final percent = summary.occupancyPercentage;
     final properties = summary.totalPgs;
     return Container(
-      padding: const EdgeInsets.all(22),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AppColors.ink,
-        borderRadius: BorderRadius.circular(26),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -248,11 +258,12 @@ class _OccupancyHero extends StatelessWidget {
           Row(
             children: [
               Text(
-                'Occupancy',
+                'OCCUPANCY',
                 style: TextStyle(
-                  color: Colors.white.withValues(alpha: .62),
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
+                  color: Colors.white.withValues(alpha: .72),
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: .8,
                 ),
               ),
               const Spacer(),
@@ -260,8 +271,8 @@ class _OccupancyHero extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: .12),
-                  borderRadius: BorderRadius.circular(999),
+                  color: AppColors.brand,
+                  borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
                   '$properties ${properties == 1 ? 'property' : 'properties'}',
@@ -289,7 +300,7 @@ class _OccupancyHero extends StatelessWidget {
           Text(
             '${summary.occupiedBeds} of ${summary.totalBeds} beds occupied',
             style: TextStyle(
-              color: Colors.white.withValues(alpha: .72),
+              color: Colors.white.withValues(alpha: .78),
               fontSize: 13.5,
             ),
           ),
@@ -299,7 +310,7 @@ class _OccupancyHero extends StatelessWidget {
             child: LinearProgressIndicator(
               value: (percent / 100).clamp(0.0, 1.0),
               minHeight: 8,
-              color: Colors.white,
+              color: AppColors.successBright,
               backgroundColor: Colors.white.withValues(alpha: .14),
             ),
           ),
@@ -350,7 +361,7 @@ class _HeroStat extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              color: Colors.white.withValues(alpha: .6),
+              color: Colors.white.withValues(alpha: .72),
               fontSize: 11.5,
             ),
           ),
@@ -408,7 +419,7 @@ class _MetricTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final (iconColor, iconBackground, valueColor) = switch (tone) {
       StatusTone.neutral => (AppColors.ink, AppColors.fill, AppColors.ink),
-      StatusTone.dark => (Colors.white, AppColors.ink, AppColors.ink),
+      StatusTone.dark => (AppColors.brandText, AppColors.brandSoft, AppColors.ink),
       StatusTone.success => (
           AppColors.success,
           AppColors.successSoft,
@@ -426,22 +437,35 @@ class _MetricTile extends StatelessWidget {
         ),
     };
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          IconTile(
-            icon: icon,
-            size: 38,
-            color: iconColor,
-            background: iconBackground,
+          Row(
+            children: [
+              IconTile(
+                icon: icon,
+                size: 32,
+                color: iconColor,
+                background: iconBackground,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  label.toUpperCase(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelSmall,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
           FittedBox(
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerLeft,
@@ -455,8 +479,6 @@ class _MetricTile extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 2),
-          Text(label, style: Theme.of(context).textTheme.bodySmall),
         ],
       ),
     );

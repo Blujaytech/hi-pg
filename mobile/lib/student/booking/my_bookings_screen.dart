@@ -66,7 +66,7 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
           height: 52,
           decoration: BoxDecoration(
             color: AppColors.dangerSoft,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(10),
           ),
           child: const Icon(Icons.event_busy_rounded, color: AppColors.danger),
         ),
@@ -393,17 +393,10 @@ class _BookingOverview extends StatelessWidget {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AppColors.ink,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         children: [
-          const IconTile(
-            icon: Icons.home_work_rounded,
-            size: 48,
-            color: AppColors.ink,
-            background: Colors.white,
-          ),
-          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -456,8 +449,8 @@ class _BookingCard extends StatelessWidget {
         booking.status == BookingStatus.confirmed ||
         booking.status == BookingStatus.checkedIn;
     final typeColor = booking.bookingType == BookingType.monthly
-        ? const Color(0xFF7B61FF)
-        : const Color(0xFF2F80ED);
+        ? AppColors.brandText
+        : AppColors.ink;
     final date = DateFormat('d MMM yyyy').format(booking.moveInDate);
 
     return Card(

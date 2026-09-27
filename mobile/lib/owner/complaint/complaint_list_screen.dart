@@ -76,14 +76,9 @@ class _ComplaintListScreenState extends State<ComplaintListScreen> {
             !snapshot.hasError;
         return Scaffold(
           appBar: AppBar(
-            title: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Complaints'),
-                if (widget.studentName != null)
-                  Text(widget.studentName!,
-                      style: Theme.of(context).textTheme.bodySmall),
-              ],
+            title: AppBarTitle(
+              title: 'Complaints',
+              subtitle: widget.studentName,
             ),
           ),
           floatingActionButton:

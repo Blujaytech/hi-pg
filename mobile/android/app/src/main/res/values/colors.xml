@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Mirrors AppColors.ink in lib/core/theme.dart. -->
-    <color name="brand_ink">#0B0B0C</color>
-    <color name="ic_launcher_background">#0B0B0C</color>
+    <!-- Mirrors AppColors.brand in lib/core/theme.dart. -->
+    <color name="brand_launch">#F84464</color>
+    <color name="ic_launcher_background">#F84464</color>
 </resources>

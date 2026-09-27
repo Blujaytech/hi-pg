@@ -66,16 +66,9 @@ class _FloorListScreenState extends State<FloorListScreen> {
                 1;
         return Scaffold(
           appBar: AppBar(
-            title: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Floors & rooms'),
-                if (widget.pg != null)
-                  Text(widget.pg!.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall),
-              ],
+            title: AppBarTitle(
+              title: 'Floors & rooms',
+              subtitle: widget.pg?.name,
             ),
           ),
           floatingActionButton: ready && floors.isNotEmpty
@@ -120,7 +113,10 @@ class _FloorListScreenState extends State<FloorListScreen> {
         itemCount: floors.length + 1,
         separatorBuilder: (_, __) => const SizedBox(height: 12),
         itemBuilder: (context, index) {
-          if (index == 0) return _PropertyHeader(pg: widget.pg, pgId: widget.pgId, floorCount: floors.length);
+          if (index == 0) {
+            return _PropertyHeader(
+                pg: widget.pg, pgId: widget.pgId, floorCount: floors.length);
+          }
           final floor = floors[index - 1];
           return Card(
             clipBehavior: Clip.antiAlias,
@@ -137,7 +133,7 @@ class _FloorListScreenState extends State<FloorListScreen> {
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
                         color: AppColors.fill,
-                        borderRadius: BorderRadius.circular(15),
+                        borderRadius: BorderRadius.circular(10),
                       ),
                       child: Text(
                         '${floor.floorNumber}',
@@ -192,7 +188,7 @@ class _PropertyHeader extends StatelessWidget {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: AppColors.ink,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -379,8 +375,9 @@ class _FloorFormSheetState extends State<_FloorFormSheet> {
               hintText: 'e.g. Ground Floor',
               prefixIcon: Icon(Icons.layers_outlined),
             ),
-            validator: (v) =>
-                (v == null || v.trim().isEmpty) ? 'Give the floor a name' : null,
+            validator: (v) => (v == null || v.trim().isEmpty)
+                ? 'Give the floor a name'
+                : null,
           ),
           const SizedBox(height: 13),
           TextFormField(

@@ -11,6 +11,8 @@ class StudentFeeRepository {
 
   Future<List<Fee>> listMine() async {
     final response = await _client.get<List<dynamic>>('/student/fees');
-    return response.data!.map((e) => Fee.fromJson(e as Map<String, dynamic>)).toList();
+    return response.data!
+        .map((e) => Fee.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 }

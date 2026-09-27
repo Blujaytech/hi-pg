@@ -25,13 +25,13 @@ class AuthHeader extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color: AppColors.fill,
-            borderRadius: BorderRadius.circular(999),
+            color: AppColors.brandSoft,
+            borderRadius: BorderRadius.circular(6),
           ),
           child: Text(
             eyebrow.toUpperCase(),
             style: const TextStyle(
-              color: AppColors.ink,
+              color: AppColors.brandText,
               fontSize: 11,
               fontWeight: FontWeight.w800,
               letterSpacing: 1.1,
@@ -52,6 +52,16 @@ class AuthHeader extends StatelessWidget {
     );
   }
 }
+
+/// Light, borderless bar for the sign-in screens, which sit on a plain page
+/// rather than under the charcoal header the signed-in app uses.
+AppBar authAppBar({Widget? leading}) => AppBar(
+      leading: leading,
+      backgroundColor: AppColors.surface,
+      foregroundColor: AppColors.ink,
+      iconTheme: const IconThemeData(color: AppColors.ink),
+      systemOverlayStyle: AppTheme.lightChrome,
+    );
 
 /// Back arrow that pops when there is somewhere to pop to, otherwise returns
 /// to [fallback] (e.g. after a cold start straight onto this screen).
@@ -327,7 +337,7 @@ class _OtpBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final borderColor = active
-        ? AppColors.ink
+        ? AppColors.brand
         : error
             ? AppColors.danger
             : digit.isEmpty
@@ -338,7 +348,7 @@ class _OtpBox extends StatelessWidget {
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: digit.isEmpty ? AppColors.fill : AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: borderColor, width: active ? 1.6 : 1.2),
       ),
       child: Text(

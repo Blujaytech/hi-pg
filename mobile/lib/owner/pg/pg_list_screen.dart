@@ -145,7 +145,7 @@ class _PgListScreenState extends State<PgListScreen>
         fullName.isEmpty ? 'there' : fullName.split(RegExp(r'\s+')).first;
     return Scaffold(
       appBar: AppBar(
-        title: const HiPgLockup(height: 26),
+        title: const HiPgLockup(height: 26, wordColor: Colors.white),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 16),
@@ -267,7 +267,7 @@ class _AvatarButton extends StatelessWidget {
       button: true,
       label: 'Account',
       child: Material(
-        color: AppColors.ink,
+        color: AppColors.brand,
         shape: const CircleBorder(),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -308,8 +308,7 @@ class _PortfolioSummary extends StatelessWidget {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AppColors.ink,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: AppShadows.soft,
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -386,7 +385,7 @@ class _PortfolioSummary extends StatelessWidget {
             child: LinearProgressIndicator(
               value: total == 0 ? 0 : active / total,
               minHeight: 6,
-              color: Colors.white,
+              color: AppColors.successBright,
               backgroundColor: Colors.white.withValues(alpha: .14),
             ),
           ),
@@ -423,9 +422,13 @@ class _PropertyCard extends StatelessWidget {
                 children: [
                   pg.photoUrl == null
                       ? const IconTile(
-                          icon: Icons.apartment_rounded, size: 50, dark: true)
+                          icon: Icons.apartment_rounded,
+                          size: 50,
+                          color: AppColors.brandText,
+                          background: AppColors.brandSoft,
+                        )
                       : ClipRRect(
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.circular(8),
                           child: Image.network(
                             pg.photoUrl!,
                             width: 50,
@@ -434,7 +437,8 @@ class _PropertyCard extends StatelessWidget {
                             errorBuilder: (_, __, ___) => const IconTile(
                               icon: Icons.apartment_rounded,
                               size: 50,
-                              dark: true,
+                              color: AppColors.brandText,
+                              background: AppColors.brandSoft,
                             ),
                           ),
                         ),
@@ -552,7 +556,7 @@ class _CardAction extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 17, color: AppColors.ink),
+              Icon(icon, size: 18, color: AppColors.brandText),
               const SizedBox(height: 5),
               Text(
                 label,
@@ -769,12 +773,12 @@ class _PgFormSheetState extends State<_PgFormSheet> {
           const SizedBox(height: 14),
           InkWell(
             onTap: _saving ? null : _pickPhoto,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(10),
             child: Container(
               height: 116,
               decoration: BoxDecoration(
                 color: AppColors.fill,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: AppColors.border),
                 image: _photoBytes != null
                     ? DecorationImage(
@@ -789,7 +793,7 @@ class _PgFormSheetState extends State<_PgFormSheet> {
               child: Container(
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(10),
                   color:
                       (_photoBytes != null || widget.initial?.photoUrl != null)
                           ? Colors.black.withValues(alpha: .35)
@@ -879,7 +883,7 @@ class _PropertyLocationField extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: selected ? AppColors.successSoft : AppColors.fill,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: selected
               ? AppColors.success.withValues(alpha: .28)
@@ -943,6 +947,10 @@ class _PropertyLocationPickerState extends State<_PropertyLocationPicker> {
         title: const Text('Pin property location'),
         actions: [
           TextButton(
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.white,
+              disabledForegroundColor: Colors.white38,
+            ),
             onPressed: _selected == null
                 ? null
                 : () => Navigator.of(context).pop(_selected),

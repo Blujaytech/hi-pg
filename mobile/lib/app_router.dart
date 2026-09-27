@@ -193,8 +193,11 @@ GoRouter buildRouter(AuthState authState) {
         routes: [
           GoRoute(
             path: 'pgs/:pgId',
-            builder: (context, state) =>
-                PgDetailsScreen(pgId: state.pathParameters['pgId']!),
+            builder: (context, state) => PgDetailsScreen(
+              pgId: state.pathParameters['pgId']!,
+              preferredBookingType:
+                  _bookingTypeFromQuery(state.uri.queryParameters['stayType']),
+            ),
           ),
         ],
       ),
@@ -353,8 +356,11 @@ GoRouter buildRouter(AuthState authState) {
       // Student detail screens, pushed above the tab bar.
       GoRoute(
         path: '/student/pgs/:pgId',
-        builder: (context, state) =>
-            PgDetailsScreen(pgId: state.pathParameters['pgId']!),
+        builder: (context, state) => PgDetailsScreen(
+          pgId: state.pathParameters['pgId']!,
+          preferredBookingType:
+              _bookingTypeFromQuery(state.uri.queryParameters['stayType']),
+        ),
       ),
       GoRoute(
           path: '/student/fees',
@@ -385,3 +391,9 @@ GoRouter buildRouter(AuthState authState) {
     ],
   );
 }
+
+BookingType? _bookingTypeFromQuery(String? value) => switch (value) {
+      'MONTHLY' => BookingType.monthly,
+      'DAY_WISE' => BookingType.dayWise,
+      _ => null,
+    };

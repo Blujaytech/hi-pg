@@ -60,7 +60,9 @@ class _OwnerSignupScreenState extends State<OwnerSignupScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(leading: const AuthBackButton(fallback: '/owner/login')),
+      backgroundColor: AppColors.surface,
+      appBar: authAppBar(
+          leading: const AuthBackButton(fallback: '/owner/login')),
       body: SafeArea(
         top: false,
         child: SingleChildScrollView(

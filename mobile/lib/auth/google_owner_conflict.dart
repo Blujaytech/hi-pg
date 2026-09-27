@@ -32,7 +32,7 @@ Future<OwnerGmailChoice?> showOwnerGmailConflict(BuildContext context) {
                 height: 52,
                 decoration: BoxDecoration(
                   color: AppColors.warningSoft,
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(Icons.admin_panel_settings_outlined,
                     color: AppColors.warning),

@@ -5,8 +5,11 @@ class RoomRepository {
   final ApiClient _client = ApiClient.instance;
 
   Future<List<Room>> listForFloor(String floorId) async {
-    final response = await _client.get<List<dynamic>>('/owner/floors/$floorId/rooms');
-    return response.data!.map((e) => Room.fromJson(e as Map<String, dynamic>)).toList();
+    final response =
+        await _client.get<List<dynamic>>('/owner/floors/$floorId/rooms');
+    return response.data!
+        .map((e) => Room.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
   Future<Room> create({
@@ -20,7 +23,8 @@ class RoomRepository {
     int noticePeriodDays = 15,
     double securityDeposit = 0,
   }) async {
-    final response = await _client.post<Map<String, dynamic>>('/owner/floors/$floorId/rooms', data: {
+    final response = await _client
+        .post<Map<String, dynamic>>('/owner/floors/$floorId/rooms', data: {
       'roomNumber': roomNumber,
       'sharingCount': sharingCount,
       'rentPerBed': rentPerBed,
@@ -33,19 +37,31 @@ class RoomRepository {
     return Room.fromJson(response.data!);
   }
 
-  Future<Room> update(Room room, {required int sharingCount}) async {
-    final response = await _client.put<Map<String, dynamic>>('/owner/rooms/${room.id}', data: {
-      'roomNumber': room.roomNumber,
+  Future<Room> update({
+    required Room room,
+    required String roomNumber,
+    required int sharingCount,
+    required double rentPerBed,
+    required RoomType roomType,
+    required RoomBookingMode bookingMode,
+    double? dayWiseRate,
+    required int noticePeriodDays,
+    required double securityDeposit,
+  }) async {
+    final response = await _client
+        .put<Map<String, dynamic>>('/owner/rooms/${room.id}', data: {
+      'roomNumber': roomNumber,
       'sharingCount': sharingCount,
-      'rentPerBed': room.rentPerBed,
-      'roomType': room.roomType.apiValue,
-      'bookingMode': room.bookingMode.apiValue,
-      'dayWiseRate': room.dayWiseRate,
-      'noticePeriodDays': room.noticePeriodDays,
-      'securityDeposit': room.securityDeposit,
+      'rentPerBed': rentPerBed,
+      'roomType': roomType.apiValue,
+      'bookingMode': bookingMode.apiValue,
+      'dayWiseRate': dayWiseRate,
+      'noticePeriodDays': noticePeriodDays,
+      'securityDeposit': securityDeposit,
     });
     return Room.fromJson(response.data!);
   }
 
-  Future<void> delete(String roomId) => _client.delete<void>('/owner/rooms/$roomId');
+  Future<void> delete(String roomId) =>
+      _client.delete<void>('/owner/rooms/$roomId');
 }

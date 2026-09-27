@@ -149,7 +149,7 @@ class _DirectPaymentSettingsScreenState
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
               color: verified ? AppColors.successSoft : AppColors.warningSoft,
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,

@@ -9,17 +9,26 @@ class ReportRepository {
   final ApiClient _client = ApiClient.instance;
 
   Future<List<MonthlyFinancialSummary>> revenue({int months = 6}) async {
-    final response = await _client.get<List<dynamic>>('/owner/reports/revenue', queryParameters: {'months': months});
-    return response.data!.map((e) => MonthlyFinancialSummary.fromJson(e as Map<String, dynamic>)).toList();
+    final response = await _client.get<List<dynamic>>('/owner/reports/revenue',
+        queryParameters: {'months': months});
+    return response.data!
+        .map((e) => MonthlyFinancialSummary.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
   Future<List<OccupancyReport>> occupancy() async {
-    final response = await _client.get<List<dynamic>>('/owner/reports/occupancy');
-    return response.data!.map((e) => OccupancyReport.fromJson(e as Map<String, dynamic>)).toList();
+    final response =
+        await _client.get<List<dynamic>>('/owner/reports/occupancy');
+    return response.data!
+        .map((e) => OccupancyReport.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
   Future<List<OutstandingDue>> outstandingDues() async {
-    final response = await _client.get<List<dynamic>>('/owner/reports/outstanding-dues');
-    return response.data!.map((e) => OutstandingDue.fromJson(e as Map<String, dynamic>)).toList();
+    final response =
+        await _client.get<List<dynamic>>('/owner/reports/outstanding-dues');
+    return response.data!
+        .map((e) => OutstandingDue.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 }

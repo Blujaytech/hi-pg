@@ -43,13 +43,13 @@ class _BookingCalendarScreenState extends State<BookingCalendarScreen> {
   }
 
   Color _color(BookingCalendarEntry entry) {
-    if (entry.status == 'PAYMENT_PENDING') return const Color(0xFFF2B84B);
+    if (entry.status == 'PAYMENT_PENDING') return AppColors.warningBright;
     if (entry.status == 'CANCELLED' || entry.status == 'EXPIRED') {
       return AppColors.muted;
     }
     return entry.bookingType == 'DAY_WISE'
-        ? const Color(0xFF2F80ED)
-        : const Color(0xFF7B61FF);
+        ? AppColors.ink
+        : AppColors.brand;
   }
 
   @override
@@ -74,9 +74,9 @@ class _BookingCalendarScreenState extends State<BookingCalendarScreen> {
                   icon: const Icon(Icons.chevron_right_rounded)),
             ]),
             const Wrap(spacing: 16, runSpacing: 8, children: [
-              _Legend(color: Color(0xFF7B61FF), label: 'Monthly'),
-              _Legend(color: Color(0xFF2F80ED), label: 'Day-wise'),
-              _Legend(color: Color(0xFFF2B84B), label: 'Payment hold'),
+              _Legend(color: AppColors.brand, label: 'Monthly'),
+              _Legend(color: AppColors.ink, label: 'Day-wise'),
+              _Legend(color: AppColors.warningBright, label: 'Payment hold'),
               _Legend(color: AppColors.muted, label: 'Unavailable'),
             ]),
           ]),

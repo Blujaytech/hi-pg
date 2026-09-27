@@ -1,3 +1,8 @@
+import 'package:dio/dio.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:http_parser/http_parser.dart';
+
+import '../../core/api_exception.dart';
 import '../../shared/api_client.dart';
 import '../booking/booking_models.dart';
 import 'customer_profile_models.dart';
@@ -14,11 +19,9 @@ class CustomerProfileRepository {
   Future<CustomerProfile> save({
     required String fullName,
     required String occupation,
+    required String contactPhone,
     String? permanentAddress,
-    String? guardianName,
-    String? guardianPhone,
     IdentityType? identityType,
-    String? identityLast4,
     required bool acceptTerms,
     required bool acceptPrivacy,
     required bool acceptAadhaarConsent,
@@ -28,16 +31,35 @@ class CustomerProfileRepository {
       data: {
         'fullName': fullName.trim(),
         'occupation': occupation.trim(),
+        'contactPhone': contactPhone.trim(),
         'permanentAddress': _blankToNull(permanentAddress),
-        'guardianName': _blankToNull(guardianName),
-        'guardianPhone':
-            _blankToNull(guardianPhone)?.replaceAll(RegExp(r'[\s-]'), ''),
         'identityType': identityType?.apiValue,
-        'identityLast4': _blankToNull(identityLast4)?.toUpperCase(),
+        'identityLast4': null,
         'acceptTerms': acceptTerms,
         'acceptPrivacy': acceptPrivacy,
         'acceptAadhaarConsent': acceptAadhaarConsent,
       },
+    );
+    return CustomerProfile.fromJson(response.data!);
+  }
+
+  Future<CustomerProfile> uploadIdentityDocument({
+    required IdentityType identityType,
+    required PlatformFile file,
+  }) async {
+    final bytes = file.bytes;
+    if (bytes == null) {
+      throw ApiException(message: 'The selected file could not be read.');
+    }
+    final response = await _client.post<Map<String, dynamic>>(
+      '/student/profile/identity-document?identityType=${identityType.apiValue}',
+      data: FormData.fromMap({
+        'file': MultipartFile.fromBytes(
+          bytes,
+          filename: file.name,
+          contentType: MediaType.parse(_contentType(file.extension)),
+        ),
+      }),
     );
     return CustomerProfile.fromJson(response.data!);
   }
@@ -52,18 +74,11 @@ class CustomerProfileRepository {
     return profile.eligibilityFor(bookingType);
   }
 
-  Future<void> requestPhoneOtp(String phone) => _client.post<void>(
-        '/student/profile/phone/otp/request',
-        data: {'phone': phone.trim()},
-      );
-
-  Future<CustomerProfile> verifyPhoneOtp(String phone, String code) async {
-    final response = await _client.post<Map<String, dynamic>>(
-      '/student/profile/phone/otp/verify',
-      data: {'phone': phone.trim(), 'code': code.trim()},
-    );
-    return CustomerProfile.fromJson(response.data!);
-  }
+  String _contentType(String? extension) => switch (extension?.toLowerCase()) {
+        'pdf' => 'application/pdf',
+        'png' => 'image/png',
+        _ => 'image/jpeg',
+      };
 
   static String? _blankToNull(String? value) {
     final trimmed = value?.trim();

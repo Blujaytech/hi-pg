@@ -4,20 +4,20 @@ enum BedBookingMode { monthly, dayWise, flexible }
 
 extension BedBookingModeX on BedBookingMode {
   String get apiValue => switch (this) {
-    BedBookingMode.monthly => 'MONTHLY',
-    BedBookingMode.dayWise => 'DAY_WISE',
-    BedBookingMode.flexible => 'FLEXIBLE',
-  };
+        BedBookingMode.monthly => 'MONTHLY',
+        BedBookingMode.dayWise => 'DAY_WISE',
+        BedBookingMode.flexible => 'FLEXIBLE',
+      };
   String get label => switch (this) {
-    BedBookingMode.monthly => 'Monthly',
-    BedBookingMode.dayWise => 'Day-wise',
-    BedBookingMode.flexible => 'Flexible',
-  };
+        BedBookingMode.monthly => 'Monthly',
+        BedBookingMode.dayWise => 'Day-wise',
+        BedBookingMode.flexible => 'Flexible',
+      };
   static BedBookingMode fromApi(String value) => switch (value) {
-    'DAY_WISE' => BedBookingMode.dayWise,
-    'FLEXIBLE' => BedBookingMode.flexible,
-    _ => BedBookingMode.monthly,
-  };
+        'DAY_WISE' => BedBookingMode.dayWise,
+        'FLEXIBLE' => BedBookingMode.flexible,
+        _ => BedBookingMode.monthly,
+      };
 }
 
 extension BedStatusX on BedStatus {
@@ -47,6 +47,10 @@ class BedOccupant {
   final String? guardianName;
   final String? guardianPhone;
   final String dateOfJoining;
+  final String? bookingType;
+  final String? checkInDate;
+  final String? checkOutDate;
+  final String? checkOutTime;
 
   BedOccupant({
     required this.studentId,
@@ -55,6 +59,10 @@ class BedOccupant {
     required this.guardianName,
     required this.guardianPhone,
     required this.dateOfJoining,
+    this.bookingType,
+    this.checkInDate,
+    this.checkOutDate,
+    this.checkOutTime,
   });
 
   factory BedOccupant.fromJson(Map<String, dynamic> json) => BedOccupant(
@@ -64,6 +72,10 @@ class BedOccupant {
         guardianName: json['guardianName'] as String?,
         guardianPhone: json['guardianPhone'] as String?,
         dateOfJoining: json['dateOfJoining'] as String,
+        bookingType: json['bookingType'] as String?,
+        checkInDate: json['checkInDate'] as String?,
+        checkOutDate: json['checkOutDate'] as String?,
+        checkOutTime: json['checkOutTime'] as String?,
       );
 }
 
@@ -75,15 +87,23 @@ class Bed {
   final BedBookingMode bookingMode;
   final BedOccupant? occupant;
 
-  Bed({required this.id, required this.roomId, required this.label, required this.status,
-    required this.bookingMode, this.occupant});
+  Bed(
+      {required this.id,
+      required this.roomId,
+      required this.label,
+      required this.status,
+      required this.bookingMode,
+      this.occupant});
 
   factory Bed.fromJson(Map<String, dynamic> json) => Bed(
         id: json['id'] as String,
         roomId: json['roomId'] as String,
         label: json['label'] as String,
         status: BedStatusX.fromApi(json['status'] as String),
-        bookingMode: BedBookingModeX.fromApi(json['bookingMode'] as String? ?? 'MONTHLY'),
-        occupant: json['occupant'] != null ? BedOccupant.fromJson(json['occupant'] as Map<String, dynamic>) : null,
+        bookingMode: BedBookingModeX.fromApi(
+            json['bookingMode'] as String? ?? 'MONTHLY'),
+        occupant: json['occupant'] != null
+            ? BedOccupant.fromJson(json['occupant'] as Map<String, dynamic>)
+            : null,
       );
 }

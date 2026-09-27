@@ -35,6 +35,8 @@ class Receipt {
         feePeriodYear: json['feePeriodYear'] as int,
         amount: (json['amount'] as num).toDouble(),
         paidOn: DateTime.parse(json['paidOn'] as String),
-        method: PaymentMethod.values.firstWhere((m) => m.apiValue == json['method'], orElse: () => PaymentMethod.other),
+        method: PaymentMethod.values.firstWhere(
+            (m) => m.apiValue == json['method'],
+            orElse: () => PaymentMethod.other),
       );
 }

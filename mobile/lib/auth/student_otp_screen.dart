@@ -210,7 +210,8 @@ class _StudentOtpScreenState extends State<StudentOtpScreen> {
         if (!didPop && !_busy) _changePhone();
       },
       child: Scaffold(
-        appBar: AppBar(
+        backgroundColor: AppColors.surface,
+        appBar: authAppBar(
           leading: AuthBackButton(onPressed: onCodeStep ? _changePhone : null),
         ),
         body: SafeArea(

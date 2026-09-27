@@ -31,5 +31,11 @@ void main() {
     expect(find.byKey(const Key('student-entry-button')), findsOneWidget);
     expect(find.text("I'm a PG owner"), findsOneWidget);
     expect(find.text('Search for a stay'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('student-entry-button')));
+    await tester.pumpAndSettle();
+
+    expect(find.text("What's your number?"), findsOneWidget);
+    expect(find.text('Search for a stay'), findsNothing);
   });
 }

@@ -13,7 +13,8 @@ class MonthlyFinancialSummary {
     required this.net,
   });
 
-  factory MonthlyFinancialSummary.fromJson(Map<String, dynamic> json) => MonthlyFinancialSummary(
+  factory MonthlyFinancialSummary.fromJson(Map<String, dynamic> json) =>
+      MonthlyFinancialSummary(
         year: json['year'] as int,
         month: json['month'] as int,
         collected: (json['collected'] as num).toDouble(),
@@ -22,7 +23,18 @@ class MonthlyFinancialSummary {
       );
 
   static const _monthNames = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec'
   ];
 
   String get label => '${_monthNames[month - 1]} $year';
@@ -47,7 +59,8 @@ class OccupancyReport {
     required this.occupancyPercentage,
   });
 
-  factory OccupancyReport.fromJson(Map<String, dynamic> json) => OccupancyReport(
+  factory OccupancyReport.fromJson(Map<String, dynamic> json) =>
+      OccupancyReport(
         pgId: json['pgId'] as String,
         pgName: json['pgName'] as String,
         totalBeds: json['totalBeds'] as int,

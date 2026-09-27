@@ -53,14 +53,9 @@ class _ReceiptListScreenState extends State<ReceiptListScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Receipts'),
-            if (widget.studentName != null)
-              Text(widget.studentName!,
-                  style: Theme.of(context).textTheme.bodySmall),
-          ],
+        title: AppBarTitle(
+          title: 'Receipts',
+          subtitle: widget.studentName,
         ),
       ),
       body: FutureBuilder<List<Receipt>>(

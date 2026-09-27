@@ -130,6 +130,7 @@ public class PgSearchService {
         List<FloorAvailabilityResponse> floorResponses = floors.stream().map(floor -> {
             List<Room> rooms = roomRepository.findAllByFloorIdAndDeletedAtIsNullOrderByRoomNumberAsc(floor.getId());
             List<RoomAvailabilityResponse> roomResponses = rooms.stream()
+                    .filter(room -> bookingType == null || supports(room.getBookingMode(), bookingType))
                     .map(room -> {
                         List<AvailableBedSummary> availableBedOptions = bedRepository
                                 .findAvailableForDates(room.getId(), modes, requestedStart, requestedEnd)
@@ -154,7 +155,14 @@ public class PgSearchService {
                     })
                     .toList();
             return new FloorAvailabilityResponse(floor.getId(), floor.getName(), floor.getFloorNumber(), roomResponses);
-        }).toList();
+        }).filter(floor -> !floor.rooms().isEmpty()).toList();
+
+        if (bookingType != null) {
+            totalBeds = floorResponses.stream().flatMap(floor -> floor.rooms().stream())
+                    .mapToLong(room -> room.beds().size()).sum();
+            availableBeds = floorResponses.stream().flatMap(floor -> floor.rooms().stream())
+                    .mapToLong(RoomAvailabilityResponse::availableBeds).sum();
+        }
 
         return new PgDetailsResponse(
                 pg.getId(), pg.getName(), pg.getAddress(), pg.getCity(), pg.getState(), pg.getPincode(),
@@ -165,6 +173,12 @@ public class PgSearchService {
 
     public PgDetailsResponse getDetails(UUID pgId) {
         return getDetails(pgId, null, null, null);
+    }
+
+    private boolean supports(RoomBookingMode mode, BookingType type) {
+        return mode == RoomBookingMode.MIXED
+                || (type == BookingType.MONTHLY && mode == RoomBookingMode.MONTHLY)
+                || (type == BookingType.DAY_WISE && mode == RoomBookingMode.DAY_WISE);
     }
 
     private PgSearchResultResponse toSearchResult(Pg pg) {

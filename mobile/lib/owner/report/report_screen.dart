@@ -35,6 +35,10 @@ class _ReportScreenState extends State<ReportScreen> {
         appBar: AppBar(
           title: const Text('Reports'),
           bottom: const TabBar(
+            labelColor: Colors.white,
+            unselectedLabelColor: Color(0xB8FFFFFF),
+            indicatorColor: AppColors.brand,
+            dividerColor: Colors.transparent,
             tabs: [
               Tab(text: 'Revenue'),
               Tab(text: 'Occupancy'),
@@ -177,7 +181,8 @@ class _RevenueRow extends StatelessWidget {
                 Text(
                   '${month.net >= 0 ? '+' : ''}${_money.format(month.net)}',
                   style: TextStyle(
-                    color: month.net >= 0 ? AppColors.success : AppColors.danger,
+                    color:
+                        month.net >= 0 ? AppColors.success : AppColors.danger,
                     fontSize: 15,
                     fontWeight: FontWeight.w800,
                   ),
@@ -405,9 +410,8 @@ class _OutstandingDuesTab extends StatelessWidget {
                       label: due.overdue
                           ? 'Overdue since ${DateFormat('d MMM').format(due.dueDate)}'
                           : 'Due ${DateFormat('d MMM').format(due.dueDate)}',
-                      tone: due.overdue
-                          ? StatusTone.danger
-                          : StatusTone.neutral,
+                      tone:
+                          due.overdue ? StatusTone.danger : StatusTone.neutral,
                     ),
                   ],
                 ),
@@ -440,7 +444,7 @@ class _SummaryBand extends StatelessWidget {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AppColors.ink,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         children: [

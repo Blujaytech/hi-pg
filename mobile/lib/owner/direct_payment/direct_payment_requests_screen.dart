@@ -142,16 +142,11 @@ class _DirectPaymentRequestsScreenState
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(widget.bookingId == null
-                ? 'Direct payment requests'
-                : 'Review customer payment'),
-            if (widget.pg != null)
-              Text(widget.pg!.name,
-                  style: Theme.of(context).textTheme.bodySmall),
-          ],
+        title: AppBarTitle(
+          title: widget.bookingId == null
+              ? 'Direct payment requests'
+              : 'Review customer payment',
+          subtitle: widget.pg?.name,
         ),
         actions: [
           if (widget.pgId != null)

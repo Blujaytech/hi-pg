@@ -56,10 +56,10 @@ class AppEmptyView extends StatelessWidget {
               width: 84,
               height: 84,
               decoration: const BoxDecoration(
-                color: AppColors.fill,
+                color: AppColors.brandSoft,
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, color: AppColors.ink, size: 36),
+              child: Icon(icon, color: AppColors.brandText, size: 36),
             ),
             const SizedBox(height: 22),
             Text(
@@ -171,7 +171,7 @@ class AppMessageBanner extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: background,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: color.withValues(alpha: 0.10)),
       ),
       child: Row(
@@ -221,10 +221,10 @@ class StatusPill extends StatelessWidget {
       StatusTone.danger => (AppColors.danger, AppColors.dangerSoft),
     };
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: background,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(4),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -281,13 +281,45 @@ class IconTile extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         color: background ?? (dark ? AppColors.ink : AppColors.fill),
-        borderRadius: BorderRadius.circular(size * .3),
+        borderRadius: BorderRadius.circular(size * .22),
       ),
       child: Icon(
         icon,
         size: size * .48,
         color: color ?? (dark ? Colors.white : AppColors.ink),
       ),
+    );
+  }
+}
+
+/// App bar title with an optional second line, readable on the charcoal
+/// bar (a plain `bodySmall` subtitle would be muted grey on charcoal).
+class AppBarTitle extends StatelessWidget {
+  final String title;
+  final String? subtitle;
+
+  const AppBarTitle({super.key, required this.title, this.subtitle});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+        if (subtitle != null)
+          Text(
+            subtitle!,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: .72),
+              fontSize: 12.5,
+              fontWeight: FontWeight.w500,
+              letterSpacing: 0,
+            ),
+          ),
+      ],
     );
   }
 }
@@ -341,11 +373,14 @@ class PickerField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.fill,
-      borderRadius: BorderRadius.circular(16),
+      color: AppColors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: const BorderSide(color: AppColors.border),
+      ),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(8),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(12, 10, 14, 10),
           child: Row(
@@ -408,7 +443,12 @@ class FormSheet extends StatelessWidget {
           children: [
             Row(
               children: [
-                IconTile(icon: icon, size: 48, dark: true),
+                IconTile(
+                  icon: icon,
+                  size: 48,
+                  color: AppColors.brandText,
+                  background: AppColors.brandSoft,
+                ),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(

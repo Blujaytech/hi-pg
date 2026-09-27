@@ -10,6 +10,9 @@ import com.pgplatform.owner.dto.RoomUpdateRequest;
 import com.pgplatform.student.Student;
 import com.pgplatform.student.StudentRepository;
 import com.pgplatform.student.StudentStatus;
+import com.pgplatform.booking.Booking;
+import com.pgplatform.booking.BookingRepository;
+import com.pgplatform.booking.BookingStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -32,14 +35,17 @@ public class RoomService {
     private final FloorService floorService;
     private final BedAvailabilityBroadcaster broadcaster;
     private final StudentRepository studentRepository;
+    private final BookingRepository bookingRepository;
 
     public RoomService(RoomRepository roomRepository, BedRepository bedRepository, FloorService floorService,
-                        BedAvailabilityBroadcaster broadcaster, StudentRepository studentRepository) {
+                        BedAvailabilityBroadcaster broadcaster, StudentRepository studentRepository,
+                        BookingRepository bookingRepository) {
         this.roomRepository = roomRepository;
         this.bedRepository = bedRepository;
         this.floorService = floorService;
         this.broadcaster = broadcaster;
         this.studentRepository = studentRepository;
+        this.bookingRepository = bookingRepository;
     }
 
     @Transactional
@@ -187,7 +193,13 @@ public class RoomService {
             Student occupant = bed.getStatus() == BedStatus.OCCUPIED
                     ? studentRepository.findByBedIdAndStatusAndDeletedAtIsNull(bed.getId(), StudentStatus.ACTIVE).orElse(null)
                     : null;
-            return BedResponse.from(bed, occupant);
+            Booking booking = occupant == null ? null : bookingRepository
+                    .findFirstByStudentIdAndStatusInAndDeletedAtIsNullOrderByCreatedAtDesc(
+                            occupant.getId(), List.of(BookingStatus.PAYMENT_PENDING,
+                                    BookingStatus.DIRECT_PAYMENT_REVIEW, BookingStatus.CONFIRMED,
+                                    BookingStatus.CHECKED_IN))
+                    .orElse(null);
+            return BedResponse.from(bed, occupant, booking);
         }).toList();
         return RoomResponse.from(room, bedResponses);
     }

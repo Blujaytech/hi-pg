@@ -8,6 +8,8 @@ import jakarta.validation.constraints.Pattern;
 public record CustomerProfileUpdateRequest(
         @NotBlank @Size(max = 255) String fullName,
         @NotBlank @Size(max = 120) String occupation,
+        @Pattern(regexp = "^$|^\\+?[1-9][0-9]{9,14}$", message = "contact phone must be a valid mobile number")
+        String contactPhone,
         @Size(max = 2000) String permanentAddress,
         @Size(max = 255) String guardianName,
         @Pattern(regexp = "^$|^\\+?[1-9][0-9]{9,14}$", message = "guardian phone must be a valid mobile number")
@@ -23,7 +25,7 @@ public record CustomerProfileUpdateRequest(
                                         IdentityType identityType, String identityLast4,
                                         boolean acceptTerms, boolean acceptPrivacy,
                                         boolean acceptAadhaarConsent) {
-        this(fullName, occupation, permanentAddress, null, null, identityType, identityLast4,
+        this(fullName, occupation, null, permanentAddress, null, null, identityType, identityLast4,
                 acceptTerms, acceptPrivacy, acceptAadhaarConsent);
     }
 }

@@ -6,7 +6,8 @@ class ApiException implements Exception {
   final String message;
   final List<String> details;
 
-  ApiException({required this.message, this.statusCode, this.details = const []});
+  ApiException(
+      {required this.message, this.statusCode, this.details = const []});
 
   @override
   String toString() => message;

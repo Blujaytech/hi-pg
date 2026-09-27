@@ -10,8 +10,11 @@ class StudentRepository {
   final _roomRepository = RoomRepository();
 
   Future<List<Student>> listForPg(String pgId) async {
-    final response = await _client.get<List<dynamic>>('/owner/pgs/$pgId/students');
-    return response.data!.map((e) => Student.fromJson(e as Map<String, dynamic>)).toList();
+    final response =
+        await _client.get<List<dynamic>>('/owner/pgs/$pgId/students');
+    return response.data!
+        .map((e) => Student.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
   Future<Student> create({
@@ -26,7 +29,8 @@ class StudentRepository {
     required DateTime dateOfJoining,
     String? bedId,
   }) async {
-    final response = await _client.post<Map<String, dynamic>>('/owner/pgs/$pgId/students', data: {
+    final response = await _client
+        .post<Map<String, dynamic>>('/owner/pgs/$pgId/students', data: {
       'fullName': fullName,
       'phone': phone,
       'email': email,
@@ -41,18 +45,29 @@ class StudentRepository {
   }
 
   Future<Student> assignBed(String studentId, String bedId) async {
-    final response = await _client.post<Map<String, dynamic>>('/owner/students/$studentId/assign-bed', data: {
-      'bedId': bedId,
-    });
+    final response = await _client.post<Map<String, dynamic>>(
+        '/owner/students/$studentId/assign-bed',
+        data: {
+          'bedId': bedId,
+        });
     return Student.fromJson(response.data!);
   }
 
   Future<Student> moveOut(String studentId) async {
-    final response = await _client.post<Map<String, dynamic>>('/owner/students/$studentId/move-out');
+    final response = await _client
+        .post<Map<String, dynamic>>('/owner/students/$studentId/move-out');
     return Student.fromJson(response.data!);
   }
 
-  Future<void> delete(String studentId) => _client.delete<void>('/owner/students/$studentId');
+  Future<void> delete(String studentId) =>
+      _client.delete<void>('/owner/students/$studentId');
+
+  Future<String> identityDocumentDownloadUrl(String studentId) async {
+    final response = await _client.get<Map<String, dynamic>>(
+      '/owner/students/$studentId/identity-document/download-url',
+    );
+    return response.data!['url'] as String;
+  }
 
   /// Walks Floor -> Room -> Bed for a PG and returns only AVAILABLE beds, for
   /// the "assign a bed" picker. No single backend endpoint does this yet
@@ -66,7 +81,11 @@ class StudentRepository {
       for (final room in rooms) {
         for (final bed in room.beds) {
           if (bed.status == BedStatus.available) {
-            beds.add(AvailableBed(id: bed.id, label: bed.label, roomNumber: room.roomNumber, floorName: floor.name));
+            beds.add(AvailableBed(
+                id: bed.id,
+                label: bed.label,
+                roomNumber: room.roomNumber,
+                floorName: floor.name));
           }
         }
       }

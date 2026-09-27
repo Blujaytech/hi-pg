@@ -41,13 +41,20 @@ class Payment {
   final PaymentMethod method;
   final String? reference;
 
-  Payment({required this.id, required this.amountPaid, required this.paidOn, required this.method, this.reference});
+  Payment(
+      {required this.id,
+      required this.amountPaid,
+      required this.paidOn,
+      required this.method,
+      this.reference});
 
   factory Payment.fromJson(Map<String, dynamic> json) => Payment(
         id: json['id'] as String,
         amountPaid: (json['amountPaid'] as num).toDouble(),
         paidOn: DateTime.parse(json['paidOn'] as String),
-        method: PaymentMethod.values.firstWhere((m) => m.apiValue == json['method'], orElse: () => PaymentMethod.other),
+        method: PaymentMethod.values.firstWhere(
+            (m) => m.apiValue == json['method'],
+            orElse: () => PaymentMethod.other),
         reference: json['reference'] as String?,
       );
 }
@@ -99,12 +106,15 @@ class Fee {
         amountPaid: (json['amountPaid'] as num).toDouble(),
         balance: (json['balance'] as num).toDouble(),
         dueDate: DateTime.parse(json['dueDate'] as String),
-        effectiveDueDate: DateTime.parse((json['effectiveDueDate'] ?? json['dueDate']) as String),
+        effectiveDueDate: DateTime.parse(
+            (json['effectiveDueDate'] ?? json['dueDate']) as String),
         extensionCount: json['extensionCount'] as int? ?? 0,
         extensionNote: json['extensionNote'] as String?,
         status: FeeStatusX.fromApi(json['status'] as String),
         overdue: json['overdue'] as bool,
         notes: json['notes'] as String?,
-        payments: (json['payments'] as List<dynamic>? ?? []).map((e) => Payment.fromJson(e as Map<String, dynamic>)).toList(),
+        payments: (json['payments'] as List<dynamic>? ?? [])
+            .map((e) => Payment.fromJson(e as Map<String, dynamic>))
+            .toList(),
       );
 }

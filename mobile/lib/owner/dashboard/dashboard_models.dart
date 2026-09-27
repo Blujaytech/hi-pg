@@ -31,7 +31,8 @@ class DashboardSummary {
     required this.openComplaints,
   });
 
-  factory DashboardSummary.fromJson(Map<String, dynamic> json) => DashboardSummary(
+  factory DashboardSummary.fromJson(Map<String, dynamic> json) =>
+      DashboardSummary(
         totalPgs: json['totalPgs'] as int,
         totalFloors: json['totalFloors'] as int,
         totalRooms: json['totalRooms'] as int,
