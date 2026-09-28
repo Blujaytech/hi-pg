@@ -22,6 +22,7 @@
         <jjwt.version>0.12.5</jjwt.version>
         <google-api-client.version>2.9.0</google-api-client.version>
         <aws-sdk.version>2.55.1</aws-sdk.version>
+        <cloud-sql-connector.version>1.29.0</cloud-sql-connector.version>
     </properties>
 
     <dependencies>
@@ -50,6 +51,15 @@
         <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <!-- Authenticated, encrypted Cloud Run -> Cloud SQL connectivity.
+             The gcp profile supplies the instance connection name and uses
+             Application Default Credentials from the Cloud Run service account. -->
+        <dependency>
+            <groupId>com.google.cloud.sql</groupId>
+            <artifactId>postgres-socket-factory</artifactId>
+            <version>${cloud-sql-connector.version}</version>
             <scope>runtime</scope>
         </dependency>
         <dependency>

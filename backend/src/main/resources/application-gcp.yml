@@ -1,0 +1,11 @@
+# Cloud Run / Cloud SQL settings. Activate together with the production profile:
+# SPRING_PROFILES_ACTIVE=prod,gcp
+#
+# The Cloud SQL Java Connector uses the Cloud Run service account's Application
+# Default Credentials. It provides IAM-authorized, encrypted transport without
+# putting the database's public IP on an allowlist. Connector enforcement on the
+# Cloud SQL instance prevents ordinary direct database connections.
+
+spring:
+  datasource:
+    url: 'jdbc:postgresql:///${DB_NAME}?cloudSqlInstance=${CLOUD_SQL_INSTANCE}&socketFactory=com.google.cloud.sql.postgres.SocketFactory&ipTypes=${CLOUD_SQL_IP_TYPES:PUBLIC}&cloudSqlRefreshStrategy=lazy'
