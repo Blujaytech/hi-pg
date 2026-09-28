@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "115637607332",
+    "project_id": "hi-pg-platform-services-c96e2",
+    "storage_bucket": "hi-pg-platform-services-c96e2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:115637607332:android:d856e83b41006cbae57f31",
+        "android_client_info": {
+          "package_name": "com.hipg.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "115637607332-c92sus0525qifeiu5qga7ibifng92c3u.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.hipg.app",
+            "certificate_hash": "be9fe8a871cec00b2082d3666c0f734f6f4880e7"
+          }
+        },
+        {
+          "client_id": "115637607332-a355j4thoo2iabm8bp3pn0kbulv9aabs.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAOZ_XVTNJe2G0YRlwsJrXneSy9fJ0vP4o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "115637607332-a355j4thoo2iabm8bp3pn0kbulv9aabs.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

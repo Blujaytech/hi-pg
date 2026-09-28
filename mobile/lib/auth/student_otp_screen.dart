@@ -12,6 +12,7 @@ import 'auth_state.dart';
 import 'auth_widgets.dart';
 import 'google_owner_conflict.dart';
 import 'google_student_sign_in.dart';
+import 'firebase_phone_auth.dart';
 
 class StudentOtpScreen extends StatefulWidget {
   /// Where to return after sign-in: the PG a guest was booking from.
@@ -89,6 +90,8 @@ class _StudentOtpScreenState extends State<StudentOtpScreen> {
           .addPostFrameCallback((_) => _codeFocus.requestFocus());
     } on ApiException catch (error) {
       if (mounted) setState(() => _error = error.message);
+    } on FirebasePhoneAuthFailure catch (error) {
+      if (mounted) setState(() => _error = error.message);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -103,13 +106,15 @@ class _StudentOtpScreenState extends State<StudentOtpScreen> {
     try {
       await context
           .read<AuthState>()
-          .requestStudentOtp(phone: _phoneController.text.trim());
+          .requestStudentOtp(phone: _phoneController.text.trim(), resend: true);
       if (!mounted) return;
       _codeController.clear();
       _startResendCountdown();
       ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('A new code is on its way.')));
     } on ApiException catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    } on FirebasePhoneAuthFailure catch (error) {
       if (mounted) setState(() => _error = error.message);
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -138,6 +143,8 @@ class _StudentOtpScreenState extends State<StudentOtpScreen> {
           );
       _finishSignIn();
     } on ApiException catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    } on FirebasePhoneAuthFailure catch (error) {
       if (mounted) setState(() => _error = error.message);
     } finally {
       if (mounted) setState(() => _loading = false);

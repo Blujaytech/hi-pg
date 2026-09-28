@@ -19,11 +19,14 @@ public class StudentAuthService {
     private final UserRepository userRepository;
     private final OtpService otpService;
     private final TokenIssuer tokenIssuer;
+    private final FirebasePhoneIdentityVerifier firebaseIdentityVerifier;
 
-    public StudentAuthService(UserRepository userRepository, OtpService otpService, TokenIssuer tokenIssuer) {
+    public StudentAuthService(UserRepository userRepository, OtpService otpService, TokenIssuer tokenIssuer,
+                              FirebasePhoneIdentityVerifier firebaseIdentityVerifier) {
         this.userRepository = userRepository;
         this.otpService = otpService;
         this.tokenIssuer = tokenIssuer;
+        this.firebaseIdentityVerifier = firebaseIdentityVerifier;
     }
 
     public void requestOtp(StudentOtpRequestRequest request) {
@@ -37,8 +40,19 @@ public class StudentAuthService {
             throw new ConflictException("Invalid or expired code");
         }
 
-        User user = userRepository.findByPhoneAndDeletedAtIsNull(request.phone())
-                .orElseGet(() -> createStudent(request));
+        return authenticateVerifiedPhone(request.phone(), request.fullName());
+    }
+
+    @Transactional
+    public AuthResponse authenticateFirebasePhone(String idToken, String fullName) {
+        FirebasePhoneIdentity identity = firebaseIdentityVerifier.verify(idToken);
+        return authenticateVerifiedPhone(identity.phone(), fullName);
+    }
+
+    private AuthResponse authenticateVerifiedPhone(String verifiedPhone, String fullName) {
+        String phone = normalizePhone(verifiedPhone);
+        User user = findExistingPhoneUser(phone)
+                .orElseGet(() -> createStudent(phone, fullName));
 
         // Same two guards GoogleAuthService applies to the other student login path.
         // Without them this endpoint issues a token carrying whatever role the phone's
@@ -59,10 +73,37 @@ public class StudentAuthService {
         return tokenIssuer.issueFor(user);
     }
 
-    private User createStudent(StudentOtpVerifyRequest request) {
+    private java.util.Optional<User> findExistingPhoneUser(String e164Phone) {
+        java.util.Optional<User> exact = userRepository.findByPhoneAndDeletedAtIsNull(e164Phone);
+        if (exact.isPresent()) {
+            return exact;
+        }
+        // Preserve accounts created by the earlier local-OTP build, which
+        // stored Indian numbers as ten digits rather than E.164.
+        if (e164Phone.startsWith("+91") && e164Phone.length() == 13) {
+            return userRepository.findByPhoneAndDeletedAtIsNull(e164Phone.substring(3));
+        }
+        return java.util.Optional.empty();
+    }
+
+    private String normalizePhone(String phone) {
+        String compact = phone == null ? "" : phone.replaceAll("[\\s()-]", "");
+        if (compact.matches("\\d{10}")) {
+            return "+91" + compact;
+        }
+        if (compact.matches("91\\d{10}")) {
+            return "+" + compact;
+        }
+        if (!compact.matches("\\+[1-9]\\d{7,14}")) {
+            throw new BadCredentialsException("Firebase returned an invalid phone number");
+        }
+        return compact;
+    }
+
+    private User createStudent(String phone, String fullName) {
         User user = new User();
-        user.setPhone(request.phone());
-        user.setFullName(request.fullName() != null && !request.fullName().isBlank() ? request.fullName() : "Student");
+        user.setPhone(phone);
+        user.setFullName(fullName != null && !fullName.isBlank() ? fullName.trim() : "Student");
         user.setRole(Role.STUDENT);
         user.setProvider(AuthProviderType.LOCAL);
         user.setPhoneVerified(true);

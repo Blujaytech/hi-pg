@@ -7,6 +7,7 @@ import com.pgplatform.auth.SessionService;
 import com.pgplatform.auth.StudentAuthService;
 import com.pgplatform.auth.dto.AuthResponse;
 import com.pgplatform.auth.dto.GoogleAuthRequest;
+import com.pgplatform.auth.dto.FirebasePhoneAuthRequest;
 import com.pgplatform.auth.dto.OwnerLoginRequest;
 import com.pgplatform.auth.dto.OwnerSignupRequest;
 import com.pgplatform.auth.dto.PasswordResetConfirmRequest;
@@ -67,6 +68,11 @@ public class AuthController {
     @PostMapping("/student/otp/verify")
     public AuthResponse verifyStudentOtp(@Valid @RequestBody StudentOtpVerifyRequest request) {
         return studentAuthService.verifyOtp(request);
+    }
+
+    @PostMapping("/student/firebase-phone")
+    public AuthResponse firebasePhone(@Valid @RequestBody FirebasePhoneAuthRequest request) {
+        return studentAuthService.authenticateFirebasePhone(request.idToken(), request.fullName());
     }
 
     // --- Shared: refresh / logout ---

@@ -3,6 +3,7 @@ package com.pgplatform.notification;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 /**
  * Dev/placeholder implementation: logs instead of actually sending. Replace
@@ -11,6 +12,7 @@ import org.springframework.stereotype.Component;
  * docs/decisions.md ADR-0020.
  */
 @Component
+@ConditionalOnProperty(name = "app.firebase.enabled", havingValue = "false", matchIfMissing = true)
 public class LoggingNotificationGateway implements NotificationGateway {
 
     private static final Logger log = LoggerFactory.getLogger(LoggingNotificationGateway.class);

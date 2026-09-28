@@ -16,12 +16,13 @@ class Env {
     defaultValue: 'https://pg-platform-api.onrender.com/api/v1',
   );
 
-  // OAuth client IDs are public identifiers, not secrets. Override this for a
-  // different Google Cloud project with --dart-define at build time.
+  // OAuth client IDs are public identifiers, not secrets. Every build must
+  // explicitly select the Firebase/Google project it belongs to so a staging
+  // or production APK can never silently authenticate against a retired
+  // project.
   static const String googleOAuthWebClientId = String.fromEnvironment(
     'GOOGLE_OAUTH_WEB_CLIENT_ID',
-    defaultValue:
-        '83954662324-8tsednfctojp1stj3o7rc7fvs02m1lds.apps.googleusercontent.com',
+    defaultValue: '',
   );
 
   static bool get usesLocalBackend =>

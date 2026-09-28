@@ -1,5 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Runtime permission is requested by Firebase Messaging on Android 13+. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- "PGs near me" on the search screen; asked for only when tapped. -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />

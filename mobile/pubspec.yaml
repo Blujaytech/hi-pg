@@ -27,6 +27,12 @@ dependencies:
   # Optional customer authentication; owner email/password remains separate.
   google_sign_in: ^7.2.0
 
+  # Firebase provides production phone OTP and device push tokens. The app
+  # still exchanges Firebase identity for the backend's own role-scoped JWT.
+  firebase_core: ^4.15.0
+  firebase_auth: ^6.7.0
+  firebase_messaging: ^16.7.0
+
   # Env config (--dart-define based, see core/env.dart)
   # (no package needed -- String.fromEnvironment is built in)
 

@@ -1,6 +1,7 @@
 plugins {
     id "com.android.application"
     id "kotlin-android"
+    id "com.google.gms.google-services"
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id "dev.flutter.flutter-gradle-plugin"
 }
@@ -34,6 +35,11 @@ def releaseKeyAlias = keystoreProperties.getProperty("keyAlias") ?: System.geten
 def releaseKeyPassword = keystoreProperties.getProperty("keyPassword") ?: System.getenv("ANDROID_KEY_PASSWORD")
 def hasReleaseSigning = releaseStoreFile?.trim() && releaseStorePassword?.trim() &&
         releaseKeyAlias?.trim() && releaseKeyPassword?.trim()
+
+// A project-specific development certificate keeps Firebase/OAuth identity
+// stable across local machines without reusing the global Android debug key.
+// The keystore is intentionally ignored by Git and is never used for release.
+def developmentStoreFile = rootProject.file("hipg-debug.keystore")
 
 // Releasing with the debug key is not a degraded build, it is a rejected
 // upload (Play: "You uploaded an APK signed in debug mode"), and it silently
@@ -79,6 +85,14 @@ android {
     }
 
     signingConfigs {
+        if (developmentStoreFile.exists()) {
+            debug {
+                storeFile = developmentStoreFile
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
         if (hasReleaseSigning) {
             release {
                 storeFile = rootProject.file(releaseStoreFile)
@@ -90,6 +104,11 @@ android {
     }
 
     buildTypes {
+        debug {
+            if (developmentStoreFile.exists()) {
+                signingConfig = signingConfigs.debug
+            }
+        }
         release {
             if (hasReleaseSigning) {
                 signingConfig = signingConfigs.release

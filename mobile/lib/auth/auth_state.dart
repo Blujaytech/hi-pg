@@ -4,7 +4,9 @@ import '../core/secure_storage.dart';
 import '../shared/api_client.dart';
 import 'auth_models.dart';
 import 'auth_repository.dart';
+import 'firebase_phone_auth.dart';
 import 'google_student_sign_in.dart';
+import '../notification/push_notification_service.dart';
 
 enum AuthStatus { unknown, authenticated, unauthenticated }
 
@@ -37,6 +39,7 @@ class AuthState extends ChangeNotifier {
         userId = await SecureStorage.instance.userId;
         _refreshToken = await SecureStorage.instance.refreshToken;
         status = AuthStatus.authenticated;
+        _activatePushNotifications();
       } else {
         status = AuthStatus.unauthenticated;
       }
@@ -67,6 +70,7 @@ class AuthState extends ChangeNotifier {
     _refreshToken = session.refreshToken;
     status = AuthStatus.authenticated;
     notifyListeners();
+    _activatePushNotifications();
   }
 
   Future<void> ownerSignup(
@@ -86,14 +90,26 @@ class AuthState extends ChangeNotifier {
     await _persist(session);
   }
 
-  Future<void> requestStudentOtp({required String phone}) =>
-      _repository.requestStudentOtp(phone: phone);
+  Future<void> requestStudentOtp({
+    required String phone,
+    bool resend = false,
+  }) =>
+      FirebasePhoneAuth.instance.sendCode(phone: phone, forceResend: resend);
 
   Future<void> verifyStudentOtp(
       {required String phone, required String code, String? fullName}) async {
-    final session = await _repository.verifyStudentOtp(
-        phone: phone, code: code, fullName: fullName);
+    final firebaseIdToken = await FirebasePhoneAuth.instance.verifyCode(code);
+    final session = await _repository.firebasePhoneLogin(
+      idToken: firebaseIdToken,
+      fullName: fullName,
+    );
     await _persist(session);
+  }
+
+  void _activatePushNotifications() {
+    PushNotificationService.instance.activate().catchError((_) {
+      // Notification permission/network failure is non-fatal to auth.
+    });
   }
 
   Future<void> googleStudentLogin() async {
@@ -126,6 +142,7 @@ class AuthState extends ChangeNotifier {
     // ApiClient rotates the refresh token on every silent refresh, so the
     // copy captured at sign-in can be stale -- read the live one back so the
     // server-side revoke actually revokes something.
+    await PushNotificationService.instance.deactivate();
     final refreshToken =
         await SecureStorage.instance.refreshToken ?? _refreshToken;
     if (refreshToken != null) {
@@ -136,6 +153,7 @@ class AuthState extends ChangeNotifier {
       }
     }
     await SecureStorage.instance.clear();
+    await FirebasePhoneAuth.instance.signOut();
     _clearSession();
   }
 }

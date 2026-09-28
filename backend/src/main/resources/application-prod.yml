@@ -53,11 +53,12 @@ app:
     # production tokens with a secret that's checked into git and known to anyone who's read it.
     secret: ${JWT_SECRET}
   google:
-    # OAuth client IDs are public identifiers. Use the Hi PG Web client ID as
-    # a deploy-safe default while still allowing an environment override.
-    # This keeps an existing manually-created Render service from failing
-    # before a Blueprint sync has added the new variable.
-    oauth-client-id: ${GOOGLE_OAUTH_CLIENT_ID:83954662324-8tsednfctojp1stj3o7rc7fvs02m1lds.apps.googleusercontent.com}
+    # Required deployment configuration. Staging and production are updated
+    # explicitly when the Firebase Web OAuth client is rotated.
+    oauth-client-id: ${GOOGLE_OAUTH_CLIENT_ID}
+  firebase:
+    enabled: ${FIREBASE_ENABLED:false}
+    project-id: ${FIREBASE_PROJECT_ID:}
 
 logging:
   level:

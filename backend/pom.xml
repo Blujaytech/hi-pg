@@ -21,6 +21,7 @@
         <java.version>17</java.version>
         <jjwt.version>0.12.5</jjwt.version>
         <google-api-client.version>2.9.0</google-api-client.version>
+        <firebase-admin.version>9.11.0</firebase-admin.version>
         <aws-sdk.version>2.55.1</aws-sdk.version>
         <cloud-sql-connector.version>1.29.0</cloud-sql-connector.version>
     </properties>
@@ -91,6 +92,15 @@
             <groupId>com.google.api-client</groupId>
             <artifactId>google-api-client</artifactId>
             <version>${google-api-client.version}</version>
+        </dependency>
+
+        <!-- Firebase ID-token verification and FCM HTTP v1 delivery. Cloud
+             Run supplies Application Default Credentials; no JSON private
+             key is packaged with the service. -->
+        <dependency>
+            <groupId>com.google.firebase</groupId>
+            <artifactId>firebase-admin</artifactId>
+            <version>${firebase-admin.version}</version>
         </dependency>
 
         <!-- Private S3-compatible storage for student and owner-KYC documents. -->
