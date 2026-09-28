@@ -25,7 +25,11 @@ class _MyComplaintsScreenState extends State<MyComplaintsScreen> {
     _future = _repository.listMine();
   }
 
-  void _reload() => setState(() => _future = _repository.listMine());
+  void _reload() {
+    setState(() {
+      _future = _repository.listMine();
+    });
+  }
 
   Future<void> _openNewComplaint() async {
     final created = await showFormSheet<bool>(

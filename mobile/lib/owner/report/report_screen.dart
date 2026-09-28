@@ -84,7 +84,11 @@ class _ReportTabState<T> extends State<_ReportTab<T>>
   @override
   bool get wantKeepAlive => true;
 
-  void _reload() => setState(() => _future = widget.load());
+  void _reload() {
+    setState(() {
+      _future = widget.load();
+    });
+  }
 
   Future<void> _refresh() async {
     _reload();

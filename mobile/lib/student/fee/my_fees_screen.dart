@@ -57,7 +57,11 @@ class _MyFeesScreenState extends State<MyFeesScreen> {
     return _PaymentViewData(fees: fees, bookings: bookings);
   }
 
-  void _reload() => setState(() => _future = _load());
+  void _reload() {
+    setState(() {
+      _future = _load();
+    });
+  }
 
   Future<void> _refresh() async {
     _reload();

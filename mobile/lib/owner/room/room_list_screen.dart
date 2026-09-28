@@ -71,8 +71,11 @@ class _RoomListScreenState extends State<RoomListScreen> {
     _future = _roomRepository.listForFloor(widget.floorId);
   }
 
-  void _reload() =>
-      setState(() => _future = _roomRepository.listForFloor(widget.floorId));
+  void _reload() {
+    setState(() {
+      _future = _roomRepository.listForFloor(widget.floorId);
+    });
+  }
 
   Future<void> _openRoomDialog([Room? existing]) async {
     final editing = existing != null;

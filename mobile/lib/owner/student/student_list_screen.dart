@@ -33,8 +33,11 @@ class _StudentListScreenState extends State<StudentListScreen> {
     _future = _repository.listForPg(widget.pgId);
   }
 
-  void _reload() =>
-      setState(() => _future = _repository.listForPg(widget.pgId));
+  void _reload() {
+    setState(() {
+      _future = _repository.listForPg(widget.pgId);
+    });
+  }
 
   Future<void> _refresh() async {
     _reload();

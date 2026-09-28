@@ -37,8 +37,11 @@ class _ReceiptListScreenState extends State<ReceiptListScreen> {
     _future = _repository.listForStudent(widget.studentId);
   }
 
-  void _reload() =>
-      setState(() => _future = _repository.listForStudent(widget.studentId));
+  void _reload() {
+    setState(() {
+      _future = _repository.listForStudent(widget.studentId);
+    });
+  }
 
   Future<void> _refresh() async {
     _reload();

@@ -44,7 +44,11 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
     _future = _repository.listMine();
   }
 
-  void _reload() => setState(() => _future = _repository.listMine());
+  void _reload() {
+    setState(() {
+      _future = _repository.listMine();
+    });
+  }
 
   Future<void> _refresh() async {
     _reload();

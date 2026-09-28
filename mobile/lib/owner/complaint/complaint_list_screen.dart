@@ -38,7 +38,11 @@ class _ComplaintListScreenState extends State<ComplaintListScreen> {
       ? _repository.listForPg(widget.pgId!)
       : _repository.listForStudent(widget.studentId!);
 
-  void _reload() => setState(() => _future = _load());
+  void _reload() {
+    setState(() {
+      _future = _load();
+    });
+  }
 
   Future<void> _refresh() async {
     _reload();

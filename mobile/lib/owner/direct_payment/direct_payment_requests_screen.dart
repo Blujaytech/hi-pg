@@ -56,7 +56,11 @@ class _DirectPaymentRequestsScreenState
         .toList();
   }
 
-  void _reload() => setState(() => _future = _load());
+  void _reload() {
+    setState(() {
+      _future = _load();
+    });
+  }
 
   Future<void> _refresh() async {
     _reload();

@@ -175,7 +175,9 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
   }
 
   Future<void> _refresh() async {
-    setState(() => _recommended = _loadRecommended());
+    setState(() {
+      _recommended = _loadRecommended();
+    });
     try {
       await _recommended;
     } catch (_) {

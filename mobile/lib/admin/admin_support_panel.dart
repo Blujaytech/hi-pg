@@ -25,7 +25,11 @@ class _AdminSupportPanelState extends State<AdminSupportPanel> {
     _reload();
   }
 
-  void _reload() => setState(() => _future = _repository.listAll());
+  void _reload() {
+    setState(() {
+      _future = _repository.listAll();
+    });
+  }
 
   Future<void> _respond(SupportTicket ticket) async {
     final updated = await showFormSheet<SupportTicket>(

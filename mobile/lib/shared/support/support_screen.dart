@@ -24,7 +24,11 @@ class _SupportScreenState extends State<SupportScreen> {
     _reload();
   }
 
-  void _reload() => setState(() => _future = _repository.listMine());
+  void _reload() {
+    setState(() {
+      _future = _repository.listMine();
+    });
+  }
 
   Future<void> _create() async {
     final created = await showFormSheet<bool>(
