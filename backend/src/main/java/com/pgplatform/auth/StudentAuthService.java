@@ -50,7 +50,7 @@ public class StudentAuthService {
     }
 
     private AuthResponse authenticateVerifiedPhone(String verifiedPhone, String fullName) {
-        String phone = normalizePhone(verifiedPhone);
+        String phone = PhoneNumbers.normalize(verifiedPhone);
         User user = findExistingPhoneUser(phone)
                 .orElseGet(() -> createStudent(phone, fullName));
 
@@ -84,20 +84,6 @@ public class StudentAuthService {
             return userRepository.findByPhoneAndDeletedAtIsNull(e164Phone.substring(3));
         }
         return java.util.Optional.empty();
-    }
-
-    private String normalizePhone(String phone) {
-        String compact = phone == null ? "" : phone.replaceAll("[\\s()-]", "");
-        if (compact.matches("\\d{10}")) {
-            return "+91" + compact;
-        }
-        if (compact.matches("91\\d{10}")) {
-            return "+" + compact;
-        }
-        if (!compact.matches("\\+[1-9]\\d{7,14}")) {
-            throw new BadCredentialsException("Firebase returned an invalid phone number");
-        }
-        return compact;
     }
 
     private User createStudent(String phone, String fullName) {

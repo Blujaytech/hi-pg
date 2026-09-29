@@ -5,6 +5,7 @@ import 'admin/admin_dashboard_screen.dart';
 import 'auth/auth_models.dart';
 import 'auth/auth_state.dart';
 import 'auth/owner_login_screen.dart';
+import 'auth/owner_phone_login_screen.dart';
 import 'auth/owner_signup_screen.dart';
 import 'auth/role_select_screen.dart';
 import 'auth/splash_screen.dart';
@@ -117,6 +118,7 @@ String? routeRedirect({
   final loggedIn = status == AuthStatus.authenticated;
   final loggingIn = location == '/' ||
       location.startsWith('/owner/login') ||
+      location.startsWith('/owner/phone-login') ||
       location.startsWith('/owner/signup') ||
       location.startsWith('/student/login');
 
@@ -171,6 +173,9 @@ GoRouter buildRouter(AuthState authState) {
       GoRoute(
           path: '/owner/login',
           builder: (context, state) => const OwnerLoginScreen()),
+      GoRoute(
+          path: '/owner/phone-login',
+          builder: (context, state) => const OwnerPhoneLoginScreen()),
       GoRoute(
           path: '/owner/signup',
           builder: (context, state) => const OwnerSignupScreen()),

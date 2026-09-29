@@ -60,6 +60,8 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
   bool _live = false;
   bool _booking = false;
   bool _googleSignInInProgress = false;
+  bool _registeringInterest = false;
+  bool _interestRegistered = false;
   BookingType? _selectedBookingType;
   late DateTime _selectedCheckIn;
   DateTime? _selectedCheckOut;
@@ -667,6 +669,39 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
     }
   }
 
+  Future<void> _registerInterest(PgDetails pg) async {
+    if (_registeringInterest || _interestRegistered) return;
+    if (_auth.status != AuthStatus.authenticated) {
+      final here = GoRouterState.of(context).matchedLocation;
+      context.push(Uri(path: '/student/login', queryParameters: {'from': here})
+          .toString());
+      return;
+    }
+    if (_auth.role != UserRole.student) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Sign in with a customer account to notify this PG.'),
+      ));
+      return;
+    }
+    setState(() => _registeringInterest = true);
+    try {
+      await _repository.registerInterest(pg.id);
+      if (!mounted) return;
+      setState(() => _interestRegistered = true);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text(
+            'Interest registered. We will notify you when this PG enables booking.'),
+      ));
+    } on ApiException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(error.message)));
+      }
+    } finally {
+      if (mounted) setState(() => _registeringInterest = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -738,47 +773,123 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
                   ),
                 ],
                 const SizedBox(height: 22),
-                _StayAvailabilityControls(
-                  selected: _selectedBookingType,
-                  checkIn: _selectedCheckIn,
-                  checkOut: _selectedCheckOut,
-                  onSelect: _selectBookingType,
-                  onChangeDates: _chooseAvailabilityDates,
-                ),
-                const SizedBox(height: 22),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Expanded(
-                        child: Text('Rooms & beds',
-                            style: Theme.of(context).textTheme.titleLarge)),
-                    Text(
-                      '${pg.floors.length} floor/block${pg.floors.length == 1 ? '' : 's'}',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 5),
-                Text('Choose a floor/block, then select an available bed.',
-                    style: Theme.of(context).textTheme.bodySmall),
-                const SizedBox(height: 14),
-                if (pg.floors.isEmpty)
-                  const _NoRoomsState()
-                else
-                  for (var index = 0; index < pg.floors.length; index++) ...[
-                    _FloorCard(
-                      floor: pg.floors[index],
-                      initiallyExpanded: false,
-                      booking: _booking,
-                      onBookBed: _bookBed,
-                    ),
-                    if (index != pg.floors.length - 1)
-                      const SizedBox(height: 12),
-                  ],
+                if (!pg.verified || !pg.bookingEnabled)
+                  _UnverifiedListingCard(
+                    working: _registeringInterest,
+                    registered: _interestRegistered,
+                    onInterested: () => _registerInterest(pg),
+                  )
+                else ...[
+                  _StayAvailabilityControls(
+                    selected: _selectedBookingType,
+                    checkIn: _selectedCheckIn,
+                    checkOut: _selectedCheckOut,
+                    onSelect: _selectBookingType,
+                    onChangeDates: _chooseAvailabilityDates,
+                  ),
+                  const SizedBox(height: 22),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Expanded(
+                          child: Text('Rooms & beds',
+                              style: Theme.of(context).textTheme.titleLarge)),
+                      Text(
+                        '${pg.floors.length} floor/block${pg.floors.length == 1 ? '' : 's'}',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 5),
+                  Text('Choose a floor/block, then select an available bed.',
+                      style: Theme.of(context).textTheme.bodySmall),
+                  const SizedBox(height: 14),
+                  if (pg.floors.isEmpty)
+                    const _NoRoomsState()
+                  else
+                    for (var index = 0; index < pg.floors.length; index++) ...[
+                      _FloorCard(
+                        floor: pg.floors[index],
+                        initiallyExpanded: false,
+                        booking: _booking,
+                        onBookBed: _bookBed,
+                      ),
+                      if (index != pg.floors.length - 1)
+                        const SizedBox(height: 12),
+                    ],
+                ],
               ],
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+class _UnverifiedListingCard extends StatelessWidget {
+  final bool working;
+  final bool registered;
+  final VoidCallback onInterested;
+
+  const _UnverifiedListingCard({
+    required this.working,
+    required this.registered,
+    required this.onInterested,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: const Color(0xFFFFF7E8),
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Row(children: [
+              Icon(Icons.shield_outlined, color: Color(0xFFB76A00)),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Owner verification pending',
+                  style: TextStyle(
+                    color: AppColors.ink,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ]),
+            const SizedBox(height: 10),
+            const Text(
+              'This listing can be viewed, but rooms, beds, online booking and payments stay hidden until the owner completes KYC and hi pg approves the property.',
+              style: TextStyle(color: AppColors.muted, height: 1.45),
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: working || registered ? null : onInterested,
+              icon: working
+                  ? const SizedBox.square(
+                      dimension: 17,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white),
+                    )
+                  : Icon(registered
+                      ? Icons.check_circle_outline_rounded
+                      : Icons.notifications_active_outlined),
+              label: Text(registered
+                  ? 'Owner notification requested'
+                  : "I'm interested — notify owner"),
+            ),
+            const SizedBox(height: 7),
+            const Text(
+              'No payment can be made through hi pg for this listing yet.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppColors.muted, fontSize: 11.5),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -892,15 +1003,57 @@ class _PropertyHeader extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  pg.name,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    height: 1.2,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -.3,
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        pg.name,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          height: 1.2,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -.3,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: pg.verified
+                            ? AppColors.success.withValues(alpha: .2)
+                            : const Color(0xFFF59E0B).withValues(alpha: .2),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: pg.verified
+                              ? AppColors.successBright
+                              : const Color(0xFFFBBF24),
+                        ),
+                      ),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(
+                          pg.verified
+                              ? Icons.verified_rounded
+                              : Icons.shield_outlined,
+                          size: 13,
+                          color: pg.verified
+                              ? AppColors.successBright
+                              : const Color(0xFFFBBF24),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          pg.verified ? 'Verified' : 'Unverified',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ]),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 6),
                 Row(
@@ -934,15 +1087,24 @@ class _PropertyHeader extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Expanded(
-                      child: _HeaderMetric(
-                        label: live ? 'Live availability' : 'Availability',
-                        value: '$availableBeds of $totalBeds beds',
-                        accent: availableBeds > 0
-                            ? AppColors.successBright
-                            : Colors.white.withValues(alpha: .6),
+                    if (pg.verified)
+                      Expanded(
+                        child: _HeaderMetric(
+                          label: live ? 'Live availability' : 'Availability',
+                          value: '$availableBeds of $totalBeds beds',
+                          accent: availableBeds > 0
+                              ? AppColors.successBright
+                              : Colors.white.withValues(alpha: .6),
+                        ),
+                      )
+                    else
+                      const Expanded(
+                        child: _HeaderMetric(
+                          label: 'Booking status',
+                          value: 'Not enabled',
+                          accent: Color(0xFFFBBF24),
+                        ),
                       ),
-                    ),
                   ],
                 ),
               ],
@@ -1079,11 +1241,10 @@ class _LocationSectionState extends State<_LocationSection> {
                   ),
                 },
                 mapType: MapType.normal,
-                // Lite mode renders a stable bitmap-backed preview on Android
-                // skins that otherwise show a beige native map surface. The
-                // dedicated directions button remains the full-map action.
-                liteModeEnabled: true,
-                buildingsEnabled: false,
+                // Use the full Android renderer. Lite mode can create a map
+                // surface while leaving its tiles blank on some devices.
+                liteModeEnabled: false,
+                buildingsEnabled: true,
                 indoorViewEnabled: false,
                 compassEnabled: false,
                 rotateGesturesEnabled: false,

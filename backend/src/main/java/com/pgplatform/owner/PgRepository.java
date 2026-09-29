@@ -1,8 +1,10 @@
 package com.pgplatform.owner;
 
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -12,8 +14,12 @@ import java.util.UUID;
 
 public interface PgRepository extends JpaRepository<Pg, UUID> {
     Optional<Pg> findByIdAndDeletedAtIsNull(UUID id);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    Optional<Pg> findLockedByIdAndDeletedAtIsNull(UUID id);
     List<Pg> findAllByOwnerIdAndDeletedAtIsNullOrderByCreatedAtDesc(UUID ownerId);
     long countByOwnerIdAndDeletedAtIsNull(UUID ownerId);
+    List<Pg> findAllByDeletedAtIsNullOrderByCreatedAtDesc();
 
     /** Everything a free-text search word may match, lower-cased. */
     String SEARCH_TEXT = "lower(concat(coalesce(p.name, ''), ' ', coalesce(p.address, ''), ' ', " +

@@ -293,6 +293,30 @@ Same single-instance caveat as the Phase 10 stream (ADR-0016): the emitter regis
 
 WhatsApp notifications (explicitly deferred per the technical plan), production wiring for external integrations, and browser-side consumption of the live events stream (needs a cookie- or query-token-based auth path for `EventSource`, not attempted -- see ADR-0021). Add each new endpoint's contract here **before or alongside** implementation -- contract-first (CLAUDE.md).
 
+## Admin-created PG listings and mobile ownership claims
+
+An ADMIN may publish a discoverable PG before its owner joins Hi PG. The owner's
+mobile number is private matching data and is never returned by public discovery.
+These listings start `UNCLAIMED`, `UNVERIFIED`, and `bookingEnabled=false`.
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/admin/pg-listings` | Lists admin-created PGs, private owner contact, claim/verification state, and customer-interest count. |
+| POST | `/admin/pg-listings` | Creates a listing from `{name, ownerName, ownerMobile, address, city, state?, pincode?, latitude, longitude, description?, genderPreference}`. Latitude and longitude are required so the public map is authoritative. |
+| PUT | `/admin/pg-listings/{pgId}` | Updates the listing and its private owner contact using the same body. |
+| POST | `/auth/owner/firebase-phone` | Exchanges a verified Firebase ID token for the normal Hi PG owner JWT. Only an existing owner or a mobile invited on an admin-created PG may enter. |
+| GET | `/owner/claims/suggestions` | Returns unclaimed PGs whose normalized invited mobile matches the authenticated owner's verified mobile. |
+| POST | `/owner/claims/{pgId}` | Claims one matching PG and moves it to `CLAIM_PENDING`; booking remains disabled until KYC approval. |
+| POST | `/student/pgs/{pgId}/interest` | Idempotently records that the authenticated customer wants an unverified PG to join. Returns the current interest count. |
+
+Public PG search/detail responses include `verified`, `verificationStatus`, and
+`bookingEnabled`. An unverified detail response deliberately contains no floor,
+room, bed, direct-payment, or bookable inventory data. `POST /student/bookings`
+also rejects an unverified/disabled PG server-side, so hiding the controls in
+Flutter is not the security boundary. Existing owner KYC submission changes the
+PG to `PENDING`; ADMIN approval changes it to `VERIFIED`, `CLAIMED`, and enables
+booking. A returned/rejected review disables booking again.
+
 ## Flexible bookings, Razorpay, KYC, and settlement (current contract)
 
 This section supersedes the older Phase 11/12 instant-booking and stub-payment descriptions above.

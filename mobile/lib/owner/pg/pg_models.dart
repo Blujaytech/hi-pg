@@ -41,6 +41,10 @@ class Pg {
   final String? photoUrl;
   final GenderPreference genderPreference;
   final PgStatus status;
+  final String claimStatus;
+  final String verificationStatus;
+  final bool bookingEnabled;
+  final bool adminCreated;
 
   Pg({
     required this.id,
@@ -55,6 +59,10 @@ class Pg {
     this.photoUrl,
     required this.genderPreference,
     required this.status,
+    this.claimStatus = 'CLAIMED',
+    this.verificationStatus = 'UNVERIFIED',
+    this.bookingEnabled = false,
+    this.adminCreated = false,
   });
 
   factory Pg.fromJson(Map<String, dynamic> json) => Pg(
@@ -71,5 +79,10 @@ class Pg {
         genderPreference:
             GenderPreferenceX.fromApi(json['genderPreference'] as String),
         status: PgStatusX.fromApi(json['status'] as String),
+        claimStatus: json['claimStatus'] as String? ?? 'CLAIMED',
+        verificationStatus:
+            json['verificationStatus'] as String? ?? 'UNVERIFIED',
+        bookingEnabled: json['bookingEnabled'] as bool? ?? false,
+        adminCreated: json['adminCreated'] as bool? ?? false,
       );
 }

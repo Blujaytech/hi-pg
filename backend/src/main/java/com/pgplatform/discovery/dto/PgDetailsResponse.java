@@ -1,6 +1,7 @@
 package com.pgplatform.discovery.dto;
 
 import com.pgplatform.owner.GenderPreference;
+import com.pgplatform.owner.PgVerificationStatus;
 
 import java.util.List;
 import java.util.UUID;
@@ -26,6 +27,9 @@ public record PgDetailsResponse(
         long totalBeds,
         long availableBeds,
         boolean directPaymentAvailable,
+        boolean verified,
+        PgVerificationStatus verificationStatus,
+        boolean bookingEnabled,
         List<FloorAvailabilityResponse> floors
 ) {
 }

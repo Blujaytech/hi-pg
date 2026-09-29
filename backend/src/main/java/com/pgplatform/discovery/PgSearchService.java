@@ -108,6 +108,8 @@ public class PgSearchService {
         Pg pg = pgRepository.findByIdAndDeletedAtIsNullAndStatus(pgId, PgStatus.ACTIVE)
                 .orElseThrow(() -> new NotFoundException("PG not found"));
 
+        boolean verified = pg.getVerificationStatus() == com.pgplatform.owner.PgVerificationStatus.VERIFIED
+                && pg.isBookingEnabled();
         LocalDate requestedStart = checkIn == null ? LocalDate.now() : checkIn;
         LocalDate requestedEnd = checkOut != null ? checkOut
                 : bookingType == BookingType.MONTHLY ? LocalDate.of(9999, 12, 31)
@@ -121,10 +123,12 @@ public class PgSearchService {
                     ? Set.of(BedBookingMode.MONTHLY, BedBookingMode.FLEXIBLE)
                     : Set.of(BedBookingMode.DAY_WISE, BedBookingMode.FLEXIBLE);
 
-        List<Floor> floors = floorRepository.findAllByPgIdAndDeletedAtIsNullOrderByFloorNumberAsc(pgId);
-        long totalBeds = bedRepository.countByPgId(pgId);
-        long availableBeds = bedRepository.countByPgIdAndStatus(pgId, BedStatus.AVAILABLE);
-        boolean directPaymentAvailable = directPaymentSettingsRepository
+        List<Floor> floors = verified
+                ? floorRepository.findAllByPgIdAndDeletedAtIsNullOrderByFloorNumberAsc(pgId)
+                : List.of();
+        long totalBeds = verified ? bedRepository.countByPgId(pgId) : 0;
+        long availableBeds = verified ? bedRepository.countByPgIdAndStatus(pgId, BedStatus.AVAILABLE) : 0;
+        boolean directPaymentAvailable = verified && directPaymentSettingsRepository
                 .existsByPgIdAndEnabledTrueAndVerifiedTrueAndDeletedAtIsNull(pgId);
 
         List<FloorAvailabilityResponse> floorResponses = floors.stream().map(floor -> {
@@ -167,7 +171,8 @@ public class PgSearchService {
         return new PgDetailsResponse(
                 pg.getId(), pg.getName(), pg.getAddress(), pg.getCity(), pg.getState(), pg.getPincode(),
                 pg.getDescription(), photoUrl(pg), pg.getGenderPreference(), pg.getLatitude(), pg.getLongitude(),
-                totalBeds, availableBeds, directPaymentAvailable, floorResponses
+                totalBeds, availableBeds, directPaymentAvailable, verified, pg.getVerificationStatus(),
+                pg.isBookingEnabled(), floorResponses
         );
     }
 
@@ -193,7 +198,10 @@ public class PgSearchService {
                 pg.getGenderPreference(), pg.getLatitude(), pg.getLongitude(),
                 availableBeds, minRent, maxRent,
                 offersMonthly, offersDayWise,
-                offersDayWise ? roomRepository.findMinDayWiseRateForPg(pg.getId()) : null
+                offersDayWise ? roomRepository.findMinDayWiseRateForPg(pg.getId()) : null,
+                pg.getVerificationStatus() == com.pgplatform.owner.PgVerificationStatus.VERIFIED
+                        && pg.isBookingEnabled(),
+                pg.getVerificationStatus()
         );
     }
 

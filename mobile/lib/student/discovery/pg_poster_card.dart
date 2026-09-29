@@ -85,6 +85,11 @@ class PgPosterCard extends StatelessWidget {
                         ),
                       ),
                       Positioned(
+                        top: 8,
+                        right: 8,
+                        child: _VerificationTag(verified: pg.verified),
+                      ),
+                      Positioned(
                         left: 8,
                         right: 8,
                         bottom: 7,
@@ -92,14 +97,14 @@ class PgPosterCard extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            if (_showMonthly)
+                            if (pg.verified && _showMonthly)
                               _PriceLine(
                                 label: 'MONTHLY',
                                 amount: pg.minRentPerBed == null
                                     ? 'On request'
                                     : _money.format(pg.minRentPerBed),
                               ),
-                            if (_showDayWise) ...[
+                            if (pg.verified && _showDayWise) ...[
                               const SizedBox(height: 3),
                               _PriceLine(
                                 label: 'DAY-WISE',
@@ -124,9 +129,11 @@ class PgPosterCard extends StatelessWidget {
                                 const SizedBox(width: 5),
                                 Expanded(
                                   child: Text(
-                                    free > 0
-                                        ? '$free ${free == 1 ? 'bed' : 'beds'} free'
-                                        : 'Full right now',
+                                    !pg.verified
+                                        ? 'View listing details'
+                                        : free > 0
+                                            ? '$free ${free == 1 ? 'bed' : 'beds'} free'
+                                            : 'Full right now',
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
@@ -166,6 +173,45 @@ class PgPosterCard extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _VerificationTag extends StatelessWidget {
+  final bool verified;
+
+  const _VerificationTag({required this.verified});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: verified
+            ? AppColors.success.withValues(alpha: .92)
+            : const Color(0xFFF59E0B).withValues(alpha: .94),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            verified ? Icons.verified_rounded : Icons.shield_outlined,
+            color: Colors.white,
+            size: 10,
+          ),
+          const SizedBox(width: 3),
+          Text(
+            verified ? 'VERIFIED' : 'UNVERIFIED',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 7.5,
+              fontWeight: FontWeight.w800,
+              letterSpacing: .3,
+            ),
+          ),
+        ],
       ),
     );
   }

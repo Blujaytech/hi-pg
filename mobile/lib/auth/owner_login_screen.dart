@@ -114,6 +114,23 @@ class _OwnerLoginScreenState extends State<OwnerLoginScreen> {
                       loadingLabel: 'Logging in...',
                     ),
                   ),
+                  const SizedBox(height: 14),
+                  OutlinedButton.icon(
+                    onPressed: _loading
+                        ? null
+                        : () => context.push('/owner/phone-login'),
+                    icon: const Icon(Icons.phone_iphone_rounded),
+                    label: const Text('Claim an invited PG with mobile OTP'),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Use the same mobile number that hi pg recorded for the property.',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(color: AppColors.muted),
+                  ),
                   const SizedBox(height: 18),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,

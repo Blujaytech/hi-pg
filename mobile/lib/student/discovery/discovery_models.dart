@@ -39,6 +39,8 @@ class PgSearchResult {
   final bool? offersMonthly;
   final bool? offersDayWise;
   final double? minDayWiseRate;
+  final bool verified;
+  final String verificationStatus;
 
   PgSearchResult({
     required this.id,
@@ -56,6 +58,8 @@ class PgSearchResult {
     this.offersMonthly,
     this.offersDayWise,
     this.minDayWiseRate,
+    this.verified = false,
+    this.verificationStatus = 'UNVERIFIED',
   });
 
   factory PgSearchResult.fromJson(Map<String, dynamic> json) => PgSearchResult(
@@ -75,6 +79,9 @@ class PgSearchResult {
         offersMonthly: json['offersMonthly'] as bool?,
         offersDayWise: json['offersDayWise'] as bool?,
         minDayWiseRate: (json['minDayWiseRate'] as num?)?.toDouble(),
+        verified: json['verified'] as bool? ?? false,
+        verificationStatus:
+            json['verificationStatus'] as String? ?? 'UNVERIFIED',
       );
 }
 
@@ -235,6 +242,9 @@ class PgDetails {
   final int totalBeds;
   final int availableBeds;
   final bool directPaymentAvailable;
+  final bool verified;
+  final String verificationStatus;
+  final bool bookingEnabled;
   final List<FloorAvailability> floors;
 
   PgDetails({
@@ -252,6 +262,9 @@ class PgDetails {
     required this.totalBeds,
     required this.availableBeds,
     required this.directPaymentAvailable,
+    this.verified = false,
+    this.verificationStatus = 'UNVERIFIED',
+    this.bookingEnabled = false,
     required this.floors,
   });
 
@@ -272,6 +285,10 @@ class PgDetails {
         availableBeds: json['availableBeds'] as int,
         directPaymentAvailable:
             json['directPaymentAvailable'] as bool? ?? false,
+        verified: json['verified'] as bool? ?? false,
+        verificationStatus:
+            json['verificationStatus'] as String? ?? 'UNVERIFIED',
+        bookingEnabled: json['bookingEnabled'] as bool? ?? false,
         floors: (json['floors'] as List<dynamic>)
             .map((f) => FloorAvailability.fromJson(f as Map<String, dynamic>))
             .toList(),

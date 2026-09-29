@@ -63,6 +63,20 @@ class AuthRepository {
     return AuthSession.fromJson(response.data!);
   }
 
+  Future<AuthSession> ownerFirebasePhoneLogin({
+    required String idToken,
+    String? fullName,
+  }) async {
+    final response = await _client.post<Map<String, dynamic>>(
+      '/auth/owner/firebase-phone',
+      data: {
+        'idToken': idToken,
+        if (fullName != null && fullName.isNotEmpty) 'fullName': fullName,
+      },
+    );
+    return AuthSession.fromJson(response.data!);
+  }
+
   Future<AuthSession> googleStudentLogin({required String idToken}) async {
     final response = await _client.post<Map<String, dynamic>>(
       '/auth/student/google',

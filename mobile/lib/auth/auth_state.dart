@@ -106,6 +106,18 @@ class AuthState extends ChangeNotifier {
     await _persist(session);
   }
 
+  Future<void> verifyOwnerOtp({
+    required String code,
+    String? fullName,
+  }) async {
+    final firebaseIdToken = await FirebasePhoneAuth.instance.verifyCode(code);
+    final session = await _repository.ownerFirebasePhoneLogin(
+      idToken: firebaseIdToken,
+      fullName: fullName,
+    );
+    await _persist(session);
+  }
+
   void _activatePushNotifications() {
     PushNotificationService.instance.activate().catchError((_) {
       // Notification permission/network failure is non-fatal to auth.

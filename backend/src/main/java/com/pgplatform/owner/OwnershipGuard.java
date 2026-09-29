@@ -17,7 +17,7 @@ public final class OwnershipGuard {
     }
 
     public static void requireOwns(Pg pg, UUID actingOwnerId) {
-        if (!pg.getOwner().getId().equals(actingOwnerId)) {
+        if (pg.getOwner() == null || !pg.getOwner().getId().equals(actingOwnerId)) {
             throw new ForbiddenException("You do not have access to this PG");
         }
     }

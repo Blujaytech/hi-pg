@@ -5,6 +5,7 @@ import com.pgplatform.common.ConflictException;
 import com.pgplatform.document.DocumentStorageGateway;
 import com.pgplatform.notification.NotificationService;
 import com.pgplatform.owner.Pg;
+import com.pgplatform.owner.PgClaimRequestRepository;
 import com.pgplatform.owner.PgRepository;
 import com.pgplatform.owner.PgService;
 import org.junit.jupiter.api.AfterEach;
@@ -36,6 +37,7 @@ class OwnerKycServiceTest {
     @Mock private PgRepository pgRepository;
     @Mock private DocumentStorageGateway storageGateway;
     @Mock private NotificationService notificationService;
+    @Mock private PgClaimRequestRepository claimRequestRepository;
 
     private OwnerKycService service;
     private UUID pgId;
@@ -45,7 +47,7 @@ class OwnerKycServiceTest {
     @BeforeEach
     void setUp() {
         service = new OwnerKycService(submissionRepository, documentRepository, pgService,
-                pgRepository, storageGateway, notificationService);
+                pgRepository, storageGateway, notificationService, claimRequestRepository);
         pgId = UUID.randomUUID();
         ownerId = UUID.randomUUID();
 

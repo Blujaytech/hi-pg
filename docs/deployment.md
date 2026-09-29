@@ -130,11 +130,18 @@ done
 ```
 
 Build and deploy the new backend image to staging, then configure its Firebase target and Google
-OAuth audience. These are public identifiers; database/JWT/R2 values remain Secret
-Manager-backed and the update preserves the service's existing Cloud SQL/secret settings:
+OAuth audience. The `pg-claims-v26` release adds admin-created listings, mobile-matched owner
+claims, verification-gated booking, and customer interest tracking. Take a database backup before
+the deploy because Flyway applies `V26__pg_claims_verification_and_interest.sql` when the new
+revision starts. These Firebase values are public identifiers; database/JWT/R2 values remain
+Secret Manager-backed and the update preserves the service's existing Cloud SQL/secret settings:
 
 ```bash
-IMAGE=asia-south1-docker.pkg.dev/hi-pg-staging/hi-pg-backend/hi-pg-api:firebase-auth-fcm
+gcloud sql backups create \
+  --project=hi-pg-staging \
+  --instance=hi-pg-staging-db
+
+IMAGE=asia-south1-docker.pkg.dev/hi-pg-staging/hi-pg-backend/hi-pg-api:pg-claims-v26
 gcloud builds submit backend --project=hi-pg-staging --tag="$IMAGE"
 
 gcloud run services update hi-pg-api-staging \
@@ -145,12 +152,17 @@ gcloud run services update hi-pg-api-staging \
   --update-env-vars=FIREBASE_ENABLED=true,FIREBASE_PROJECT_ID=hi-pg-platform-services-c96e2,GOOGLE_OAUTH_CLIENT_ID=115637607332-a355j4thoo2iabm8bp3pn0kbulv9aabs.apps.googleusercontent.com
 
 curl -i https://hi-pg-api-staging-242105097677.asia-south1.run.app/actuator/health
+
+gcloud run services logs read hi-pg-api-staging \
+  --project=hi-pg-staging \
+  --region=asia-south1 \
+  --limit=100
 ```
 
 Deploy production only after the same commit and flows pass staging:
 
 ```bash
-PROD_IMAGE=asia-south1-docker.pkg.dev/hi-pg-production/hi-pg-backend/hi-pg-api:firebase-auth-fcm
+PROD_IMAGE=asia-south1-docker.pkg.dev/hi-pg-production/hi-pg-backend/hi-pg-api:pg-claims-v26
 gcloud builds submit backend --project=hi-pg-production --tag="$PROD_IMAGE"
 
 gcloud run services update hi-pg-api-production \

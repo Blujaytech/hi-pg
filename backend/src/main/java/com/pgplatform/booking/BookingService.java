@@ -16,6 +16,7 @@ import com.pgplatform.owner.BedRepository;
 import com.pgplatform.owner.BedStatus;
 import com.pgplatform.owner.Pg;
 import com.pgplatform.owner.PgStatus;
+import com.pgplatform.owner.PgVerificationStatus;
 import com.pgplatform.owner.Room;
 import com.pgplatform.owner.RoomBookingMode;
 import com.pgplatform.owner.RoomService;
@@ -81,6 +82,9 @@ public class BookingService {
         Pg pg = bed.getRoom().getFloor().getPg();
         if (pg.getStatus() != PgStatus.ACTIVE) {
             throw new ConflictException("This PG is not currently accepting bookings");
+        }
+        if (pg.getVerificationStatus() != PgVerificationStatus.VERIFIED || !pg.isBookingEnabled()) {
+            throw new ConflictException("This PG must be verified before it can accept bookings");
         }
         if (bed.getStatus() == BedStatus.MAINTENANCE) {
             throw new ConflictException("That bed is under maintenance");

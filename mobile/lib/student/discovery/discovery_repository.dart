@@ -56,4 +56,11 @@ class DiscoveryRepository {
         queryParameters: params);
     return PgDetails.fromJson(response.data!);
   }
+
+  Future<int> registerInterest(String pgId) async {
+    final response = await _client.post<Map<String, dynamic>>(
+      '/student/pgs/$pgId/interest',
+    );
+    return response.data!['interestCount'] as int? ?? 1;
+  }
 }

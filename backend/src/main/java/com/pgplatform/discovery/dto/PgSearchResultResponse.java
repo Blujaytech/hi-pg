@@ -1,6 +1,7 @@
 package com.pgplatform.discovery.dto;
 
 import com.pgplatform.owner.GenderPreference;
+import com.pgplatform.owner.PgVerificationStatus;
 
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -22,6 +23,8 @@ public record PgSearchResultResponse(
         // monthly stays, DAY_WISE and MIXED rooms take day-wise stays.
         boolean offersMonthly,
         boolean offersDayWise,
-        BigDecimal minDayWiseRate
+        BigDecimal minDayWiseRate,
+        boolean verified,
+        PgVerificationStatus verificationStatus
 ) {
 }

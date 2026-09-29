@@ -12,6 +12,10 @@ import com.pgplatform.owner.PaymentOnboardingStatus;
 import com.pgplatform.owner.Pg;
 import com.pgplatform.owner.PgRepository;
 import com.pgplatform.owner.PgService;
+import com.pgplatform.owner.PgVerificationStatus;
+import com.pgplatform.owner.PgClaimStatus;
+import com.pgplatform.owner.PgClaimRequestStatus;
+import com.pgplatform.owner.PgClaimRequestRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -41,17 +45,20 @@ public class OwnerKycService {
     private final PgRepository pgRepository;
     private final DocumentStorageGateway storageGateway;
     private final NotificationService notificationService;
+    private final PgClaimRequestRepository claimRequestRepository;
 
     public OwnerKycService(OwnerKycSubmissionRepository submissionRepository,
                            OwnerKycDocumentRepository documentRepository, PgService pgService,
                            PgRepository pgRepository, DocumentStorageGateway storageGateway,
-                           NotificationService notificationService) {
+                           NotificationService notificationService,
+                           PgClaimRequestRepository claimRequestRepository) {
         this.submissionRepository = submissionRepository;
         this.documentRepository = documentRepository;
         this.pgService = pgService;
         this.pgRepository = pgRepository;
         this.storageGateway = storageGateway;
         this.notificationService = notificationService;
+        this.claimRequestRepository = claimRequestRepository;
     }
 
     @Transactional
@@ -122,6 +129,8 @@ public class OwnerKycService {
         submission.setReviewedAt(null);
         submissionRepository.save(submission);
         pg.setPaymentOnboardingStatus(PaymentOnboardingStatus.PENDING);
+        pg.setVerificationStatus(PgVerificationStatus.PENDING);
+        pg.setBookingEnabled(false);
         pgRepository.save(pg);
         notificationService.notifyUser(pg.getOwner().getId(), "KYC submitted",
                 "Your KYC and payment onboarding request is awaiting admin review.");
@@ -188,6 +197,20 @@ public class OwnerKycService {
         pg.setRazorpayLinkedAccountId(request.status() == OwnerKycStatus.VERIFIED
                 ? linkedAccountId : null);
         pg.setPlatformCommissionBps(request.platformCommissionBps());
+        if (request.status() == OwnerKycStatus.VERIFIED) {
+            pg.setVerificationStatus(PgVerificationStatus.VERIFIED);
+            pg.setClaimStatus(PgClaimStatus.CLAIMED);
+            pg.setBookingEnabled(true);
+            claimRequestRepository.findByPgIdAndStatusAndDeletedAtIsNull(pg.getId(), PgClaimRequestStatus.PENDING)
+                    .ifPresent(claim -> {
+                        claim.setStatus(PgClaimRequestStatus.APPROVED);
+                        claim.setReviewedAt(Instant.now());
+                        claimRequestRepository.save(claim);
+                    });
+        } else {
+            pg.setVerificationStatus(PgVerificationStatus.REJECTED);
+            pg.setBookingEnabled(false);
+        }
         pgRepository.save(pg);
         notificationService.notifyUser(pg.getOwner().getId(),
                 request.status() == OwnerKycStatus.VERIFIED ? "KYC verified" : "KYC needs changes",

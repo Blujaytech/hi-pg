@@ -9,6 +9,7 @@ import '../core/theme.dart';
 import '../owner/onboarding/owner_kyc_models.dart';
 import '../shared/app_states.dart';
 import 'admin_kyc_repository.dart';
+import 'admin_pg_listings_panel.dart';
 import 'admin_support_panel.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
@@ -235,7 +236,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 2,
+      length: 3,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Admin dashboard'),
@@ -245,15 +246,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             unselectedLabelColor: Colors.white70,
             tabs: [
               Tab(icon: Icon(Icons.fact_check_outlined), text: 'KYC reviews'),
+              Tab(icon: Icon(Icons.add_business_outlined), text: 'PG listings'),
               Tab(icon: Icon(Icons.support_agent_outlined), text: 'Support'),
             ],
           ),
           actions: [
-            IconButton(
-              tooltip: 'Owner workspace',
-              onPressed: () => context.go('/owner'),
-              icon: const Icon(Icons.business_outlined),
-            ),
             IconButton(
               tooltip: 'Log out',
               onPressed: _logout,
@@ -317,6 +314,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     ],
                   ),
                 ),
+          const AdminPgListingsPanel(),
           const AdminSupportPanel(),
         ]),
       ),

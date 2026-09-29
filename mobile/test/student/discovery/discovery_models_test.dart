@@ -27,6 +27,23 @@ void main() {
     );
   });
 
+  test('verification and booking flags are read defensively', () {
+    final old = PgDetails.fromJson(detailsJson());
+    expect(old.verified, isFalse);
+    expect(old.verificationStatus, 'UNVERIFIED');
+    expect(old.bookingEnabled, isFalse);
+
+    final verified = PgDetails.fromJson({
+      ...detailsJson(),
+      'verified': true,
+      'verificationStatus': 'VERIFIED',
+      'bookingEnabled': true,
+    });
+    expect(verified.verified, isTrue);
+    expect(verified.verificationStatus, 'VERIFIED');
+    expect(verified.bookingEnabled, isTrue);
+  });
+
   Map<String, dynamic> roomJson({List<dynamic>? beds}) => {
         'roomId': 'room-1',
         'roomNumber': '101',

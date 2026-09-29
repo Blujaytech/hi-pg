@@ -20,8 +20,8 @@ import lombok.Setter;
 @Table(name = "pgs")
 public class Pg extends BaseEntity {
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "owner_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "owner_id")
     private User owner;
 
     @Column(nullable = false)
@@ -54,6 +54,20 @@ public class Pg extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private PgStatus status = PgStatus.ACTIVE;
+
+    @Column(name = "admin_created", nullable = false)
+    private boolean adminCreated = false;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "claim_status", nullable = false, length = 24)
+    private PgClaimStatus claimStatus = PgClaimStatus.CLAIMED;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "verification_status", nullable = false, length = 24)
+    private PgVerificationStatus verificationStatus = PgVerificationStatus.UNVERIFIED;
+
+    @Column(name = "booking_enabled", nullable = false)
+    private boolean bookingEnabled = false;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "payment_onboarding_status", nullable = false, length = 24)

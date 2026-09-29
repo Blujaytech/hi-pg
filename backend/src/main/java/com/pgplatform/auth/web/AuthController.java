@@ -57,6 +57,11 @@ public class AuthController {
         return ownerAuthService.login(request);
     }
 
+    @PostMapping("/owner/firebase-phone")
+    public AuthResponse ownerFirebasePhone(@Valid @RequestBody FirebasePhoneAuthRequest request) {
+        return ownerAuthService.authenticateFirebasePhone(request.idToken(), request.fullName());
+    }
+
     // --- Student: phone + OTP ---
 
     @PostMapping("/student/otp/request")

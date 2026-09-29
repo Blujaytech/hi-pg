@@ -12,6 +12,7 @@ import '../../core/theme.dart';
 import '../../shared/app_states.dart';
 import '../../shared/brand/hi_pg_brand.dart';
 import 'pg_models.dart';
+import 'pg_claim_repository.dart';
 import 'pg_repository.dart';
 import 'supported_cities.dart';
 
@@ -30,6 +31,9 @@ class _PgListScreenState extends State<PgListScreen>
     with WidgetsBindingObserver {
   late final PgDataSource _repository;
   List<Pg> _pgs = const [];
+  List<PgClaimSuggestion> _claimSuggestions = const [];
+  final _claimsRepository = PgClaimRepository();
+  String? _claimingPgId;
   bool _loading = true;
   String? _error;
   int _requestGeneration = 0;
@@ -63,9 +67,19 @@ class _PgListScreenState extends State<PgListScreen>
     }
     try {
       final pgs = await _repository.list();
+      List<PgClaimSuggestion> suggestions = const [];
+      if (widget.repository == null) {
+        try {
+          suggestions = await _claimsRepository.suggestions();
+        } catch (_) {
+          // A claim suggestion is additive; the owner's existing portfolio
+          // remains usable if the invitation lookup is temporarily unavailable.
+        }
+      }
       if (!mounted || requestId != _requestGeneration) return;
       setState(() {
         _pgs = pgs;
+        _claimSuggestions = suggestions;
         _loading = false;
         _error = null;
       });
@@ -138,6 +152,39 @@ class _PgListScreenState extends State<PgListScreen>
     context.push('/owner/pgs/${pg.id}/$section', extra: pg);
   }
 
+  Future<void> _claim(PgClaimSuggestion suggestion) async {
+    if (_claimingPgId != null) return;
+    setState(() {
+      _claimingPgId = suggestion.pgId;
+      _error = null;
+    });
+    try {
+      await _claimsRepository.claim(suggestion.pgId);
+      if (!mounted) return;
+      await _load(showSpinner: false);
+      if (!mounted) return;
+      Pg? pg;
+      for (final item in _pgs) {
+        if (item.id == suggestion.pgId) {
+          pg = item;
+          break;
+        }
+      }
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Property claimed. Complete KYC to enable booking.'),
+      ));
+      context.push('/owner/pgs/${suggestion.pgId}/kyc', extra: pg);
+    } catch (error) {
+      if (mounted) {
+        setState(() => _error = error is ApiException
+            ? error.message
+            : 'This property could not be claimed.');
+      }
+    } finally {
+      if (mounted) setState(() => _claimingPgId = null);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final fullName = (context.watch<AuthState>().fullName ?? '').trim();
@@ -174,7 +221,7 @@ class _PgListScreenState extends State<PgListScreen>
     if (_error != null && _pgs.isEmpty) {
       return AppErrorView(message: _error!, onRetry: _load);
     }
-    if (_pgs.isEmpty) {
+    if (_pgs.isEmpty && _claimSuggestions.isEmpty) {
       return RefreshIndicator(
         onRefresh: () => _load(showSpinner: false),
         child: LayoutBuilder(
@@ -217,6 +264,15 @@ class _PgListScreenState extends State<PgListScreen>
           Text('Your properties',
               style: Theme.of(context).textTheme.headlineMedium),
           const SizedBox(height: 18),
+          for (final suggestion in _claimSuggestions
+              .where((item) => !item.alreadyClaimedByYou)) ...[
+            _ClaimSuggestionCard(
+              suggestion: suggestion,
+              working: _claimingPgId == suggestion.pgId,
+              onClaim: () => _claim(suggestion),
+            ),
+            const SizedBox(height: 14),
+          ],
           _PortfolioSummary(total: _pgs.length, active: activeCount),
           const SizedBox(height: 28),
           SectionHeader(
@@ -239,6 +295,7 @@ class _PgListScreenState extends State<PgListScreen>
               pg: _pgs[index],
               onOpen: (section) => _open(_pgs[index], section),
               onEdit: () => _openEditSheet(_pgs[index]),
+              onVerify: () => _open(_pgs[index], 'kyc'),
             ),
             if (index != _pgs.length - 1) const SizedBox(height: 12),
           ],
@@ -395,15 +452,83 @@ class _PortfolioSummary extends StatelessWidget {
   }
 }
 
+class _ClaimSuggestionCard extends StatelessWidget {
+  final PgClaimSuggestion suggestion;
+  final bool working;
+  final VoidCallback onClaim;
+
+  const _ClaimSuggestionCard({
+    required this.suggestion,
+    required this.working,
+    required this.onClaim,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: AppColors.brandSoft,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child:
+            Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          const Row(children: [
+            Icon(Icons.mobile_friendly_rounded, color: AppColors.brandText),
+            SizedBox(width: 9),
+            Expanded(
+              child: Text(
+                'Property found for your verified mobile',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ),
+          ]),
+          const SizedBox(height: 10),
+          Text(suggestion.name, style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 3),
+          Text('${suggestion.address}, ${suggestion.city}',
+              style: Theme.of(context).textTheme.bodySmall),
+          if (suggestion.interestCount > 0) ...[
+            const SizedBox(height: 8),
+            Text(
+              '${suggestion.interestCount} customer${suggestion.interestCount == 1 ? '' : 's'} interested in this PG',
+              style: const TextStyle(
+                  color: AppColors.brandText, fontWeight: FontWeight.w700),
+            ),
+          ],
+          const SizedBox(height: 14),
+          FilledButton.icon(
+            onPressed: working ? null : onClaim,
+            icon: working
+                ? const SizedBox.square(
+                    dimension: 17,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white),
+                  )
+                : const Icon(Icons.verified_user_outlined),
+            label: Text(working ? 'Claiming...' : 'Claim this PG'),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Claiming does not enable booking. KYC approval is still required.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: AppColors.muted, fontSize: 11.5),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
 class _PropertyCard extends StatelessWidget {
   final Pg pg;
   final ValueChanged<String> onOpen;
   final VoidCallback onEdit;
+  final VoidCallback onVerify;
 
   const _PropertyCard({
     required this.pg,
     required this.onOpen,
     required this.onEdit,
+    required this.onVerify,
   });
 
   @override
@@ -476,6 +601,19 @@ class _PropertyCard extends StatelessWidget {
                               label: pg.genderPreference.label,
                               icon: Icons.people_alt_outlined,
                             ),
+                            StatusPill(
+                              label: pg.verificationStatus == 'VERIFIED'
+                                  ? 'Verified'
+                                  : pg.verificationStatus == 'PENDING'
+                                      ? 'Under review'
+                                      : 'Unverified',
+                              tone: pg.verificationStatus == 'VERIFIED'
+                                  ? StatusTone.success
+                                  : StatusTone.warning,
+                              icon: pg.verificationStatus == 'VERIFIED'
+                                  ? Icons.verified_rounded
+                                  : Icons.shield_outlined,
+                            ),
                           ],
                         ),
                       ],
@@ -492,6 +630,27 @@ class _PropertyCard extends StatelessWidget {
               ),
             ),
           ),
+          if (pg.verificationStatus != 'VERIFIED') ...[
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+              child: Row(children: [
+                const Expanded(
+                  child: Text(
+                    'Verify this PG to publish beds and accept bookings.',
+                    style: TextStyle(color: AppColors.muted, fontSize: 12),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                FilledButton(
+                  onPressed: onVerify,
+                  child: Text(pg.verificationStatus == 'PENDING'
+                      ? 'View status'
+                      : 'Verify now'),
+                ),
+              ]),
+            ),
+          ],
           const Divider(height: 1),
           IntrinsicHeight(
             child: Row(
@@ -655,6 +814,10 @@ class _PgFormSheetState extends State<_PgFormSheet> {
           photoUrl: initial.photoUrl,
           genderPreference: _gender,
           status: initial.status,
+          claimStatus: initial.claimStatus,
+          verificationStatus: initial.verificationStatus,
+          bookingEnabled: initial.bookingEnabled,
+          adminCreated: initial.adminCreated,
         ));
       }
       if (_photoBytes != null &&
