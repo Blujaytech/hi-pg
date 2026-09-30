@@ -9,6 +9,16 @@ import java.util.Map;
 @RestController
 public class HealthController {
 
+    @GetMapping("/")
+    public Map<String, Object> index() {
+        return Map.of(
+                "service", "hi-pg-api",
+                "status", "UP",
+                "apiBasePath", "/api/v1",
+                "health", "/actuator/health"
+        );
+    }
+
     @GetMapping("/api/v1/health")
     public Map<String, Object> health() {
         return Map.of(
