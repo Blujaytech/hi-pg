@@ -314,10 +314,16 @@ class PgGalleryPhoto {
     required this.displayOrder,
   });
 
-  factory PgGalleryPhoto.fromJson(Map<String, dynamic> json) => PgGalleryPhoto(
-        id: json['id'] as String,
-        url: json['url'] as String,
-        cover: json['cover'] as bool? ?? false,
-        displayOrder: (json['displayOrder'] as num?)?.toInt() ?? 0,
-      );
+  factory PgGalleryPhoto.fromJson(Map<String, dynamic> json) {
+    final url = json['url'] as String;
+    return PgGalleryPhoto(
+      // Older backend revisions returned null for the virtual legacy cover.
+      // Its URL is a safe local identity because gallery photo IDs are not
+      // submitted back to the public API.
+      id: json['id']?.toString() ?? url,
+      url: url,
+      cover: json['cover'] as bool? ?? false,
+      displayOrder: (json['displayOrder'] as num?)?.toInt() ?? 0,
+    );
+  }
 }

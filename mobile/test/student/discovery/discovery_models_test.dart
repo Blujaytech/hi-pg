@@ -44,6 +44,24 @@ void main() {
     expect(verified.bookingEnabled, isTrue);
   });
 
+  test('legacy cover photos with no id do not break PG details', () {
+    final details = PgDetails.fromJson({
+      ...detailsJson(),
+      'photos': [
+        {
+          'id': null,
+          'url': 'https://example.com/cover.jpg',
+          'cover': true,
+          'displayOrder': 0,
+        },
+      ],
+    });
+
+    expect(details.photos, hasLength(1));
+    expect(details.photos.single.id, 'https://example.com/cover.jpg');
+    expect(details.photos.single.cover, isTrue);
+  });
+
   Map<String, dynamic> roomJson({List<dynamic>? beds}) => {
         'roomId': 'room-1',
         'roomNumber': '101',

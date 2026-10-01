@@ -33,6 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.pgplatform.document.DocumentStorageGateway;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -221,9 +222,19 @@ public class PgSearchService {
                         photo.getStorageKey(), Duration.ofHours(1)), photo.isCover(), photo.getDisplayOrder()))
                 .toList();
         if (photos.isEmpty() && pg.getPhotoStorageKey() != null) {
-            return List.of(new PgPhotoResponse(null, photoUrl(pg), true, 0));
+            return List.of(new PgPhotoResponse(legacyCoverPhotoId(pg), photoUrl(pg), true, 0));
         }
         return photos;
+    }
+
+    /**
+     * Older PGs store their cover image directly on the PG record rather than
+     * in the gallery table. Give that virtual gallery item a stable ID so the
+     * public API never emits a null value for PgPhotoResponse.id.
+     */
+    private UUID legacyCoverPhotoId(Pg pg) {
+        return UUID.nameUUIDFromBytes(
+                ("legacy-cover:" + pg.getId()).getBytes(StandardCharsets.UTF_8));
     }
 
     private int clampSize(int size) {
