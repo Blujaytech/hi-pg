@@ -29,14 +29,18 @@ class DirectPaymentRepository {
 
   Future<DirectPaymentRequest> informOwner({
     required String bookingId,
-    required String transactionReference,
+    required DirectPaymentMethod paymentMethod,
+    String? transactionReference,
     required String idempotencyKey,
   }) async {
     final response = await _client.post<Map<String, dynamic>>(
       '/student/bookings/$bookingId/direct-payment-requests',
       data: {
         'idempotencyKey': idempotencyKey,
-        'transactionReference': transactionReference.trim(),
+        'paymentMethod': paymentMethod.apiValue,
+        'transactionReference': paymentMethod == DirectPaymentMethod.upi
+            ? transactionReference?.trim()
+            : null,
         'paymentConfirmed': true,
       },
     );

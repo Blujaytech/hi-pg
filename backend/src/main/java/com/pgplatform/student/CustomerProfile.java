@@ -28,6 +28,15 @@ public class CustomerProfile extends BaseEntity {
     @Column(length = 120)
     private String occupation;
 
+    @Column(name = "profile_photo_storage_key", length = 500)
+    private String profilePhotoStorageKey;
+
+    @Column(name = "profile_photo_file_name")
+    private String profilePhotoFileName;
+
+    @Column(name = "profile_photo_content_type", length = 100)
+    private String profilePhotoContentType;
+
     /** Owner-visible booking contact; it is deliberately not an OTP/auth field. */
     @Column(name = "contact_phone", length = 16)
     private String contactPhone;

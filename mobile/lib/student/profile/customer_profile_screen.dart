@@ -35,6 +35,8 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
   CustomerProfile? _profile;
   IdentityType? _identityType;
   PlatformFile? _selectedIdentityDocument;
+  PlatformFile? _selectedProfilePhoto;
+  bool _removeProfilePhoto = false;
   bool _acceptTerms = false;
   bool _acceptPrivacy = false;
   bool _acceptAadhaarConsent = false;
@@ -92,6 +94,8 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
     _addressController.text = profile.permanentAddress ?? '';
     _identityType = profile.identityType;
     _selectedIdentityDocument = null;
+    _selectedProfilePhoto = null;
+    _removeProfilePhoto = false;
     _acceptTerms = profile.termsAcceptedVersion != null;
     _acceptPrivacy = profile.privacyAcceptedVersion != null;
     _acceptAadhaarConsent = profile.aadhaarConsentVersion != null;
@@ -139,6 +143,25 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
     });
   }
 
+  Future<void> _pickProfilePhoto() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['jpg', 'jpeg', 'png'],
+      withData: true,
+    );
+    if (result == null || !mounted) return;
+    final file = result.files.single;
+    if (file.size == 0 || file.size > 5 * 1024 * 1024 || file.bytes == null) {
+      setState(() => _error = 'Choose a JPG or PNG profile photo up to 5 MB.');
+      return;
+    }
+    setState(() {
+      _selectedProfilePhoto = file;
+      _removeProfilePhoto = false;
+      _error = null;
+    });
+  }
+
   Future<void> _save() async {
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
@@ -182,6 +205,14 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
         saved = await _repository.uploadIdentityDocument(
           identityType: _identityType!,
           file: _selectedIdentityDocument!,
+        );
+      }
+      if (_removeProfilePhoto && _selectedProfilePhoto == null) {
+        saved = await _repository.deleteProfilePhoto();
+      }
+      if (_selectedProfilePhoto != null) {
+        saved = await _repository.uploadProfilePhoto(
+          file: _selectedProfilePhoto!,
         );
       }
       if (!mounted) return;
@@ -274,14 +305,15 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                   color: Colors.white,
                   shape: BoxShape.circle,
                 ),
-                alignment: Alignment.center,
-                child: Text(
-                  _initials(profile.fullName),
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: AppColors.ink,
-                        fontWeight: FontWeight.w800,
+                clipBehavior: Clip.antiAlias,
+                child: profile.profilePhotoUrl == null
+                    ? _profileInitials(profile.fullName)
+                    : Image.network(
+                        profile.profilePhotoUrl!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) =>
+                            _profileInitials(profile.fullName),
                       ),
-                ),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -408,6 +440,16 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
     );
   }
 
+  Widget _profileInitials(String name) => Center(
+        child: Text(
+          _initials(name),
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                color: AppColors.ink,
+                fontWeight: FontWeight.w800,
+              ),
+        ),
+      );
+
   String _initials(String name) {
     final words = name
         .trim()
@@ -422,6 +464,61 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
 
   String _formatDate(DateTime date) =>
       '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
+
+  Widget _buildProfilePhotoPicker() {
+    final existingUrl = _removeProfilePhoto ? null : _profile?.profilePhotoUrl;
+    Widget image;
+    if (_selectedProfilePhoto?.bytes != null) {
+      image = Image.memory(_selectedProfilePhoto!.bytes!, fit: BoxFit.cover);
+    } else if (existingUrl != null) {
+      image = Image.network(
+        existingUrl,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _profileInitials(_nameController.text),
+      );
+    } else {
+      image = _profileInitials(_nameController.text);
+    }
+    final hasPhoto = _selectedProfilePhoto != null || existingUrl != null;
+    return Row(
+      children: [
+        Container(
+          width: 72,
+          height: 72,
+          clipBehavior: Clip.antiAlias,
+          decoration: const BoxDecoration(
+            color: AppColors.fill,
+            shape: BoxShape.circle,
+          ),
+          child: image,
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              OutlinedButton.icon(
+                onPressed: _saving ? null : _pickProfilePhoto,
+                icon: const Icon(Icons.add_a_photo_outlined),
+                label:
+                    Text(hasPhoto ? 'Replace photo' : 'Add photo (optional)'),
+              ),
+              if (hasPhoto)
+                TextButton(
+                  onPressed: _saving
+                      ? null
+                      : () => setState(() {
+                            _selectedProfilePhoto = null;
+                            _removeProfilePhoto = true;
+                          }),
+                  child: const Text('Remove photo'),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
 
   Widget _buildForm() {
     return Form(
@@ -451,6 +548,8 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
             title: 'About you',
             subtitle: 'Use the same name shown on your ID.',
             children: [
+              _buildProfilePhotoPicker(),
+              const SizedBox(height: 18),
               TextFormField(
                 controller: _nameController,
                 enabled: !_saving,

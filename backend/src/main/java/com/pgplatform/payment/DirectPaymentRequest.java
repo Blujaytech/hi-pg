@@ -44,8 +44,12 @@ public class DirectPaymentRequest extends BaseEntity {
     @Column(nullable = false, length = 3, updatable = false)
     private String currency = "INR";
 
-    @Column(name = "transaction_reference", nullable = false, length = 100, updatable = false)
+    @Column(name = "transaction_reference", length = 100, updatable = false)
     private String transactionReference;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_method", nullable = false, length = 16, updatable = false)
+    private DirectPaymentMethod paymentMethod = DirectPaymentMethod.UPI;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 24)

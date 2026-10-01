@@ -348,8 +348,14 @@ class _RequestCard extends StatelessWidget {
                       important: true),
                   const SizedBox(height: 9),
                   _ValueRow(
-                      label: 'UPI reference',
-                      value: request.transactionReference),
+                      label: 'Payment method',
+                      value: request.paymentMethod.label),
+                  if (request.paymentMethod == DirectPaymentMethod.upi) ...[
+                    const SizedBox(height: 9),
+                    _ValueRow(
+                        label: 'UPI reference',
+                        value: request.transactionReference),
+                  ],
                   const SizedBox(height: 9),
                   _ValueRow(label: 'Booking', value: request.bookingType.label),
                   const SizedBox(height: 9),
@@ -380,10 +386,11 @@ class _RequestCard extends StatelessWidget {
             ],
             if (onApprove != null && onReject != null) ...[
               const SizedBox(height: 15),
-              const AppMessageBanner(
+              AppMessageBanner(
                 icon: Icons.security_rounded,
-                message:
-                    'Open your bank or UPI statement and match both the amount and reference. Do not approve from a screenshot alone.',
+                message: request.paymentMethod == DirectPaymentMethod.cash
+                    ? 'Approve only after you or authorised staff physically received the exact cash amount.'
+                    : 'Open your bank or UPI statement and match both the amount and reference. Do not approve from a screenshot alone.',
               ),
               const SizedBox(height: 12),
               Row(
@@ -497,8 +504,11 @@ class _ApprovePaymentDialogState extends State<_ApprovePaymentDialog> {
     if (!_formKey.currentState!.validate()) return;
     if (!_checkedStatement) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Confirm that you checked your statement.')),
+        SnackBar(
+            content: Text(
+                widget.request.paymentMethod == DirectPaymentMethod.cash
+                    ? 'Confirm that the cash was physically received.'
+                    : 'Confirm that you checked your statement.')),
       );
       return;
     }
@@ -525,7 +535,9 @@ class _ApprovePaymentDialogState extends State<_ApprovePaymentDialog> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                'Match ${widget.request.transactionReference} in your bank or UPI statement. The booking price cannot be changed here.',
+                widget.request.paymentMethod == DirectPaymentMethod.cash
+                    ? 'Confirm that you or authorised staff received the exact cash amount. The booking price cannot be changed here.'
+                    : 'Match ${widget.request.transactionReference} in your bank or UPI statement. The booking price cannot be changed here.',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
               const SizedBox(height: 16),
@@ -565,7 +577,10 @@ class _ApprovePaymentDialogState extends State<_ApprovePaymentDialog> {
                     setState(() => _checkedStatement = value ?? false),
                 contentPadding: EdgeInsets.zero,
                 controlAffinity: ListTileControlAffinity.leading,
-                title: const Text('I verified this in my bank/UPI statement'),
+                title: Text(
+                    widget.request.paymentMethod == DirectPaymentMethod.cash
+                        ? 'I personally verified the cash receipt'
+                        : 'I verified this in my bank/UPI statement'),
                 subtitle: const Text(
                     'Approving records the payment and allocates the bed.'),
               ),
@@ -611,7 +626,9 @@ class _RejectPaymentDialogState extends State<_RejectPaymentDialog> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            'Explain why ${widget.request.transactionReference} could not be verified. The customer will see this reason.',
+            widget.request.paymentMethod == DirectPaymentMethod.cash
+                ? 'Explain why the reported cash payment could not be verified. The customer will see this reason.'
+                : 'Explain why ${widget.request.transactionReference} could not be verified. The customer will see this reason.',
             style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(height: 14),
@@ -621,9 +638,11 @@ class _RejectPaymentDialogState extends State<_RejectPaymentDialog> {
             maxLength: 250,
             maxLines: 3,
             textCapitalization: TextCapitalization.sentences,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: 'Reason',
-              hintText: 'Payment not found in statement',
+              hintText: widget.request.paymentMethod == DirectPaymentMethod.cash
+                  ? 'Cash was not received'
+                  : 'Payment not found in statement',
             ),
           ),
         ],

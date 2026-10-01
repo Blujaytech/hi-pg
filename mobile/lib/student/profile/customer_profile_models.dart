@@ -54,6 +54,7 @@ class CustomerProfile {
   final String? id;
   final String fullName;
   final String occupation;
+  final String? profilePhotoUrl;
   final String? phone;
   final bool phoneVerified;
   final String? permanentAddress;
@@ -71,6 +72,7 @@ class CustomerProfile {
     required this.id,
     required this.fullName,
     required this.occupation,
+    this.profilePhotoUrl,
     required this.phone,
     required this.phoneVerified,
     required this.permanentAddress,
@@ -90,6 +92,7 @@ class CustomerProfile {
         id: json['id'] as String?,
         fullName: json['fullName'] as String? ?? '',
         occupation: json['occupation'] as String? ?? '',
+        profilePhotoUrl: json['profilePhotoUrl'] as String?,
         phone: json['phone'] as String?,
         phoneVerified: json['phoneVerified'] as bool? ?? false,
         permanentAddress: json['permanentAddress'] as String?,

@@ -21,16 +21,19 @@ public class PgClaimService {
     private final PgInterestRequestRepository interestRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
+    private final OwnerSmsService smsService;
 
     public PgClaimService(PgRepository pgRepository, PgOwnerContactRepository contactRepository,
                           PgClaimRequestRepository claimRepository, PgInterestRequestRepository interestRepository,
-                          UserRepository userRepository, NotificationService notificationService) {
+                          UserRepository userRepository, NotificationService notificationService,
+                          OwnerSmsService smsService) {
         this.pgRepository = pgRepository;
         this.contactRepository = contactRepository;
         this.claimRepository = claimRepository;
         this.interestRepository = interestRepository;
         this.userRepository = userRepository;
         this.notificationService = notificationService;
+        this.smsService = smsService;
     }
 
     public boolean hasInvitation(String mobile) {
@@ -116,12 +119,26 @@ public class PgClaimService {
         interest.setPg(pg);
         interest.setCustomer(customer);
         interest = interestRepository.save(interest);
-        if (created && pg.getOwner() != null) {
-            notificationService.notifyUser(pg.getOwner().getId(), "A customer wants this PG verified",
-                    "A customer is interested in " + pg.getName() + ". Complete KYC to enable bookings.");
+        long interestCount = interestRepository.countByPgIdAndDeletedAtIsNull(pgId);
+        if (created) {
+            if (pg.getOwner() != null) {
+                notificationService.notifyUser(pg.getOwner().getId(), "A customer wants this PG verified",
+                        "A customer is interested in " + pg.getName() + ". Complete KYC to enable bookings.");
+            }
+            contactRepository.findByPgIdAndDeletedAtIsNull(pgId).ifPresent(contact -> {
+                if (isSmsMilestone(interestCount)) {
+                    smsService.sendOnce(pg, "DEMAND_" + interestCount, contact.getNormalizedMobile(),
+                            interestCount + " customer" + (interestCount == 1 ? " is" : "s are")
+                                    + " interested in " + pg.getName()
+                                    + ". Claim and verify your PG to accept bookings: " + smsService.claimUrl());
+                }
+            });
         }
-        return new PgInterestResponse(pgId, true,
-                interestRepository.countByPgIdAndDeletedAtIsNull(pgId), interest.getCreatedAt());
+        return new PgInterestResponse(pgId, true, interestCount, interest.getCreatedAt());
+    }
+
+    private boolean isSmsMilestone(long count) {
+        return count == 1 || count == 25 || count == 50 || count == 100 || (count >= 150 && count % 50 == 0);
     }
 
     private OwnerClaimSuggestionResponse suggestion(Pg pg, UUID ownerId) {

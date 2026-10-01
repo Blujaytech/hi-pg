@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../auth/auth_models.dart';
 import '../../auth/auth_state.dart';
 import '../../core/theme.dart';
+import '../../student/profile/customer_profile_repository.dart';
 import '../brand/hi_pg_brand.dart';
 
 /// Account tab for both roles: who is signed in, role-specific shortcuts
@@ -57,6 +58,7 @@ class AccountScreen extends StatelessWidget {
         children: [
           _ProfileCard(
             name: name,
+            loadCustomerPhoto: !isOwner,
             role: isAdmin
                 ? 'Administrator & PG owner'
                 : (isOwner ? 'PG owner' : null),
@@ -148,8 +150,13 @@ class AccountScreen extends StatelessWidget {
 class _ProfileCard extends StatelessWidget {
   final String name;
   final String? role;
+  final bool loadCustomerPhoto;
 
-  const _ProfileCard({required this.name, required this.role});
+  const _ProfileCard({
+    required this.name,
+    required this.role,
+    required this.loadCustomerPhoto,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -161,22 +168,9 @@ class _ProfileCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Container(
-            width: 56,
-            height: 56,
-            alignment: Alignment.center,
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              shape: BoxShape.circle,
-            ),
-            child: Text(
-              name.characters.first.toUpperCase(),
-              style: const TextStyle(
-                color: AppColors.ink,
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
+          _AccountAvatar(
+            name: name,
+            loadCustomerPhoto: loadCustomerPhoto,
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -217,6 +211,72 @@ class _ProfileCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _AccountAvatar extends StatefulWidget {
+  final String name;
+  final bool loadCustomerPhoto;
+
+  const _AccountAvatar({
+    required this.name,
+    required this.loadCustomerPhoto,
+  });
+
+  @override
+  State<_AccountAvatar> createState() => _AccountAvatarState();
+}
+
+class _AccountAvatarState extends State<_AccountAvatar> {
+  String? _photoUrl;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.loadCustomerPhoto) {
+      _loadPhoto();
+    }
+  }
+
+  Future<void> _loadPhoto() async {
+    try {
+      final profile = await CustomerProfileRepository().getMine();
+      if (mounted) {
+        setState(() => _photoUrl = profile.profilePhotoUrl);
+      }
+    } catch (_) {
+      // The account remains usable when the optional profile request fails.
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final fallback = Container(
+      color: Colors.white,
+      alignment: Alignment.center,
+      child: Text(
+        widget.name.characters.first.toUpperCase(),
+        style: const TextStyle(
+          color: AppColors.ink,
+          fontSize: 22,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+
+    return ClipOval(
+      child: SizedBox(
+        width: 56,
+        height: 56,
+        child: _photoUrl == null
+            ? fallback
+            : Image.network(
+                _photoUrl!,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => fallback,
+              ),
       ),
     );
   }

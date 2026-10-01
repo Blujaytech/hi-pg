@@ -974,6 +974,10 @@ class _PropertyHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final photoUrls = <String>{
+      if (pg.photoUrl != null) pg.photoUrl!,
+      ...pg.photos.map((photo) => photo.url),
+    }.toList();
     return Container(
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
@@ -983,19 +987,64 @@ class _PropertyHeader extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (pg.photoUrl != null)
+          if (photoUrls.isNotEmpty)
             SizedBox(
               height: 145,
-              child: Image.network(
-                pg.photoUrl!,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => const ColoredBox(
-                  color: AppColors.inkSoft,
-                  child: Center(
-                    child: Icon(Icons.apartment_rounded,
-                        color: Colors.white54, size: 40),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Image.network(
+                    photoUrls.first,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => const ColoredBox(
+                      color: AppColors.inkSoft,
+                      child: Center(
+                        child: Icon(Icons.apartment_rounded,
+                            color: Colors.white54, size: 40),
+                      ),
+                    ),
                   ),
-                ),
+                  Positioned(
+                    right: 10,
+                    bottom: 10,
+                    child: Material(
+                      color: Colors.black.withValues(alpha: .68),
+                      borderRadius: BorderRadius.circular(18),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(18),
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            fullscreenDialog: true,
+                            builder: (_) => _PgGalleryViewer(
+                              pgName: pg.name,
+                              photoUrls: photoUrls,
+                            ),
+                          ),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 7),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.photo_library_outlined,
+                                  size: 15, color: Colors.white),
+                              const SizedBox(width: 5),
+                              Text(
+                                'Photos ${photoUrls.length}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           Padding(
@@ -1111,6 +1160,74 @@ class _PropertyHeader extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _PgGalleryViewer extends StatefulWidget {
+  final String pgName;
+  final List<String> photoUrls;
+
+  const _PgGalleryViewer({required this.pgName, required this.photoUrls});
+
+  @override
+  State<_PgGalleryViewer> createState() => _PgGalleryViewerState();
+}
+
+class _PgGalleryViewerState extends State<_PgGalleryViewer> {
+  late final PageController _controller = PageController();
+  int _index = 0;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        title: Text(widget.pgName),
+        actions: [
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.only(right: 18),
+              child: Text(
+                '${_index + 1}/${widget.photoUrls.length}',
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ),
+        ],
+      ),
+      body: PageView.builder(
+        controller: _controller,
+        itemCount: widget.photoUrls.length,
+        onPageChanged: (index) => setState(() => _index = index),
+        itemBuilder: (_, index) => InteractiveViewer(
+          minScale: 1,
+          maxScale: 4,
+          child: Center(
+            child: Image.network(
+              widget.photoUrls[index],
+              fit: BoxFit.contain,
+              loadingBuilder: (_, child, progress) => progress == null
+                  ? child
+                  : const Center(
+                      child: CircularProgressIndicator(color: Colors.white),
+                    ),
+              errorBuilder: (_, __, ___) => const Center(
+                child: Icon(Icons.broken_image_outlined,
+                    color: Colors.white54, size: 54),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

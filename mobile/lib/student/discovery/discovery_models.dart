@@ -236,6 +236,7 @@ class PgDetails {
   final String? pincode;
   final String? description;
   final String? photoUrl;
+  final List<PgGalleryPhoto> photos;
   final GenderPreference genderPreference;
   final double? latitude;
   final double? longitude;
@@ -256,6 +257,7 @@ class PgDetails {
     required this.pincode,
     required this.description,
     this.photoUrl,
+    this.photos = const [],
     required this.genderPreference,
     required this.latitude,
     required this.longitude,
@@ -277,6 +279,10 @@ class PgDetails {
         pincode: json['pincode'] as String?,
         description: json['description'] as String?,
         photoUrl: json['photoUrl'] as String?,
+        photos: (json['photos'] as List<dynamic>? ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .map(PgGalleryPhoto.fromJson)
+            .toList(),
         genderPreference:
             GenderPreferenceX.fromApi(json['genderPreference'] as String),
         latitude: (json['latitude'] as num?)?.toDouble(),
@@ -292,5 +298,26 @@ class PgDetails {
         floors: (json['floors'] as List<dynamic>)
             .map((f) => FloorAvailability.fromJson(f as Map<String, dynamic>))
             .toList(),
+      );
+}
+
+class PgGalleryPhoto {
+  final String id;
+  final String url;
+  final bool cover;
+  final int displayOrder;
+
+  const PgGalleryPhoto({
+    required this.id,
+    required this.url,
+    required this.cover,
+    required this.displayOrder,
+  });
+
+  factory PgGalleryPhoto.fromJson(Map<String, dynamic> json) => PgGalleryPhoto(
+        id: json['id'] as String,
+        url: json['url'] as String,
+        cover: json['cover'] as bool? ?? false,
+        displayOrder: (json['displayOrder'] as num?)?.toInt() ?? 0,
       );
 }

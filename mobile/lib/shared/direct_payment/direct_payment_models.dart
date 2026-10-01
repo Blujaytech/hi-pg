@@ -46,6 +46,16 @@ enum DirectPaymentRequestStatus {
   unknown,
 }
 
+enum DirectPaymentMethod { upi, cash }
+
+extension DirectPaymentMethodX on DirectPaymentMethod {
+  String get apiValue => this == DirectPaymentMethod.cash ? 'CASH' : 'UPI';
+  String get label => this == DirectPaymentMethod.cash ? 'Cash' : 'UPI';
+
+  static DirectPaymentMethod fromApi(String? value) =>
+      value == 'CASH' ? DirectPaymentMethod.cash : DirectPaymentMethod.upi;
+}
+
 extension DirectPaymentRequestStatusX on DirectPaymentRequestStatus {
   static DirectPaymentRequestStatus fromApi(String value) => switch (value) {
         'PENDING' => DirectPaymentRequestStatus.pending,
@@ -93,6 +103,7 @@ class DirectPaymentRequest {
   final DateTime? checkOutDate;
   final double quotedAmount;
   final String currency;
+  final DirectPaymentMethod paymentMethod;
   final String transactionReference;
   final DirectPaymentRequestStatus status;
   final DateTime? submittedAt;
@@ -116,6 +127,7 @@ class DirectPaymentRequest {
     required this.checkOutDate,
     required this.quotedAmount,
     required this.currency,
+    required this.paymentMethod,
     required this.transactionReference,
     required this.status,
     required this.submittedAt,
@@ -144,6 +156,8 @@ class DirectPaymentRequest {
             : DateTime.tryParse(json['checkOutDate'] as String),
         quotedAmount: (json['quotedAmount'] as num).toDouble(),
         currency: json['currency'] as String? ?? 'INR',
+        paymentMethod:
+            DirectPaymentMethodX.fromApi(json['paymentMethod'] as String?),
         transactionReference:
             (json['transactionReference'] ?? json['customerUtr']) as String? ??
                 '',

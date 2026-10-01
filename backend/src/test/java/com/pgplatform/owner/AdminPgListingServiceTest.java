@@ -20,6 +20,7 @@ class AdminPgListingServiceTest {
     @Mock private PgRepository pgRepository;
     @Mock private PgOwnerContactRepository contactRepository;
     @Mock private PgInterestRequestRepository interestRepository;
+    @Mock private OwnerSmsService smsService;
 
     @Test
     void adminListingStartsUnclaimedUnverifiedAndNotBookable() {
@@ -30,9 +31,11 @@ class AdminPgListingServiceTest {
         });
         when(contactRepository.save(any(PgOwnerContact.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
+        when(smsService.sendOnce(any(Pg.class), any(), any(), any()))
+                .thenReturn(new OwnerSmsResult(OwnerSmsStatus.SKIPPED, null, "SMS disabled in test"));
 
         AdminPgListingService service = new AdminPgListingService(
-                pgRepository, contactRepository, interestRepository);
+                pgRepository, contactRepository, interestRepository, smsService);
         var response = service.create(new AdminPgListingRequest(
                 "Ameerpet Stay", "Owner Name", "96522 97185",
                 "Yellareddyguda, Ameerpet", "Hyderabad", "Telangana", "500038",

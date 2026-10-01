@@ -98,4 +98,32 @@ class PgRepository implements PgDataSource {
     );
     return Pg.fromJson(response.data!);
   }
+
+  Future<Pg> addPhoto({
+    required String pgId,
+    required List<int> bytes,
+    required String fileName,
+    bool cover = false,
+  }) async {
+    final lower = fileName.toLowerCase();
+    final contentType = lower.endsWith('.png') ? 'image/png' : 'image/jpeg';
+    final response = await _client.post<Map<String, dynamic>>(
+      '/owner/pgs/$pgId/photos?cover=$cover',
+      data: FormData.fromMap({
+        'file': MultipartFile.fromBytes(bytes,
+            filename: fileName, contentType: MediaType.parse(contentType)),
+      }),
+    );
+    return Pg.fromJson(response.data!);
+  }
+
+  Future<Pg> deletePhoto({
+    required String pgId,
+    required String photoId,
+  }) async {
+    final response = await _client.delete<Map<String, dynamic>>(
+      '/owner/pgs/$pgId/photos/$photoId',
+    );
+    return Pg.fromJson(response.data!);
+  }
 }

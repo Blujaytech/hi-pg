@@ -30,13 +30,14 @@ class PgClaimServiceTest {
     @Mock private PgInterestRequestRepository interestRepository;
     @Mock private UserRepository userRepository;
     @Mock private NotificationService notificationService;
+    @Mock private OwnerSmsService smsService;
 
     private PgClaimService service;
 
     @BeforeEach
     void setUp() {
         service = new PgClaimService(pgRepository, contactRepository, claimRepository,
-                interestRepository, userRepository, notificationService);
+                interestRepository, userRepository, notificationService, smsService);
     }
 
     @Test

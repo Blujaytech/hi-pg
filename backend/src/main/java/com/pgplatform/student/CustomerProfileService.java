@@ -8,6 +8,7 @@ import com.pgplatform.auth.UserRepository;
 import com.pgplatform.booking.BookingType;
 import com.pgplatform.common.ConflictException;
 import com.pgplatform.common.NotFoundException;
+import com.pgplatform.document.DocumentStorageGateway;
 import com.pgplatform.student.dto.BookingEligibilityResponse;
 import com.pgplatform.student.dto.CustomerProfileResponse;
 import com.pgplatform.student.dto.CustomerProfileUpdateRequest;
@@ -17,6 +18,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -30,6 +32,7 @@ public class CustomerProfileService {
     private final OtpService otpService;
     private final StudentRepository studentRepository;
     private final CustomerIdentityDocumentRepository identityDocumentRepository;
+    private final DocumentStorageGateway storageGateway;
 
     @Value("${app.legal.terms-version:2026-09-22}")
     private String termsVersion;
@@ -42,13 +45,15 @@ public class CustomerProfileService {
                                   LegalAcceptanceRepository acceptanceRepository,
                                   UserRepository userRepository, OtpService otpService,
                                   StudentRepository studentRepository,
-                                  CustomerIdentityDocumentRepository identityDocumentRepository) {
+                                  CustomerIdentityDocumentRepository identityDocumentRepository,
+                                  DocumentStorageGateway storageGateway) {
         this.profileRepository = profileRepository;
         this.acceptanceRepository = acceptanceRepository;
         this.userRepository = userRepository;
         this.otpService = otpService;
         this.studentRepository = studentRepository;
         this.identityDocumentRepository = identityDocumentRepository;
+        this.storageGateway = storageGateway;
     }
 
     @Transactional(readOnly = true)
@@ -148,6 +153,49 @@ public class CustomerProfileService {
         return response(user, profileRepository.findByUserIdAndDeletedAtIsNull(userId).orElse(null));
     }
 
+    @Transactional
+    public CustomerProfileResponse uploadPhoto(UUID userId, byte[] content, String fileName, String contentType) {
+        User user = requireStudentUser(userId);
+        if (content == null || content.length == 0) throw new ConflictException("Choose a profile photo");
+        if (content.length > 5L * 1024 * 1024) throw new ConflictException("Profile photo must be 5 MB or smaller");
+        String normalizedType = contentType == null ? "" : contentType.toLowerCase();
+        if (!normalizedType.equals("image/jpeg") && !normalizedType.equals("image/png")) {
+            throw new ConflictException("Profile photo must be a JPG or PNG image");
+        }
+        CustomerProfile profile = profileRepository.findByUserIdAndDeletedAtIsNull(userId)
+                .orElseGet(() -> {
+                    CustomerProfile created = new CustomerProfile();
+                    created.setUser(user);
+                    created.setFullName(isBlank(user.getFullName()) ? "Student" : user.getFullName());
+                    return created;
+                });
+        String oldKey = profile.getProfilePhotoStorageKey();
+        String safeName = isBlank(fileName)
+                ? "profile-photo" + (normalizedType.endsWith("png") ? ".png" : ".jpg")
+                : fileName.trim();
+        String newKey = storageGateway.store(content, safeName, normalizedType);
+        profile.setProfilePhotoStorageKey(newKey);
+        profile.setProfilePhotoFileName(safeName);
+        profile.setProfilePhotoContentType(normalizedType);
+        profile = profileRepository.save(profile);
+        if (!isBlank(oldKey) && !oldKey.equals(newKey)) storageGateway.delete(oldKey);
+        return response(user, profile);
+    }
+
+    @Transactional
+    public CustomerProfileResponse deletePhoto(UUID userId) {
+        User user = requireStudentUser(userId);
+        CustomerProfile profile = profileRepository.findByUserIdAndDeletedAtIsNull(userId)
+                .orElseThrow(() -> new NotFoundException("Customer profile not found"));
+        String oldKey = profile.getProfilePhotoStorageKey();
+        profile.setProfilePhotoStorageKey(null);
+        profile.setProfilePhotoFileName(null);
+        profile.setProfilePhotoContentType(null);
+        profileRepository.save(profile);
+        if (!isBlank(oldKey)) storageGateway.delete(oldKey);
+        return response(user, profile);
+    }
+
     private List<String> missingRequirements(User user, CustomerProfile profile, BookingType bookingType) {
         List<String> missing = new ArrayList<>();
         if (profile == null) {
@@ -207,7 +255,10 @@ public class CustomerProfileService {
         return new CustomerProfileResponse(
                 profile == null ? null : profile.getId(),
                 profile == null ? user.getFullName() : profile.getFullName(),
-                profile == null ? null : profile.getOccupation(), effectiveContactPhone(user, profile),
+                profile == null ? null : profile.getOccupation(),
+                profile == null || isBlank(profile.getProfilePhotoStorageKey()) ? null
+                        : storageGateway.generateSignedUrl(profile.getProfilePhotoStorageKey(), Duration.ofMinutes(30)),
+                effectiveContactPhone(user, profile),
                 user.isPhoneVerified(),
                 profile == null ? null : profile.getPermanentAddress(),
                 profile == null ? null : profile.getGuardianName(),

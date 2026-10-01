@@ -2,6 +2,7 @@ package com.pgplatform.discovery.dto;
 
 import com.pgplatform.owner.GenderPreference;
 import com.pgplatform.owner.PgVerificationStatus;
+import com.pgplatform.owner.dto.PgPhotoResponse;
 
 import java.util.List;
 import java.util.UUID;
@@ -21,6 +22,7 @@ public record PgDetailsResponse(
         String pincode,
         String description,
         String photoUrl,
+        List<PgPhotoResponse> photos,
         GenderPreference genderPreference,
         Double latitude,
         Double longitude,

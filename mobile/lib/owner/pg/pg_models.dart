@@ -39,6 +39,8 @@ class Pg {
   final double? longitude;
   final String? description;
   final String? photoUrl;
+  final List<PgPhoto> photos;
+  final int interestCount;
   final GenderPreference genderPreference;
   final PgStatus status;
   final String claimStatus;
@@ -57,6 +59,8 @@ class Pg {
     this.longitude,
     this.description,
     this.photoUrl,
+    this.photos = const [],
+    this.interestCount = 0,
     required this.genderPreference,
     required this.status,
     this.claimStatus = 'CLAIMED',
@@ -76,6 +80,11 @@ class Pg {
         longitude: (json['longitude'] as num?)?.toDouble(),
         description: json['description'] as String?,
         photoUrl: json['photoUrl'] as String?,
+        photos: (json['photos'] as List<dynamic>? ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .map(PgPhoto.fromJson)
+            .toList(),
+        interestCount: (json['interestCount'] as num?)?.toInt() ?? 0,
         genderPreference:
             GenderPreferenceX.fromApi(json['genderPreference'] as String),
         status: PgStatusX.fromApi(json['status'] as String),
@@ -84,5 +93,26 @@ class Pg {
             json['verificationStatus'] as String? ?? 'UNVERIFIED',
         bookingEnabled: json['bookingEnabled'] as bool? ?? false,
         adminCreated: json['adminCreated'] as bool? ?? false,
+      );
+}
+
+class PgPhoto {
+  final String id;
+  final String url;
+  final bool cover;
+  final int displayOrder;
+
+  const PgPhoto({
+    required this.id,
+    required this.url,
+    required this.cover,
+    required this.displayOrder,
+  });
+
+  factory PgPhoto.fromJson(Map<String, dynamic> json) => PgPhoto(
+        id: json['id'] as String,
+        url: json['url'] as String,
+        cover: json['cover'] as bool? ?? false,
+        displayOrder: (json['displayOrder'] as num?)?.toInt() ?? 0,
       );
 }

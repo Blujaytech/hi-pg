@@ -10,6 +10,7 @@ public record CustomerProfileResponse(
         UUID id,
         String fullName,
         String occupation,
+        String profilePhotoUrl,
         String phone,
         boolean phoneVerified,
         String permanentAddress,

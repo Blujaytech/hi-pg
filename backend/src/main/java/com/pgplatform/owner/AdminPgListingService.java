@@ -15,12 +15,15 @@ public class AdminPgListingService {
     private final PgRepository pgRepository;
     private final PgOwnerContactRepository contactRepository;
     private final PgInterestRequestRepository interestRepository;
+    private final OwnerSmsService smsService;
 
     public AdminPgListingService(PgRepository pgRepository, PgOwnerContactRepository contactRepository,
-                                 PgInterestRequestRepository interestRepository) {
+                                 PgInterestRequestRepository interestRepository,
+                                 OwnerSmsService smsService) {
         this.pgRepository = pgRepository;
         this.contactRepository = contactRepository;
         this.interestRepository = interestRepository;
+        this.smsService = smsService;
     }
 
     @Transactional
@@ -38,9 +41,16 @@ public class AdminPgListingService {
         contact.setPg(pg);
         contact.setOwnerName(request.ownerName().trim());
         contact.setNormalizedMobile(PhoneNumbers.normalize(request.ownerMobile()));
-        // No SMS gateway is silently faked. The queue is ready for MSG91/Exotel/Gupshup.
         contact.setInvitationStatus(PgInvitationStatus.PENDING_PROVIDER);
-        contactRepository.save(contact);
+        contact = contactRepository.save(contact);
+        OwnerSmsResult sms = smsService.sendOnce(pg, "ADMIN_LISTING_INVITATION", contact.getNormalizedMobile(),
+                "Hi PG has listed " + pg.getName() + ". Claim and verify your property to manage it and accept "
+                        + "bookings: " + smsService.claimUrl());
+        if (sms.sent()) {
+            contact.setInvitationStatus(PgInvitationStatus.SENT);
+            contact.setInvitedAt(java.time.Instant.now());
+            contactRepository.save(contact);
+        }
         return response(pg, contact);
     }
 

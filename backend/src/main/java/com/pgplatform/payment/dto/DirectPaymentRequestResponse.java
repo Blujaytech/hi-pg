@@ -3,6 +3,7 @@ package com.pgplatform.payment.dto;
 import com.pgplatform.booking.Booking;
 import com.pgplatform.booking.BookingType;
 import com.pgplatform.payment.DirectPaymentRequest;
+import com.pgplatform.payment.DirectPaymentMethod;
 import com.pgplatform.payment.DirectPaymentStatus;
 
 import java.math.BigDecimal;
@@ -25,6 +26,7 @@ public record DirectPaymentRequestResponse(
         LocalDate checkOutDate,
         BigDecimal quotedAmount,
         String currency,
+        DirectPaymentMethod paymentMethod,
         String transactionReference,
         DirectPaymentStatus status,
         Instant submittedAt,
@@ -39,7 +41,7 @@ public record DirectPaymentRequestResponse(
                 request.getPg().getName(), request.getCustomer().getFullName(), mask(request.getCustomer().getPhone()),
                 booking.getBed().getId(), booking.getBed().getLabel(), booking.getBed().getRoom().getRoomNumber(),
                 booking.getBookingType(), booking.getMoveInDate(), booking.getCheckOutDate(),
-                request.getQuotedAmount(), request.getCurrency(), request.getTransactionReference(),
+                request.getQuotedAmount(), request.getCurrency(), request.getPaymentMethod(), request.getTransactionReference(),
                 request.getStatus(), request.getSubmittedAt(), request.getReviewDueAt(),
                 request.getConfirmedAmount(), request.getReviewedAt(), request.getRejectionReason());
     }

@@ -110,7 +110,8 @@ public class DirectPaymentService {
         if (!input.paymentConfirmed()) {
             throw new ConflictException("Confirm the direct payment before informing the owner");
         }
-        String reference = normalizeReference(input.transactionReference());
+        DirectPaymentMethod method = input.paymentMethod() == null ? DirectPaymentMethod.UPI : input.paymentMethod();
+        String reference = method == DirectPaymentMethod.UPI ? normalizeReference(input.transactionReference()) : null;
         Booking preview = bookingService.requireOwnedBooking(bookingId, userId);
         PgDirectPaymentSettings settings = settingsService.requireEnabled(preview.getPg().getId());
         DirectPaymentRequest prior = repository.findFirstByBookingIdAndDeletedAtIsNullOrderByCreatedAtDesc(bookingId)
@@ -118,7 +119,7 @@ public class DirectPaymentService {
         if (prior != null) {
             throw new ConflictException("A direct-payment request already exists for this booking");
         }
-        if (repository.existsByPgIdAndTransactionReferenceIgnoreCaseAndDeletedAtIsNull(
+        if (reference != null && repository.existsByPgIdAndTransactionReferenceIgnoreCaseAndDeletedAtIsNull(
                 preview.getPg().getId(), reference)) {
             throw new ConflictException("That transaction reference was already submitted for this PG");
         }
@@ -131,6 +132,7 @@ public class DirectPaymentService {
         request.setIdempotencyKey(idempotencyKey);
         request.setQuotedAmount(booking.getTotalAmount());
         request.setCurrency("INR");
+        request.setPaymentMethod(method);
         request.setTransactionReference(reference);
         request.setStatus(DirectPaymentStatus.PENDING);
         request.setSubmittedAt(Instant.now());
@@ -140,9 +142,12 @@ public class DirectPaymentService {
         request.setMobileNumberSnapshot(settings.getMobileNumber());
         request = repository.save(request);
 
+        String paymentDescription = method == DirectPaymentMethod.CASH
+                ? "reports handing over INR " + booking.getTotalAmount() + " in cash"
+                : "reports paying INR " + booking.getTotalAmount() + " by UPI. Reference: " + reference;
         notificationService.notifyUser(booking.getPg().getOwner().getId(), "Direct payment needs review",
-                booking.getStudent().getFullName() + " reports paying INR " + booking.getTotalAmount()
-                        + " for " + booking.getBed().getLabel() + ". Reference: " + reference);
+                booking.getStudent().getFullName() + " " + paymentDescription
+                        + " for " + booking.getBed().getLabel() + ".");
         notificationService.notifyUser(userId, "Owner informed",
                 "The PG owner has been asked to verify your payment before the bed is allocated.");
         return DirectPaymentRequestResponse.from(request);
@@ -256,8 +261,10 @@ public class DirectPaymentService {
                     || request.getReviewDueAt().isAfter(Instant.now())) continue;
             request.setStatus(DirectPaymentStatus.REVIEW_OVERDUE);
             repository.save(request);
+            String identifier = request.getPaymentMethod() == DirectPaymentMethod.CASH
+                    ? "the reported cash payment" : "booking payment reference " + request.getTransactionReference();
             notificationService.notifyUser(request.getPg().getOwner().getId(), "Direct payment review overdue",
-                    "Verify booking payment reference " + request.getTransactionReference()
+                    "Verify " + identifier
                             + ". The bed remains held until you approve or reject it.");
         }
     }
@@ -286,6 +293,9 @@ public class DirectPaymentService {
     }
 
     private String normalizeReference(String value) {
+        if (value == null || value.isBlank()) {
+            throw new ConflictException("Enter the UPI transaction reference");
+        }
         String reference = value.trim().toUpperCase(Locale.ROOT);
         if (!reference.matches("[A-Z0-9._/-]{6,100}")) {
             throw new ConflictException("Enter a valid UPI transaction reference");

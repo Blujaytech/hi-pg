@@ -6,6 +6,7 @@ import com.pgplatform.common.NotFoundException;
 import com.pgplatform.owner.dto.PgCreateRequest;
 import com.pgplatform.owner.dto.PgResponse;
 import com.pgplatform.owner.dto.PgUpdateRequest;
+import com.pgplatform.owner.dto.PgPhotoResponse;
 import com.pgplatform.owner.dto.PaymentOnboardingReviewRequest;
 import com.pgplatform.common.ConflictException;
 import com.pgplatform.onboarding.OwnerKycStatus;
@@ -25,14 +26,19 @@ public class PgService {
     private final UserRepository userRepository;
     private final OwnerKycSubmissionRepository ownerKycSubmissionRepository;
     private final DocumentStorageGateway storageGateway;
+    private final PgPhotoRepository pgPhotoRepository;
+    private final PgInterestRequestRepository interestRepository;
 
     public PgService(PgRepository pgRepository, UserRepository userRepository,
                      OwnerKycSubmissionRepository ownerKycSubmissionRepository,
-                     DocumentStorageGateway storageGateway) {
+                     DocumentStorageGateway storageGateway, PgPhotoRepository pgPhotoRepository,
+                     PgInterestRequestRepository interestRepository) {
         this.pgRepository = pgRepository;
         this.userRepository = userRepository;
         this.ownerKycSubmissionRepository = ownerKycSubmissionRepository;
         this.storageGateway = storageGateway;
+        this.pgPhotoRepository = pgPhotoRepository;
+        this.interestRepository = interestRepository;
     }
 
     @Transactional
@@ -85,16 +91,55 @@ public class PgService {
 
     @Transactional
     public PgResponse uploadPhoto(UUID pgId, UUID ownerId, byte[] content, String fileName, String contentType) {
+        addPhoto(pgId, ownerId, content, fileName, contentType, true);
+        return response(requireOwnedPg(pgId, ownerId));
+    }
+
+    @Transactional
+    public PgPhotoResponse addPhoto(UUID pgId, UUID ownerId, byte[] content, String fileName,
+                                    String contentType, boolean makeCover) {
         Pg pg = requireOwnedPg(pgId, ownerId);
         validatePhoto(content, fileName, contentType);
-        String newKey = storageGateway.store(content, "pg-" + pgId + "-" + fileName, contentType);
-        String oldKey = pg.getPhotoStorageKey();
-        pg.setPhotoStorageKey(newKey);
-        Pg saved = pgRepository.save(pg);
-        if (oldKey != null && !oldKey.isBlank()) {
-            storageGateway.delete(oldKey);
+        long count = pgPhotoRepository.countByPgIdAndDeletedAtIsNull(pgId);
+        if (count >= 10) throw new ConflictException("A PG can have at most 10 photos");
+        String key = storageGateway.store(content, "pg-" + pgId + "-" + fileName, contentType);
+        PgPhoto photo = new PgPhoto();
+        photo.setPg(pg);
+        photo.setStorageKey(key);
+        photo.setOriginalFileName(fileName);
+        photo.setContentType(contentType);
+        photo.setFileSize(content.length);
+        photo.setDisplayOrder((int) count);
+        photo.setCover(makeCover || count == 0);
+        if (photo.isCover()) {
+            pgPhotoRepository.findAllByPgIdAndDeletedAtIsNullOrderByDisplayOrderAscCreatedAtAsc(pgId)
+                    .forEach(existing -> existing.setCover(false));
+            pg.setPhotoStorageKey(key);
+            pgRepository.save(pg);
         }
-        return response(saved);
+        photo = pgPhotoRepository.save(photo);
+        return photoResponse(photo);
+    }
+
+    @Transactional
+    public void deletePhoto(UUID pgId, UUID photoId, UUID ownerId) {
+        Pg pg = requireOwnedPg(pgId, ownerId);
+        PgPhoto photo = pgPhotoRepository.findByIdAndPgIdAndDeletedAtIsNull(photoId, pgId)
+                .orElseThrow(() -> new NotFoundException("PG photo not found"));
+        photo.markDeleted();
+        pgPhotoRepository.save(photo);
+        storageGateway.delete(photo.getStorageKey());
+        if (photo.getStorageKey().equals(pg.getPhotoStorageKey())) {
+            PgPhoto replacement = pgPhotoRepository
+                    .findAllByPgIdAndDeletedAtIsNullOrderByDisplayOrderAscCreatedAtAsc(pgId)
+                    .stream().findFirst().orElse(null);
+            pg.setPhotoStorageKey(replacement == null ? null : replacement.getStorageKey());
+            if (replacement != null) {
+                replacement.setCover(true);
+                pgPhotoRepository.save(replacement);
+            }
+            pgRepository.save(pg);
+        }
     }
 
     @Transactional
@@ -157,7 +202,16 @@ public class PgService {
     private PgResponse response(Pg pg) {
         String photoUrl = pg.getPhotoStorageKey() == null ? null
                 : storageGateway.generateSignedUrl(pg.getPhotoStorageKey(), Duration.ofHours(1));
-        return PgResponse.from(pg, photoUrl);
+        List<PgPhotoResponse> photos = pgPhotoRepository
+                .findAllByPgIdAndDeletedAtIsNullOrderByDisplayOrderAscCreatedAtAsc(pg.getId())
+                .stream().map(this::photoResponse).toList();
+        return PgResponse.from(pg, photoUrl, photos,
+                interestRepository.countByPgIdAndDeletedAtIsNull(pg.getId()));
+    }
+
+    private PgPhotoResponse photoResponse(PgPhoto photo) {
+        return new PgPhotoResponse(photo.getId(), storageGateway.generateSignedUrl(
+                photo.getStorageKey(), Duration.ofHours(1)), photo.isCover(), photo.getDisplayOrder());
     }
 
     private void validatePhoto(byte[] content, String fileName, String contentType) {

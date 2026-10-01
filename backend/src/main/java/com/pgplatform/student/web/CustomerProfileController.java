@@ -16,6 +16,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -85,6 +86,22 @@ public class CustomerProfileController {
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to read uploaded file", e);
         }
+    }
+
+    @PostMapping(value = "/photo", consumes = "multipart/form-data")
+    public CustomerProfileResponse uploadPhoto(@AuthenticationPrincipal UserPrincipal principal,
+                                               @RequestPart("file") MultipartFile file) {
+        try {
+            return service.uploadPhoto(principal.getId(), file.getBytes(), file.getOriginalFilename(),
+                    file.getContentType());
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to read profile photo", e);
+        }
+    }
+
+    @DeleteMapping("/photo")
+    public CustomerProfileResponse deletePhoto(@AuthenticationPrincipal UserPrincipal principal) {
+        return service.deletePhoto(principal.getId());
     }
 
     @GetMapping("/identity-document/download-url")

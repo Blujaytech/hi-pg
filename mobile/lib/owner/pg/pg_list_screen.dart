@@ -614,8 +614,43 @@ class _PropertyCard extends StatelessWidget {
                                   ? Icons.verified_rounded
                                   : Icons.shield_outlined,
                             ),
+                            if (pg.interestCount > 0)
+                              StatusPill(
+                                label: '${pg.interestCount} interested',
+                                tone: StatusTone.warning,
+                                icon: Icons.campaign_outlined,
+                              ),
                           ],
                         ),
+                        if (pg.interestCount > 0) ...[
+                          const SizedBox(height: 10),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: AppColors.brandSoft,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.trending_up_rounded,
+                                    size: 17, color: AppColors.brandText),
+                                const SizedBox(width: 7),
+                                Expanded(
+                                  child: Text(
+                                    '${pg.interestCount} customer${pg.interestCount == 1 ? '' : 's'} want this PG online',
+                                    style: const TextStyle(
+                                      color: AppColors.brandText,
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -753,6 +788,8 @@ class _PgFormSheetState extends State<_PgFormSheet> {
   String? _city;
   Uint8List? _photoBytes;
   String? _photoName;
+  late List<PgPhoto> _galleryPhotos;
+  bool _galleryBusy = false;
   LatLng? _location;
   GenderPreference _gender = GenderPreference.coEd;
   bool _saving = false;
@@ -769,6 +806,7 @@ class _PgFormSheetState extends State<_PgFormSheet> {
     _city =
         supportedIndianCities.contains(initial?.city) ? initial?.city : null;
     _gender = initial?.genderPreference ?? GenderPreference.coEd;
+    _galleryPhotos = List<PgPhoto>.of(initial?.photos ?? const []);
     if (initial?.latitude != null && initial?.longitude != null) {
       _location = LatLng(initial!.latitude!, initial.longitude!);
     }
@@ -812,6 +850,8 @@ class _PgFormSheetState extends State<_PgFormSheet> {
           longitude: _location?.longitude,
           description: initial.description,
           photoUrl: initial.photoUrl,
+          photos: _galleryPhotos,
+          interestCount: initial.interestCount,
           genderPreference: _gender,
           status: initial.status,
           claimStatus: initial.claimStatus,
@@ -868,6 +908,61 @@ class _PgFormSheetState extends State<_PgFormSheet> {
       _photoName = file.name;
       _error = null;
     });
+  }
+
+  Future<void> _addGalleryPhoto() async {
+    final initial = widget.initial;
+    if (initial == null || widget.repository is! PgRepository) return;
+    if (_galleryBusy || _galleryPhotos.length >= 10) return;
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['jpg', 'jpeg', 'png'],
+      withData: true,
+    );
+    final file = result?.files.single;
+    if (file == null || file.bytes == null || !mounted) return;
+    if (file.size > 10 * 1024 * 1024) {
+      setState(() => _error = 'Each gallery photo must be 10 MB or smaller.');
+      return;
+    }
+    setState(() {
+      _galleryBusy = true;
+      _error = null;
+    });
+    try {
+      final updated = await (widget.repository as PgRepository).addPhoto(
+        pgId: initial.id,
+        bytes: file.bytes!,
+        fileName: file.name,
+      );
+      if (mounted) setState(() => _galleryPhotos = updated.photos);
+    } on ApiException catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    } finally {
+      if (mounted) setState(() => _galleryBusy = false);
+    }
+  }
+
+  Future<void> _deleteGalleryPhoto(PgPhoto photo) async {
+    final initial = widget.initial;
+    if (initial == null || widget.repository is! PgRepository || _galleryBusy) {
+      return;
+    }
+    setState(() {
+      _galleryBusy = true;
+      _error = null;
+    });
+    try {
+      final updated = await (widget.repository as PgRepository).deletePhoto(
+        pgId: initial.id,
+        photoId: photo.id,
+      );
+      if (mounted) setState(() => _galleryPhotos = updated.photos);
+    } on ApiException catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    } finally {
+      if (mounted) setState(() => _galleryBusy = false);
+    }
   }
 
   @override
@@ -979,6 +1074,112 @@ class _PgFormSheetState extends State<_PgFormSheet> {
               ),
             ),
           ),
+          if (_isEditing) ...[
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Property gallery',
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                ),
+                Text(
+                  '${_galleryPhotos.length}/10',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Add room, building and common-area photos customers can browse.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              height: 84,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: [
+                  for (final photo in _galleryPhotos)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 9),
+                      child: Stack(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: Image.network(
+                              photo.url,
+                              width: 94,
+                              height: 84,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => const SizedBox(
+                                width: 94,
+                                child: ColoredBox(
+                                  color: AppColors.fill,
+                                  child: Icon(Icons.broken_image_outlined),
+                                ),
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            right: 3,
+                            top: 3,
+                            child: Material(
+                              color: Colors.black54,
+                              shape: const CircleBorder(),
+                              child: InkWell(
+                                customBorder: const CircleBorder(),
+                                onTap: _galleryBusy
+                                    ? null
+                                    : () => _deleteGalleryPhoto(photo),
+                                child: const Padding(
+                                  padding: EdgeInsets.all(5),
+                                  child: Icon(Icons.close_rounded,
+                                      size: 15, color: Colors.white),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  if (_galleryPhotos.length < 10)
+                    InkWell(
+                      onTap: _galleryBusy ? null : _addGalleryPhoto,
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        width: 94,
+                        decoration: BoxDecoration(
+                          color: AppColors.brandSoft,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: _galleryBusy
+                            ? const Center(
+                                child: SizedBox.square(
+                                  dimension: 20,
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2),
+                                ),
+                              )
+                            : const Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.add_photo_alternate_outlined),
+                                  SizedBox(height: 4),
+                                  Text('Add photo',
+                                      style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w700)),
+                                ],
+                              ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 14),
           _PropertyLocationField(
             location: _location,

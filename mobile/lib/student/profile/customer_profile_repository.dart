@@ -64,6 +64,33 @@ class CustomerProfileRepository {
     return CustomerProfile.fromJson(response.data!);
   }
 
+  Future<CustomerProfile> uploadProfilePhoto({
+    required PlatformFile file,
+  }) async {
+    final bytes = file.bytes;
+    if (bytes == null) {
+      throw ApiException(message: 'The selected photo could not be read.');
+    }
+    final response = await _client.post<Map<String, dynamic>>(
+      '/student/profile/photo',
+      data: FormData.fromMap({
+        'file': MultipartFile.fromBytes(
+          bytes,
+          filename: file.name,
+          contentType: MediaType.parse(_contentType(file.extension)),
+        ),
+      }),
+    );
+    return CustomerProfile.fromJson(response.data!);
+  }
+
+  Future<CustomerProfile> deleteProfilePhoto() async {
+    final response = await _client.delete<Map<String, dynamic>>(
+      '/student/profile/photo',
+    );
+    return CustomerProfile.fromJson(response.data!);
+  }
+
   Future<BookingEligibility> eligibility(BookingType bookingType) async {
     // The profile response already contains every field used by the booking
     // gate. Keeping eligibility client-side here avoids a second, redundant

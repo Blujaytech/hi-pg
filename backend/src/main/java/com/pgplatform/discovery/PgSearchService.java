@@ -15,6 +15,8 @@ import com.pgplatform.owner.FloorRepository;
 import com.pgplatform.owner.GenderPreference;
 import com.pgplatform.owner.Pg;
 import com.pgplatform.owner.PgRepository;
+import com.pgplatform.owner.PgPhotoRepository;
+import com.pgplatform.owner.dto.PgPhotoResponse;
 import com.pgplatform.owner.PgDirectPaymentSettingsRepository;
 import com.pgplatform.owner.PgStatus;
 import com.pgplatform.owner.Room;
@@ -58,17 +60,19 @@ public class PgSearchService {
     private final BedRepository bedRepository;
     private final PgDirectPaymentSettingsRepository directPaymentSettingsRepository;
     private final DocumentStorageGateway storageGateway;
+    private final PgPhotoRepository pgPhotoRepository;
 
     public PgSearchService(PgRepository pgRepository, FloorRepository floorRepository,
                             RoomRepository roomRepository, BedRepository bedRepository,
                             PgDirectPaymentSettingsRepository directPaymentSettingsRepository,
-                            DocumentStorageGateway storageGateway) {
+                            DocumentStorageGateway storageGateway, PgPhotoRepository pgPhotoRepository) {
         this.pgRepository = pgRepository;
         this.floorRepository = floorRepository;
         this.roomRepository = roomRepository;
         this.bedRepository = bedRepository;
         this.directPaymentSettingsRepository = directPaymentSettingsRepository;
         this.storageGateway = storageGateway;
+        this.pgPhotoRepository = pgPhotoRepository;
     }
 
     /**
@@ -170,7 +174,7 @@ public class PgSearchService {
 
         return new PgDetailsResponse(
                 pg.getId(), pg.getName(), pg.getAddress(), pg.getCity(), pg.getState(), pg.getPincode(),
-                pg.getDescription(), photoUrl(pg), pg.getGenderPreference(), pg.getLatitude(), pg.getLongitude(),
+                pg.getDescription(), photoUrl(pg), photos(pg), pg.getGenderPreference(), pg.getLatitude(), pg.getLongitude(),
                 totalBeds, availableBeds, directPaymentAvailable, verified, pg.getVerificationStatus(),
                 pg.isBookingEnabled(), floorResponses
         );
@@ -208,6 +212,18 @@ public class PgSearchService {
     private String photoUrl(Pg pg) {
         return pg.getPhotoStorageKey() == null ? null
                 : storageGateway.generateSignedUrl(pg.getPhotoStorageKey(), Duration.ofHours(1));
+    }
+
+    private List<PgPhotoResponse> photos(Pg pg) {
+        List<PgPhotoResponse> photos = pgPhotoRepository
+                .findAllByPgIdAndDeletedAtIsNullOrderByDisplayOrderAscCreatedAtAsc(pg.getId()).stream()
+                .map(photo -> new PgPhotoResponse(photo.getId(), storageGateway.generateSignedUrl(
+                        photo.getStorageKey(), Duration.ofHours(1)), photo.isCover(), photo.getDisplayOrder()))
+                .toList();
+        if (photos.isEmpty() && pg.getPhotoStorageKey() != null) {
+            return List.of(new PgPhotoResponse(null, photoUrl(pg), true, 0));
+        }
+        return photos;
     }
 
     private int clampSize(int size) {

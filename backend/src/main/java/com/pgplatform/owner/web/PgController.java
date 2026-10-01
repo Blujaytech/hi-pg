@@ -5,6 +5,7 @@ import com.pgplatform.owner.PgService;
 import com.pgplatform.owner.dto.PgCreateRequest;
 import com.pgplatform.owner.dto.PgResponse;
 import com.pgplatform.owner.dto.PgUpdateRequest;
+import com.pgplatform.owner.dto.PgPhotoResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -61,6 +62,23 @@ public class PgController {
                                   @RequestPart("file") MultipartFile file) throws java.io.IOException {
         return pgService.uploadPhoto(pgId, principal.getId(), file.getBytes(),
                 file.getOriginalFilename(), file.getContentType());
+    }
+
+    @PostMapping(value = "/{pgId}/photos", consumes = "multipart/form-data")
+    public ResponseEntity<PgPhotoResponse> addPhoto(@AuthenticationPrincipal UserPrincipal principal,
+                                                    @PathVariable UUID pgId,
+                                                    @RequestPart("file") MultipartFile file,
+                                                    @RequestParam(defaultValue = "false") boolean cover)
+            throws java.io.IOException {
+        return ResponseEntity.status(HttpStatus.CREATED).body(pgService.addPhoto(pgId, principal.getId(),
+                file.getBytes(), file.getOriginalFilename(), file.getContentType(), cover));
+    }
+
+    @DeleteMapping("/{pgId}/photos/{photoId}")
+    public ResponseEntity<Void> deletePhoto(@AuthenticationPrincipal UserPrincipal principal,
+                                            @PathVariable UUID pgId, @PathVariable UUID photoId) {
+        pgService.deletePhoto(pgId, photoId, principal.getId());
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/{pgId}/payment-onboarding")

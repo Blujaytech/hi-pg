@@ -52,6 +52,16 @@ app:
     # service account through Application Default Credentials.
     enabled: ${FIREBASE_ENABLED:false}
     project-id: ${FIREBASE_PROJECT_ID:}
+  sms:
+    # Firebase Phone Auth sends login OTPs only. Owner invitation/demand SMS is
+    # business messaging and therefore uses a separately configured provider.
+    enabled: ${APP_SMS_ENABLED:false}
+    provider: ${APP_SMS_PROVIDER:TWILIO}
+    claim-url: ${APP_CLAIM_URL:https://hipg.app/owner}
+    twilio:
+      account-sid: ${TWILIO_ACCOUNT_SID:}
+      auth-token: ${TWILIO_AUTH_TOKEN:}
+      from-number: ${TWILIO_FROM_NUMBER:}
   razorpay:
     key-id: ${RAZORPAY_KEY_ID:}
     key-secret: ${RAZORPAY_KEY_SECRET:}

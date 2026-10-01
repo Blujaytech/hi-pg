@@ -132,12 +132,16 @@ class _DirectOwnerPaymentScreenState extends State<DirectOwnerPaymentScreen> {
     }
   }
 
-  Future<void> _informOwner() async {
+  Future<void> _informOwner(DirectPaymentMethod paymentMethod) async {
     FocusScope.of(context).unfocus();
-    if (!_formKey.currentState!.validate()) return;
+    if (paymentMethod == DirectPaymentMethod.upi &&
+        !_formKey.currentState!.validate()) {
+      return;
+    }
     if (!_paymentConfirmed) {
-      setState(() => _error =
-          'Confirm that the payment succeeded in your UPI app before informing the owner.');
+      setState(() => _error = paymentMethod == DirectPaymentMethod.cash
+          ? 'Confirm that you handed the exact cash amount to the owner or authorised staff.'
+          : 'Confirm that the payment succeeded in your UPI app before informing the owner.');
       return;
     }
 
@@ -148,15 +152,19 @@ class _DirectOwnerPaymentScreenState extends State<DirectOwnerPaymentScreen> {
     try {
       final request = await _repository.informOwner(
         bookingId: widget.bookingId,
-        transactionReference: _referenceController.text,
+        paymentMethod: paymentMethod,
+        transactionReference: paymentMethod == DirectPaymentMethod.upi
+            ? _referenceController.text
+            : null,
         idempotencyKey: _idempotencyKey,
       );
       if (!mounted) return;
       setState(() => _request = request);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-              'Owner informed. Your bed will be allocated only after payment verification.'),
+        SnackBar(
+          content: Text(paymentMethod == DirectPaymentMethod.cash
+              ? 'Cash payment reported. The owner must confirm receiving it before your bed is allocated.'
+              : 'Owner informed. Your bed will be allocated only after payment verification.'),
         ),
       );
     } on ApiException catch (error) {
@@ -341,24 +349,40 @@ class _DirectOwnerPaymentScreenState extends State<DirectOwnerPaymentScreen> {
                 contentPadding: EdgeInsets.zero,
                 controlAffinity: ListTileControlAffinity.leading,
                 title: Text(
-                    'I paid ${money.format(details.amount)} to ${details.ownerName}'),
+                    'I paid exactly ${money.format(details.amount)} to ${details.ownerName}'),
                 subtitle: const Text(
                     'I understand the owner must verify receipt before the bed is allocated.'),
               ),
               const SizedBox(height: 12),
-              FilledButton.icon(
-                onPressed: _submitting ? null : _informOwner,
-                icon: _submitting
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white),
-                      )
-                    : const Icon(Icons.notifications_active_outlined),
-                label: Text(_submitting
-                    ? 'Informing owner...'
-                    : 'I Have Paid – Inform Owner'),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _submitting
+                          ? null
+                          : () => _informOwner(DirectPaymentMethod.cash),
+                      icon: const Icon(Icons.payments_outlined),
+                      label: const Text('Paid cash'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: _submitting
+                          ? null
+                          : () => _informOwner(DirectPaymentMethod.upi),
+                      icon: _submitting
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white),
+                            )
+                          : const Icon(Icons.notifications_active_outlined),
+                      label: Text(_submitting ? 'Sending...' : 'Paid via UPI'),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -427,6 +451,12 @@ class _RequestStatusCard extends StatelessWidget {
                         .textTheme
                         .bodySmall
                         ?.copyWith(color: color)),
+                const SizedBox(height: 6),
+                Text('Payment method: ${request.paymentMethod.label}',
+                    style: TextStyle(
+                        color: color,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700)),
                 if (request.transactionReference.isNotEmpty) ...[
                   const SizedBox(height: 6),
                   Text('Reference: ${request.transactionReference}',
