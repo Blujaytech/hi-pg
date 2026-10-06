@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -28,7 +27,8 @@ class StudentOtpScreen extends StatefulWidget {
 enum _Step { phone, code }
 
 class _StudentOtpScreenState extends State<StudentOtpScreen> {
-  static const _resendCooldown = 30;
+  static const _resendCooldown = 60;
+  static const _rateLimitCooldown = 15 * 60;
 
   final _phoneFormKey = GlobalKey<FormState>();
   final _phoneController = TextEditingController();
@@ -41,6 +41,7 @@ class _StudentOtpScreenState extends State<StudentOtpScreen> {
   bool _googleLoading = false;
   String? _error;
   String? _codeError;
+  String? _nameError;
   Timer? _resendTimer;
   int _resendIn = 0;
 
@@ -56,9 +57,9 @@ class _StudentOtpScreenState extends State<StudentOtpScreen> {
     super.dispose();
   }
 
-  void _startResendCountdown() {
+  void _startResendCountdown([int seconds = _resendCooldown]) {
     _resendTimer?.cancel();
-    setState(() => _resendIn = _resendCooldown);
+    setState(() => _resendIn = seconds);
     _resendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) {
         timer.cancel();
@@ -70,7 +71,9 @@ class _StudentOtpScreenState extends State<StudentOtpScreen> {
   }
 
   Future<void> _requestOtp() async {
-    if (_busy || !_phoneFormKey.currentState!.validate()) return;
+    if (_busy || _resendIn > 0 || !_phoneFormKey.currentState!.validate()) {
+      return;
+    }
     setState(() {
       _loading = true;
       _error = null;
@@ -91,7 +94,10 @@ class _StudentOtpScreenState extends State<StudentOtpScreen> {
     } on ApiException catch (error) {
       if (mounted) setState(() => _error = error.message);
     } on FirebasePhoneAuthFailure catch (error) {
-      if (mounted) setState(() => _error = error.message);
+      if (mounted) {
+        setState(() => _error = error.message);
+        if (error.isRateLimited) _startResendCountdown(_rateLimitCooldown);
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -115,7 +121,10 @@ class _StudentOtpScreenState extends State<StudentOtpScreen> {
     } on ApiException catch (error) {
       if (mounted) setState(() => _error = error.message);
     } on FirebasePhoneAuthFailure catch (error) {
-      if (mounted) setState(() => _error = error.message);
+      if (mounted) {
+        setState(() => _error = error.message);
+        if (error.isRateLimited) _startResendCountdown(_rateLimitCooldown);
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -124,8 +133,13 @@ class _StudentOtpScreenState extends State<StudentOtpScreen> {
   Future<void> _verifyOtp() async {
     if (_busy) return;
     final code = _codeController.text.trim();
+    final fullName = _nameController.text.trim();
     if (code.length != OtpCodeField.length) {
       setState(() => _codeError = 'Enter the complete 6-digit code');
+      return;
+    }
+    if (fullName.length < 2) {
+      setState(() => _nameError = 'Enter your full name');
       return;
     }
     FocusScope.of(context).unfocus();
@@ -137,9 +151,7 @@ class _StudentOtpScreenState extends State<StudentOtpScreen> {
       await context.read<AuthState>().verifyStudentOtp(
             phone: _phoneController.text.trim(),
             code: code,
-            fullName: _nameController.text.trim().isEmpty
-                ? null
-                : _nameController.text.trim(),
+            fullName: fullName,
           );
       _finishSignIn();
     } on ApiException catch (error) {
@@ -197,10 +209,12 @@ class _StudentOtpScreenState extends State<StudentOtpScreen> {
 
   void _changePhone() {
     _resendTimer?.cancel();
+    FirebasePhoneAuth.instance.reset();
     setState(() {
       _step = _Step.phone;
       _error = null;
       _codeError = null;
+      _nameError = null;
       _resendIn = 0;
       _codeController.clear();
     });
@@ -314,10 +328,10 @@ class _StudentOtpScreenState extends State<StudentOtpScreen> {
           ),
           const SizedBox(height: 20),
           FilledButton(
-            onPressed: _busy ? null : _requestOtp,
+            onPressed: _busy || _resendIn > 0 ? null : _requestOtp,
             child: ProgressLabel(
               loading: _loading,
-              label: 'Send code',
+              label: _resendIn > 0 ? 'Try again in ${_resendIn}s' : 'Send code',
               loadingLabel: 'Sending code...',
             ),
           ),
@@ -344,14 +358,12 @@ class _StudentOtpScreenState extends State<StudentOtpScreen> {
       key: const ValueKey('code-step'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (kDebugMode) ...[
-          const AppMessageBanner(
-            icon: Icons.developer_mode_rounded,
-            message:
-                'Local testing: the SMS is simulated. Copy the latest OTP from the backend container logs.',
-          ),
-          const SizedBox(height: 16),
-        ],
+        const AppMessageBanner(
+          icon: Icons.sms_outlined,
+          message:
+              'Enter the latest SMS code. If app verification opens your browser, complete it once and return to hi pg.',
+        ),
+        const SizedBox(height: 16),
         OtpCodeField(
           controller: _codeController,
           focusNode: _codeFocus,
@@ -370,9 +382,14 @@ class _StudentOtpScreenState extends State<StudentOtpScreen> {
           textInputAction: TextInputAction.done,
           autofillHints: const [AutofillHints.name],
           onFieldSubmitted: (_) => _verifyOtp(),
-          decoration: const InputDecoration(
-            labelText: 'Full name (new accounts only)',
-            prefixIcon: Icon(Icons.person_outline_rounded),
+          onChanged: (_) {
+            if (_nameError != null) setState(() => _nameError = null);
+          },
+          decoration: InputDecoration(
+            labelText: 'Full name',
+            helperText: 'Required when creating your account',
+            errorText: _nameError,
+            prefixIcon: const Icon(Icons.person_outline_rounded),
           ),
         ),
         const SizedBox(height: 22),

@@ -25,9 +25,9 @@ public class OwnerKycSubmission extends BaseEntity {
     private Pg pg;
     @Column(name = "legal_name", nullable = false)
     private String legalName;
-    @Column(name = "pan_last_four", nullable = false, length = 4)
+    @Column(name = "pan_last_four", length = 4)
     private String panLastFour;
-    @Column(name = "aadhaar_last_four", nullable = false, length = 4)
+    @Column(name = "aadhaar_last_four", length = 4)
     private String aadhaarLastFour;
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)

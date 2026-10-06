@@ -47,6 +47,11 @@ spring:
           time_zone: UTC
 
 app:
+  legal:
+    # Required for the public Google Play privacy/account-deletion pages.
+    operator-name: ${LEGAL_OPERATOR_NAME}
+    support-email: ${LEGAL_SUPPORT_EMAIL}
+    postal-address: ${LEGAL_POSTAL_ADDRESS}
   jwt:
     # No dev-only fallback here (unlike application.yml's ${JWT_SECRET:dev-only-...}) --
     # deliberately fails fast at startup if JWT_SECRET isn't set, rather than silently signing

@@ -24,8 +24,6 @@ class _OwnerKycScreenState extends State<OwnerKycScreen> {
   final _formKey = GlobalKey<FormState>();
   final _phone = TextEditingController();
   final _legalName = TextEditingController();
-  final _pan = TextEditingController();
-  final _aadhaar = TextEditingController();
   OwnerKycSubmission? _kyc;
   bool _phoneVerifiedInSession = false;
   bool _loading = true;
@@ -48,8 +46,6 @@ class _OwnerKycScreenState extends State<OwnerKycScreen> {
   void dispose() {
     _phone.dispose();
     _legalName.dispose();
-    _pan.dispose();
-    _aadhaar.dispose();
     super.dispose();
   }
 
@@ -74,8 +70,6 @@ class _OwnerKycScreenState extends State<OwnerKycScreen> {
     if (value != null) {
       _phone.text = value.verifiedPhone ?? '';
       _legalName.text = value.legalName;
-      _pan.text = value.panLastFour;
-      _aadhaar.text = value.aadhaarLastFour;
     }
     setState(() {});
   }
@@ -153,8 +147,6 @@ class _OwnerKycScreenState extends State<OwnerKycScreen> {
       final updated = await _repository.saveProfile(
         pgId: widget.pgId,
         legalName: _legalName.text,
-        panLastFour: _pan.text,
-        aadhaarLastFour: _aadhaar.text,
       );
       _setKyc(updated);
       if (mounted) {
@@ -189,8 +181,8 @@ class _OwnerKycScreenState extends State<OwnerKycScreen> {
 
   Future<void> _submit() async {
     if (_kyc?.hasAllDocuments != true) {
-      setState(() =>
-          _error = 'Upload all five required documents before submitting.');
+      setState(
+          () => _error = 'Upload all required documents before submitting.');
       return;
     }
     await _run(() async {
@@ -252,7 +244,7 @@ class _OwnerKycScreenState extends State<OwnerKycScreen> {
                     const AppMessageBanner(
                       icon: Icons.lock_outline_rounded,
                       message:
-                          'Data storage: legal name and only the last 4 PAN/Aadhaar characters are stored in PostgreSQL. Document files are kept in a private object-storage bucket; admins receive time-limited links for review.',
+                          'Data storage: your legal name is stored securely. Document files are kept in a private object-storage bucket; admins receive time-limited links for review.',
                     ),
                   ],
                 ),
@@ -359,36 +351,6 @@ class _OwnerKycScreenState extends State<OwnerKycScreen> {
                     ? 'Enter the legal name'
                     : null,
               ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _pan,
-                enabled: !_working && !_locked,
-                textCapitalization: TextCapitalization.characters,
-                maxLength: 4,
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp('[A-Za-z0-9]'))
-                ],
-                decoration:
-                    const InputDecoration(labelText: 'PAN last 4 characters'),
-                validator: (value) =>
-                    RegExp(r'^[A-Za-z0-9]{4}$').hasMatch((value ?? '').trim())
-                        ? null
-                        : 'Enter exactly 4 characters',
-              ),
-              const SizedBox(height: 4),
-              TextFormField(
-                controller: _aadhaar,
-                enabled: !_working && !_locked,
-                keyboardType: TextInputType.number,
-                maxLength: 4,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                decoration:
-                    const InputDecoration(labelText: 'Aadhaar last 4 digits'),
-                validator: (value) =>
-                    RegExp(r'^\d{4}$').hasMatch((value ?? '').trim())
-                        ? null
-                        : 'Enter exactly 4 digits',
-              ),
               if (!_locked) ...[
                 const SizedBox(height: 10),
                 FilledButton.icon(
@@ -414,7 +376,7 @@ class _OwnerKycScreenState extends State<OwnerKycScreen> {
               const SizedBox(height: 5),
               const Text('JPG, PNG or PDF. Maximum 10 MB per file.'),
               const SizedBox(height: 10),
-              for (final type in OwnerKycDocumentType.values)
+              for (final type in OwnerKycDocumentType.required)
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: Icon(

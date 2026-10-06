@@ -18,6 +18,8 @@ public interface RazorpayGateway {
     RazorpaySubscriptionResult createMonthlySubscription(BigDecimal amount, String description,
                                                           long startAtEpochSeconds, int totalCount);
 
+    void cancelSubscription(String subscriptionId);
+
     RazorpayRefundResult refund(String paymentId, BigDecimal amount, String reference);
 
     boolean isPaymentCaptured(String paymentId);

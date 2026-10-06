@@ -24,6 +24,8 @@ enum OwnerKycDocumentType {
   final String apiValue;
   final String label;
 
+  static const required = [panCard, aadhaarFront, aadhaarBack, ownerPhoto];
+
   static OwnerKycDocumentType fromJson(String value) => values.firstWhere(
         (type) => type.apiValue == value,
       );
@@ -61,8 +63,6 @@ class OwnerKycSubmission {
   final String ownerName;
   final String? verifiedPhone;
   final String legalName;
-  final String panLastFour;
-  final String aadhaarLastFour;
   final OwnerKycStatus status;
   final String? reviewNote;
   final DateTime? submittedAt;
@@ -75,8 +75,6 @@ class OwnerKycSubmission {
     required this.ownerName,
     required this.verifiedPhone,
     required this.legalName,
-    required this.panLastFour,
-    required this.aadhaarLastFour,
     required this.status,
     required this.reviewNote,
     required this.submittedAt,
@@ -86,7 +84,7 @@ class OwnerKycSubmission {
   bool hasDocument(OwnerKycDocumentType type) =>
       documents.any((document) => document.type == type);
 
-  bool get hasAllDocuments => OwnerKycDocumentType.values.every(hasDocument);
+  bool get hasAllDocuments => OwnerKycDocumentType.required.every(hasDocument);
 
   factory OwnerKycSubmission.fromJson(Map<String, dynamic> json) =>
       OwnerKycSubmission(
@@ -96,8 +94,6 @@ class OwnerKycSubmission {
         ownerName: json['ownerName'] as String,
         verifiedPhone: json['verifiedPhone'] as String?,
         legalName: json['legalName'] as String,
-        panLastFour: json['panLastFour'] as String,
-        aadhaarLastFour: json['aadhaarLastFour'] as String,
         status: OwnerKycStatus.fromJson(json['status'] as String),
         reviewNote: json['reviewNote'] as String?,
         submittedAt: json['submittedAt'] == null

@@ -7,10 +7,16 @@ and `../docs/`; UI decisions are ADR-0025 in `../docs/decisions.md`.
 ## Run
 
 ```sh
-flutter run            # Uses https://pg-platform-api.onrender.com/api/v1
+flutter run            # Uses the production Cloud Run API
 flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8080/api/v1 # local Docker backend
 flutter run --dart-define=GOOGLE_OAUTH_WEB_CLIENT_ID=your-web-client-id.apps.googleusercontent.com
+flutter run --dart-define=LEGAL_BASE_URL=https://legal.example.com
 ```
+
+`LEGAL_BASE_URL` defaults to the public Cloudflare Pages legal site. Override it
+for staging or a future custom domain. The Account tab links to `/privacy`,
+`/terms`, and `/account-deletion` and exposes authenticated customer/owner
+account deletion.
 
 Add `GOOGLE_MAPS_API_KEY=...` to the uncommitted
 `android/local.properties` before an Android build. CI may provide the same

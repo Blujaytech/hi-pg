@@ -467,7 +467,7 @@ The Flutter mobile application is currently the primary product surface. The web
 - Only metadata/reference is stored in PostgreSQL.
 - Authorized reads use short-lived signed access.
 - Logs must not contain file contents, full government identifiers, access keys or signed URLs.
-- Define a retention/deletion policy before public launch.
+- The application implements policy version `2026-10-02`: account identifiers and private objects are removed, while limited anonymized booking/payment/legal records remain as referential and statutory records. Obtain jurisdiction-specific approval for exact retention periods before public launch.
 
 ### 6.3 Payment and booking controls
 
@@ -975,8 +975,8 @@ The core product and backend domains exist, but the following must be completed 
 - configure Android release signing and Play Console release workflow;
 - lock down Google Maps/OAuth credentials for release fingerprints;
 - verify Razorpay production account, webhook and settlement configuration;
-- define KYC/identity-document retention and deletion policy;
-- add privacy policy, terms and consent versions reviewed for the target jurisdiction;
+- obtain legal approval for the implemented KYC/identity-document retention and deletion policy;
+- publish the implemented `/privacy`, `/terms`, and `/account-deletion` pages with final operator/contact values and target-jurisdiction legal review;
 - complete observability, alerts and an incident process;
 - run concurrency, payment, authorization and restore testing;
 - document customer support/admin operating procedures;

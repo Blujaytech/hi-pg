@@ -1,8 +1,16 @@
 package com.pgplatform.billing;
 
 public enum FeeNotificationType {
+    DUE_IN_3_DAYS,
+    DUE_TOMORROW,
     DUE_TODAY,
+    OVERDUE_DAY_1,
     OVERDUE_DAY_3,
+    OVERDUE_DAY_7,
+    EXTENSION_DUE_IN_3_DAYS,
+    EXTENSION_DUE_TOMORROW,
     EXTENSION_DUE,
-    EXTENSION_OVERDUE
+    EXTENSION_OVERDUE_DAY_1,
+    EXTENSION_OVERDUE,
+    EXTENSION_OVERDUE_DAY_7
 }

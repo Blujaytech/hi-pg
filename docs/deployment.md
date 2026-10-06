@@ -85,6 +85,7 @@ reverse proxy (nginx, Traefik), confirm it does the same before relying on the r
 | `SPRING_DATASOURCE_URL` / `_USERNAME` / `_PASSWORD` | Yes for an external database | Optional override for deployments that do not use the Postgres resource in `render.yaml`. |
 | `JWT_SECRET` | Yes | `application-prod.yml` has no dev fallback -- startup fails fast if unset. Generate with `openssl rand -base64 48`. Rotating it invalidates every existing access/refresh token (forces re-login) -- plan for that if you ever need to rotate it. |
 | `CORS_ALLOWED_ORIGINS` | Yes | Comma-separated, no wildcard. Set to your deployed web app's real origin(s) only -- see `docs/security.md`. |
+| `LEGAL_OPERATOR_NAME` / `LEGAL_SUPPORT_EMAIL` / `LEGAL_POSTAL_ADDRESS` | Yes | Public Google Play legal-page identity. Production startup requires all three. They must match the verified developer/store-listing identity. Pages are served at `/privacy`, `/terms`, and `/account-deletion`. |
 | `SPRING_PROFILES_ACTIVE` | Yes | Set to `prod`; the Render Blueprint sets this automatically. |
 | `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` / `RAZORPAY_WEBHOOK_SECRET` | Yes for online payments | Enables the real Checkout, Route, refund, and Subscription integrations. Blank credentials keep external payment calls disabled with 501. Register `/api/v1/webhooks/razorpay` in both Razorpay test and live modes; see ADR-0027. |
 | `GOOGLE_MAPS_API_KEY` | Mobile map builds only | Put the Android Maps SDK key in uncommitted `mobile/android/local.properties` (or a CI environment variable); restrict it to Android package `com.hipg.app` and every signing-certificate SHA-1 (debug *and* upload key). Release builds fail when it is missing. It is not a Render/backend variable. |
@@ -95,6 +96,7 @@ reverse proxy (nginx, Traefik), confirm it does the same before relying on the r
 | `NEXT_PUBLIC_API_BASE_URL` (web app) | Recommended | Your deployed backend's public URL + `/api/v1`; the web app currently falls back to `https://pg-platform-api.onrender.com/api/v1` in production and to localhost during development. Set this explicitly in the web host so a future backend-domain change does not require a code change. |
 | `API_BASE_URL` (mobile, via `--dart-define`) | Optional for the current Render service | Flutter defaults to `https://pg-platform-api.onrender.com/api/v1`. Override with `--dart-define=API_BASE_URL=...` for local development or a future domain. It is baked into the binary; a URL change needs a rebuild. |
 | `GOOGLE_OAUTH_WEB_CLIENT_ID` (mobile, via `--dart-define`) | Yes when Google sign-in is enabled | Must match the backend's `GOOGLE_OAUTH_CLIENT_ID`. There is deliberately no checked-in project fallback; every build must select its intended Firebase/Google project explicitly. |
+| `LEGAL_BASE_URL` (mobile, via `--dart-define`) | Optional | Origin containing `/privacy`, `/terms`, and `/account-deletion`. Defaults to the production Cloudflare Pages legal site. |
 
 `app.rate-limit.auth.*` and `app.otp.*` (Phase 1/15) have sane defaults in `application.yml` and
 don't need overriding for a pilot -- see `docs/security.md` if you want to tune them.

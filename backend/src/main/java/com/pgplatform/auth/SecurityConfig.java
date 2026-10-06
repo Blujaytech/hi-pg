@@ -49,6 +49,9 @@ public class SecurityConfig {
                                 "/api/v1/auth/**",
                                 "/api/v1/health",
                                 "/actuator/health",
+                                "/privacy",
+                                "/terms",
+                                "/account-deletion",
                                 "/api/v1/public/**",
                                 "/api/v1/webhooks/**"
                         ).permitAll()

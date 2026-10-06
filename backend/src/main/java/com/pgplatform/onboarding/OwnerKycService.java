@@ -36,8 +36,7 @@ public class OwnerKycService {
     private static final long MAX_FILE_BYTES = 10L * 1024 * 1024;
     private static final Set<OwnerKycDocumentType> REQUIRED_DOCUMENTS = EnumSet.of(
             OwnerKycDocumentType.PAN_CARD, OwnerKycDocumentType.AADHAAR_FRONT,
-            OwnerKycDocumentType.AADHAAR_BACK, OwnerKycDocumentType.OWNER_PHOTO,
-            OwnerKycDocumentType.PG_PHOTO);
+            OwnerKycDocumentType.AADHAAR_BACK, OwnerKycDocumentType.OWNER_PHOTO);
 
     private final OwnerKycSubmissionRepository submissionRepository;
     private final OwnerKycDocumentRepository documentRepository;
@@ -74,8 +73,6 @@ public class OwnerKycService {
         }
         submission.setPg(pg);
         submission.setLegalName(request.legalName().trim());
-        submission.setPanLastFour(request.panLastFour().toUpperCase());
-        submission.setAadhaarLastFour(request.aadhaarLastFour());
         submission.setStatus(OwnerKycStatus.DRAFT);
         submission.setReviewNote(null);
         return response(submissionRepository.save(submission));

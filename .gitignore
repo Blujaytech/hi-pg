@@ -19,6 +19,7 @@ mobile/.idea/
 web/.next/
 web/node_modules/
 web/out/
+legal-site/dist/
 
 # Env / secrets
 .env

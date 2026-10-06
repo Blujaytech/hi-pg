@@ -354,15 +354,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             _line(Icons.badge_outlined, 'Legal name', item.legalName),
             _line(Icons.phone_outlined, 'Owner mobile (optional)',
                 item.verifiedPhone ?? 'Not provided'),
-            _line(Icons.credit_card_outlined, 'PAN / Aadhaar',
-                '••••${item.panLastFour}  /  ••••${item.aadhaarLastFour}'),
             if ((item.reviewNote ?? '').isNotEmpty)
               _line(Icons.notes_rounded, 'Review note', item.reviewNote!),
             const Divider(height: 28),
-            Text('Documents (${item.documents.length}/5)',
+            Text(
+                'Documents (${item.documents.where((document) => document.type != OwnerKycDocumentType.pgPhoto).length}/4)',
                 style: Theme.of(context).textTheme.titleSmall),
             const SizedBox(height: 6),
-            for (final document in item.documents)
+            for (final document in item.documents.where(
+                (document) => document.type != OwnerKycDocumentType.pgPhoto))
               TextButton.icon(
                 onPressed: _working ? null : () => _openDocument(document),
                 style: TextButton.styleFrom(alignment: Alignment.centerLeft),

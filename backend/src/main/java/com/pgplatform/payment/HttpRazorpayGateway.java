@@ -80,6 +80,13 @@ public class HttpRazorpayGateway implements RazorpayGateway {
     }
 
     @Override
+    public void cancelSubscription(String subscriptionId) {
+        post("/v1/subscriptions/" + subscriptionId + "/cancel", Map.of(
+                "cancel_at_cycle_end", false
+        ));
+    }
+
+    @Override
     public RazorpayRefundResult refund(String paymentId, BigDecimal amount, String reference) {
         JsonNode response = post("/v1/payments/" + paymentId + "/refund", Map.of(
                 "amount", toSubunits(amount),

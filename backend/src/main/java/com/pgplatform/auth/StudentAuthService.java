@@ -40,18 +40,21 @@ public class StudentAuthService {
             throw new ConflictException("Invalid or expired code");
         }
 
-        return authenticateVerifiedPhone(request.phone(), request.fullName());
+        return authenticateVerifiedPhone(request.phone(), request.fullName(), null);
     }
 
     @Transactional
     public AuthResponse authenticateFirebasePhone(String idToken, String fullName) {
         FirebasePhoneIdentity identity = firebaseIdentityVerifier.verify(idToken);
-        return authenticateVerifiedPhone(identity.phone(), fullName);
+        return authenticateVerifiedPhone(identity.phone(), fullName, identity.uid());
     }
 
-    private AuthResponse authenticateVerifiedPhone(String verifiedPhone, String fullName) {
+    private AuthResponse authenticateVerifiedPhone(String verifiedPhone, String fullName, String firebaseSubject) {
         String phone = PhoneNumbers.normalize(verifiedPhone);
-        User user = findExistingPhoneUser(phone)
+        User user = (firebaseSubject == null
+                ? java.util.Optional.<User>empty()
+                : userRepository.findByFirebaseSubjectAndDeletedAtIsNull(firebaseSubject))
+                .or(() -> findExistingPhoneUser(phone))
                 .orElseGet(() -> createStudent(phone, fullName));
 
         // Same two guards GoogleAuthService applies to the other student login path.
@@ -65,8 +68,9 @@ public class StudentAuthService {
             throw new BadCredentialsException("Account disabled");
         }
 
-        if (!user.isPhoneVerified()) {
+        if (!user.isPhoneVerified() || (firebaseSubject != null && !firebaseSubject.equals(user.getFirebaseSubject()))) {
             user.setPhoneVerified(true);
+            if (firebaseSubject != null) user.setFirebaseSubject(firebaseSubject);
             userRepository.save(user);
         }
 

@@ -8,6 +8,13 @@ allprojects {
 rootProject.buildDir = "../build"
 subprojects {
     project.buildDir = "${rootProject.buildDir}/${project.name}"
+
+    // razorpay_flutter declares checkout with a dynamic `1.6.+` version.
+    // Pin it so Android builds are reproducible and do not require Maven
+    // metadata to be fetched on every build.
+    configurations.configureEach {
+        resolutionStrategy.force "com.razorpay:checkout:1.6.41"
+    }
 }
 subprojects {
     project.evaluationDependsOn(":app")

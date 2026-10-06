@@ -1,17 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../auth/auth_models.dart';
 import '../../auth/auth_state.dart';
+import '../../core/api_exception.dart';
+import '../../core/env.dart';
 import '../../core/theme.dart';
 import '../../student/profile/customer_profile_repository.dart';
 import '../brand/hi_pg_brand.dart';
 
 /// Account tab for both roles: who is signed in, role-specific shortcuts
 /// that are not tabs of their own, licences and sign-out.
-class AccountScreen extends StatelessWidget {
+class AccountScreen extends StatefulWidget {
   const AccountScreen({super.key});
+
+  @override
+  State<AccountScreen> createState() => _AccountScreenState();
+}
+
+class _AccountScreenState extends State<AccountScreen> {
+  bool _deleting = false;
 
   Future<void> _confirmLogout(BuildContext context) async {
     final confirmed = await showDialog<bool>(
@@ -38,6 +48,47 @@ class AccountScreen extends StatelessWidget {
     );
     if (confirmed == true && context.mounted) {
       await context.read<AuthState>().logout();
+    }
+  }
+
+  Future<void> _openLegalPage(String path) async {
+    final uri = Uri.parse('${Env.legalBaseUrl}$path');
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication) &&
+        mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open this page.')),
+      );
+    }
+  }
+
+  Future<void> _confirmAccountDeletion({required bool isOwner}) async {
+    final input = await showDialog<_DeletionConfirmation>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _DeletionConfirmationDialog(isOwner: isOwner),
+    );
+    if (input == null || !mounted) return;
+
+    setState(() => _deleting = true);
+    try {
+      await context.read<AuthState>().deleteAccount(
+            currentPassword: input.currentPassword,
+          );
+    } on ApiException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error.message)),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Account deletion failed. Please try again.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _deleting = false);
     }
   }
 
@@ -124,6 +175,28 @@ class AccountScreen extends StatelessWidget {
             ]),
           ],
           const SizedBox(height: 28),
+          const _GroupLabel('Legal & privacy'),
+          _LinkGroup(children: [
+            _LinkTile(
+              icon: Icons.privacy_tip_outlined,
+              title: 'Privacy Policy',
+              subtitle: 'How hi pg handles your information',
+              onTap: () => _openLegalPage('/privacy'),
+            ),
+            _LinkTile(
+              icon: Icons.description_outlined,
+              title: 'Terms of Service',
+              subtitle: 'Booking, payment and account terms',
+              onTap: () => _openLegalPage('/terms'),
+            ),
+            _LinkTile(
+              icon: Icons.manage_accounts_outlined,
+              title: 'Account deletion information',
+              subtitle: 'What is removed and what must be retained',
+              onTap: () => _openLegalPage('/account-deletion'),
+            ),
+          ]),
+          const SizedBox(height: 28),
           OutlinedButton.icon(
             onPressed: () => _confirmLogout(context),
             style: OutlinedButton.styleFrom(
@@ -133,6 +206,22 @@ class AccountScreen extends StatelessWidget {
             icon: const Icon(Icons.logout_rounded, size: 20),
             label: const Text('Log out'),
           ),
+          if (!isAdmin) ...[
+            const SizedBox(height: 12),
+            TextButton.icon(
+              onPressed: _deleting
+                  ? null
+                  : () => _confirmAccountDeletion(isOwner: isOwner),
+              style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+              icon: _deleting
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.delete_forever_outlined, size: 20),
+              label: Text(_deleting ? 'Deleting account…' : 'Delete account'),
+            ),
+          ],
           const SizedBox(height: 24),
           const Center(
             child: HiPgLockup(
@@ -143,6 +232,116 @@ class AccountScreen extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _DeletionConfirmation {
+  final String? currentPassword;
+
+  const _DeletionConfirmation(this.currentPassword);
+}
+
+class _DeletionConfirmationDialog extends StatefulWidget {
+  final bool isOwner;
+
+  const _DeletionConfirmationDialog({required this.isOwner});
+
+  @override
+  State<_DeletionConfirmationDialog> createState() =>
+      _DeletionConfirmationDialogState();
+}
+
+class _DeletionConfirmationDialogState
+    extends State<_DeletionConfirmationDialog> {
+  final _confirmationController = TextEditingController();
+  final _passwordController = TextEditingController();
+  bool _hidePassword = true;
+
+  @override
+  void dispose() {
+    _confirmationController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final confirmed = _confirmationController.text == 'DELETE';
+    return AlertDialog(
+      title: const Text('Permanently delete account?'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'This removes your login, profile, private documents, active '
+              'sessions and notifications. This cannot be undone.',
+            ),
+            const SizedBox(height: 10),
+            Text(
+              widget.isOwner
+                  ? 'Your PG listings will be unpublished and future AutoPay '
+                      'will be stopped. Required booking and financial records '
+                      'remain only in anonymized form.'
+                  : 'Required booking, payment, receipt and legal records may '
+                      'remain only in anonymized form. Deletion does not create '
+                      'a refund or cancel an active accommodation agreement.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 18),
+            TextField(
+              controller: _confirmationController,
+              autocorrect: false,
+              enableSuggestions: false,
+              textCapitalization: TextCapitalization.characters,
+              decoration: const InputDecoration(
+                labelText: 'Type DELETE to confirm',
+              ),
+              onChanged: (_) => setState(() {}),
+            ),
+            if (widget.isOwner) ...[
+              const SizedBox(height: 12),
+              TextField(
+                controller: _passwordController,
+                obscureText: _hidePassword,
+                decoration: InputDecoration(
+                  labelText: 'Current password',
+                  helperText: 'Required for owners who sign in with email',
+                  suffixIcon: IconButton(
+                    onPressed: () =>
+                        setState(() => _hidePassword = !_hidePassword),
+                    icon: Icon(_hidePassword
+                        ? Icons.visibility_outlined
+                        : Icons.visibility_off_outlined),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Keep account'),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+          onPressed: confirmed
+              ? () => Navigator.pop(
+                    context,
+                    _DeletionConfirmation(
+                      _passwordController.text.trim().isEmpty
+                          ? null
+                          : _passwordController.text,
+                    ),
+                  )
+              : null,
+          child: const Text('Delete permanently'),
+        ),
+      ],
     );
   }
 }

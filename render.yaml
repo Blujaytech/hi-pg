@@ -44,6 +44,14 @@ services:
         sync: false
       - key: CORS_ALLOWED_ORIGINS
         sync: false
+      # Public privacy/terms/account-deletion pages. Use the same verified
+      # legal identity and contact details as the Google Play listing.
+      - key: LEGAL_OPERATOR_NAME
+        sync: false
+      - key: LEGAL_SUPPORT_EMAIL
+        sync: false
+      - key: LEGAL_POSTAL_ADDRESS
+        sync: false
       # Private Cloudflare R2 bucket used for owner/student documents. Keep
       # credentials in Render; never commit their values to this Blueprint.
       - key: S3_ENABLED

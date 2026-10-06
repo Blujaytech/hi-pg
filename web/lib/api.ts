@@ -6,7 +6,8 @@
  */
 
 const LOCAL_API_BASE_URL = 'http://localhost:8080/api/v1';
-const PRODUCTION_API_BASE_URL = 'https://pg-platform-api.onrender.com/api/v1';
+const PRODUCTION_API_BASE_URL =
+  'https://hi-pg-api-production-861205582126.asia-south1.run.app/api/v1';
 
 /**
  * The public API URL is injected at build time by Next.js. Keep the local

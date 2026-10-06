@@ -31,6 +31,11 @@ public class StubRazorpayGateway implements RazorpayGateway {
     }
 
     @Override
+    public void cancelSubscription(String subscriptionId) {
+        throw notConfigured();
+    }
+
+    @Override
     public RazorpayRefundResult refund(String paymentId, BigDecimal amount, String reference) {
         throw notConfigured();
     }

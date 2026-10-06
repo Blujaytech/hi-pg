@@ -295,3 +295,15 @@ PG cities are selected from a server-owned supported-city list (with explicit al
 **Why mobile matching instead of credentials or an open claim form**: ADMIN already has the real business contact number, Firebase proves possession of that number, and the backend performs the match. This avoids distributing reusable passwords and prevents a different signed-in owner from claiming a similarly named PG. Manual support remains necessary when the stored business number is wrong or changed; ADMIN updates the private contact after an offline ownership check.
 
 **Maps boundary**: an embedded Android map depends on the Maps SDK for Android, billing, an Android-restricted API key, package `com.hipg.app`, and every signing SHA-1. Enabling Cloud Run, Firebase Authentication, FCM, or backend Maps APIs does not configure the native Android SDK. The app uses the full native map renderer and retains a Google Maps directions fallback, while key restrictions remain deployment configuration rather than source-controlled credentials.
+
+## 2026-10-02 -- ADR-0033: Account deletion anonymizes retained business records and removes private identity data
+
+**Decision**: CUSTOMER and OWNER accounts can be permanently deleted from the shared mobile Account screen. The authenticated `POST /api/v1/me/account-deletion` command requires the exact confirmation `DELETE`; email/password users must also present their current password. ADMIN accounts remain outside this consumer flow and require controlled access removal.
+
+**Deletion boundary**: login identifiers, credentials, refresh tokens, device tokens, profile/contact data, support-message content, Firebase identity, KYC/identity files and other private profile objects are removed or irreversibly anonymized. Owner properties are unpublished and detached. Active Razorpay AutoPay subscriptions are cancelled before the local account is disabled. Access tokens stop working immediately because `JwtAuthFilter` re-reads the non-deleted active user on every request.
+
+**Retention boundary**: bookings, payments, receipts, deposits, tax/reconciliation data, fraud-prevention evidence and versioned legal acceptances may be legally necessary after account deletion. Their user foreign key points to a disabled, soft-deleted row whose email, phone, password, provider subjects and name have been irreversibly replaced. The deletion audit contains the former account UUID and role but no direct identifier. Its retention-policy version is `2026-10-02`.
+
+**External object cleanup**: database deletion does not pretend that an S3/R2 delete succeeded. Object keys enter a private retry queue in the same database transaction as anonymization. Successful deletion clears the key; failures back off and retry without restoring account access.
+
+**Google Play pages**: the backend publicly serves `/privacy`, `/terms`, and `/account-deletion`. Production requires `LEGAL_OPERATOR_NAME`, `LEGAL_SUPPORT_EMAIL`, and `LEGAL_POSTAL_ADDRESS`; these values must match the verified Play developer/store listing and the final policy must receive jurisdiction-specific legal review.

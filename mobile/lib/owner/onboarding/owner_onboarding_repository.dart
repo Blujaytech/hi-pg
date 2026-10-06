@@ -33,15 +33,11 @@ class OwnerOnboardingRepository {
   Future<OwnerKycSubmission> saveProfile({
     required String pgId,
     required String legalName,
-    required String panLastFour,
-    required String aadhaarLastFour,
   }) async {
     final response = await _client.put<Map<String, dynamic>>(
       '/owner/pgs/$pgId/kyc',
       data: {
         'legalName': legalName.trim(),
-        'panLastFour': panLastFour.trim().toUpperCase(),
-        'aadhaarLastFour': aadhaarLastFour.trim(),
       },
     );
     return OwnerKycSubmission.fromJson(response.data!);

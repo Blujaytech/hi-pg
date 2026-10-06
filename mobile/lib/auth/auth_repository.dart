@@ -94,4 +94,12 @@ class AuthRepository {
     await _client
         .post<void>('/auth/logout', data: {'refreshToken': refreshToken});
   }
+
+  Future<void> deleteAccount({String? currentPassword}) async {
+    await _client.post<void>('/me/account-deletion', data: {
+      'confirmation': 'DELETE',
+      if (currentPassword != null && currentPassword.isNotEmpty)
+        'currentPassword': currentPassword,
+    });
+  }
 }

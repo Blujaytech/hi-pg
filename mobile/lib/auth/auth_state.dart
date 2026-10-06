@@ -168,4 +168,12 @@ class AuthState extends ChangeNotifier {
     await FirebasePhoneAuth.instance.signOut();
     _clearSession();
   }
+
+  Future<void> deleteAccount({String? currentPassword}) async {
+    await _repository.deleteAccount(currentPassword: currentPassword);
+    await SecureStorage.instance.clear();
+    await FirebasePhoneAuth.instance.signOut();
+    await GoogleStudentSignIn.instance.signOut();
+    _clearSession();
+  }
 }

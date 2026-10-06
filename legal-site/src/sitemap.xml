@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>{{PUBLIC_SITE_URL}}/</loc></url>
+  <url><loc>{{PUBLIC_SITE_URL}}/privacy/</loc></url>
+  <url><loc>{{PUBLIC_SITE_URL}}/terms/</loc></url>
+  <url><loc>{{PUBLIC_SITE_URL}}/account-deletion/</loc></url>
+  <url><loc>{{PUBLIC_SITE_URL}}/refund-cancellation/</loc></url>
+  <url><loc>{{PUBLIC_SITE_URL}}/contact/</loc></url>
+</urlset>

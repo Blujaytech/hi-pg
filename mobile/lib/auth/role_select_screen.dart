@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import '../core/env.dart';
 import '../core/theme.dart';
 import '../shared/brand/hi_pg_brand.dart';
 
@@ -66,6 +68,16 @@ class _RoleSelectScreenState extends State<RoleSelectScreen>
         ),
       ),
     );
+  }
+
+  Future<void> _openLegalPage(String path) async {
+    final uri = Uri.parse('${Env.legalBaseUrl}/$path');
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication) &&
+        mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to open the legal page.')),
+      );
+    }
   }
 
   @override
@@ -186,16 +198,35 @@ class _RoleSelectScreenState extends State<RoleSelectScreen>
                         const SizedBox(height: 22),
                         _step(
                           4,
-                          const Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
+                          Column(
                             children: [
-                              Icon(Icons.lock_outline_rounded,
-                                  size: 13, color: AppColors.subtle),
-                              SizedBox(width: 6),
-                              Text(
-                                'Secure sign-in  ·  Your data stays private',
-                                style: TextStyle(
-                                    color: AppColors.subtle, fontSize: 11.5),
+                              const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.lock_outline_rounded,
+                                      size: 13, color: AppColors.subtle),
+                                  SizedBox(width: 6),
+                                  Text(
+                                    'Secure sign-in  ·  Your data stays private',
+                                    style: TextStyle(
+                                        color: AppColors.subtle,
+                                        fontSize: 11.5),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 2),
+                              Wrap(
+                                alignment: WrapAlignment.center,
+                                children: [
+                                  TextButton(
+                                    onPressed: () => _openLegalPage('privacy'),
+                                    child: const Text('Privacy Policy'),
+                                  ),
+                                  TextButton(
+                                    onPressed: () => _openLegalPage('terms'),
+                                    child: const Text('Terms of Service'),
+                                  ),
+                                ],
                               ),
                             ],
                           ),

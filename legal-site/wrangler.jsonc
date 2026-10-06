@@ -1,0 +1,5 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "hipg-website",
+  "pages_build_output_dir": "./dist"
+}

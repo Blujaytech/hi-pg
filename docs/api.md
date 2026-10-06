@@ -15,6 +15,13 @@ Base path: `/api/v1`. JSON in, JSON out. Errors follow one shape (`com.pgplatfor
 
 Auth: `Authorization: Bearer <accessToken>` on every endpoint except `/auth/**`, `/health`, `/public/**`.
 
+`GET /api/v1` (and `/api/v1/`) is a public service-status endpoint. It returns
+safe service metadata and links to the health endpoint; it does not expose any
+authenticated application data.
+
+Public HTML policy pages are served at `/privacy`, `/terms`, and `/account-deletion`
+(outside the `/api/v1` JSON base path).
+
 ## Auth (`/auth`) -- all public
 
 | Method | Path | Body | Notes |
@@ -32,6 +39,20 @@ Auth: `Authorization: Bearer <accessToken>` on every endpoint except `/auth/**`,
 `AuthResponse`: `{accessToken, refreshToken, userId, fullName, role}`.
 
 All `/auth/**` endpoints are also rate-limited per client IP (Phase 15 -- `RateLimitFilter`, default 20 requests/60s per path): exceeding it returns 429 with `error: TOO_MANY_REQUESTS`. See `docs/security.md`.
+
+## My account (`/me`) -- authenticated
+
+| Method | Path | Body | Notes |
+|---|---|---|---|
+| POST | `/me/account-deletion` | `{confirmation:"DELETE", currentPassword?}` | Permanently disables the current CUSTOMER/OWNER account and returns 204. Email/password accounts must provide their current password. ADMIN self-deletion is forbidden. |
+
+Deletion immediately revokes sessions, clears login identifiers and notification
+tokens, anonymizes personal/support content, stops active AutoPay, queues private
+objects for deletion, and unpublishes an owner's properties. Booking, payment,
+receipt, tax, fraud-prevention and legal-acceptance records are retained only as
+anonymized records under retention-policy version `2026-10-02`. Failed external
+object deletions remain in a private retry queue; successful cleanup clears the
+stored object key.
 
 ## Owner: PG (`/owner/pgs`) -- requires role OWNER
 
@@ -331,7 +352,7 @@ This section supersedes the older Phase 11/12 instant-booking and stub-payment d
 - `POST /student/autopay` accepts `{dueDay: 1..28}` and creates a monthly Razorpay Subscription mandate; the customer authorizes it once. Subsequent debits need no owner approval. Failure webhooks notify both parties. `GET /student/autopay` returns mandate/next-charge status.
 - `POST /owner/fees/{feeId}/extensions` accepts `{newDueDate, note?}` and writes immutable extension history. Daily reminders are deduplicated and notify owner/customer on the effective due date and day three overdue.
 - Deposit APIs: `GET /owner|student/bookings/{bookingId}/deposit`, `POST /owner/bookings/{bookingId}/deposit-deductions`, and `POST /owner/bookings/{bookingId}/deposit-refunds`. Deductions require an itemized reason; refunds use the original captured Razorpay payment.
-- Owner phone verification: `POST /owner/profile/phone/otp/request` and `/verify`. KYC: `PUT /owner/pgs/{pgId}/kyc`, multipart `POST .../documents`, `POST .../submit`, and `GET .../kyc`. Required types are PAN card, Aadhaar front/back, owner photo, and PG photo. Only last four PAN/Aadhaar characters are stored in structured columns; document bytes go through private object storage.
+- Owner phone verification: `POST /owner/profile/phone/otp/request` and `/verify`. KYC: `PUT /owner/pgs/{pgId}/kyc`, multipart `POST .../documents`, `POST .../submit`, and `GET .../kyc`. Required types are PAN card, Aadhaar front/back, and owner photo. The profile request only collects the legal name; document bytes go through private object storage.
 - Admin KYC: `GET /admin/kyc/pending`, `PATCH /admin/kyc/{submissionId}`, and `GET /admin/kyc/documents/{documentId}/download-url`. Verification requires a Razorpay linked account and commission basis points. The web review console is `/admin/onboarding` and requires an ADMIN JWT.
 - `/webhooks/razorpay` verifies the raw-body HMAC. Malformed JSON returns 400; processing failures become 5xx for gateway retry. Payment, subscription, transfer/refund, and deposit refund processing is idempotent.
 

@@ -75,7 +75,9 @@ public class OwnerAuthService {
     public AuthResponse authenticateFirebasePhone(String idToken, String fullName) {
         FirebasePhoneIdentity identity = firebaseIdentityVerifier.verify(idToken);
         String phone = PhoneNumbers.normalize(identity.phone());
-        User user = findExistingPhoneUser(phone).orElseGet(() -> createInvitedOwner(phone, fullName));
+        User user = userRepository.findByFirebaseSubjectAndDeletedAtIsNull(identity.uid())
+                .or(() -> findExistingPhoneUser(phone))
+                .orElseGet(() -> createInvitedOwner(phone, fullName));
         if (user.getRole() != Role.OWNER) {
             throw new ConflictException("This mobile belongs to a customer account. Contact support to use it for ownership.");
         }
@@ -84,6 +86,7 @@ public class OwnerAuthService {
         }
         user.setPhone(phone);
         user.setPhoneVerified(true);
+        user.setFirebaseSubject(identity.uid());
         userRepository.save(user);
         return tokenIssuer.issueFor(user);
     }

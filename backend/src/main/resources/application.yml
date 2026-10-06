@@ -33,6 +33,10 @@ management:
         include: health,info
 
 app:
+  legal:
+    operator-name: ${LEGAL_OPERATOR_NAME:Hi PG}
+    support-email: ${LEGAL_SUPPORT_EMAIL:}
+    postal-address: ${LEGAL_POSTAL_ADDRESS:}
   jwt:
     secret: ${JWT_SECRET:dev-only-secret-change-me-dev-only-secret-change-me}
     access-token-ttl-minutes: 15

@@ -1,8 +1,10 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/api_exception.dart';
+import '../../core/env.dart';
 import '../../core/theme.dart';
 import '../../shared/app_states.dart';
 import '../booking/booking_models.dart';
@@ -60,6 +62,16 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
     _phoneController.dispose();
     _addressController.dispose();
     super.dispose();
+  }
+
+  Future<void> _openLegalPage(String path) async {
+    final uri = Uri.parse('${Env.legalBaseUrl}/$path');
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication) &&
+        mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to open the legal page.')),
+      );
+    }
   }
 
   Future<void> _load() async {
@@ -684,6 +696,22 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
             subtitle:
                 'Your acceptance is recorded with the current document versions.',
             children: [
+              Wrap(
+                spacing: 4,
+                children: [
+                  TextButton.icon(
+                    onPressed: () => _openLegalPage('terms'),
+                    icon: const Icon(Icons.open_in_new_rounded, size: 16),
+                    label: const Text('Read Terms'),
+                  ),
+                  TextButton.icon(
+                    onPressed: () => _openLegalPage('privacy'),
+                    icon: const Icon(Icons.open_in_new_rounded, size: 16),
+                    label: const Text('Read Privacy Policy'),
+                  ),
+                ],
+              ),
+              const Divider(height: 1),
               CheckboxListTile(
                 value: _acceptTerms,
                 onChanged: _saving

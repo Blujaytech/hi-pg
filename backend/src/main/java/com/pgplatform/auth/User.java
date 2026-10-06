@@ -45,6 +45,10 @@ public class User extends BaseEntity {
     @Column(name = "google_subject")
     private String googleSubject;
 
+    /** Firebase Authentication uid for phone-auth accounts. */
+    @Column(name = "firebase_subject", length = 128)
+    private String firebaseSubject;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private UserStatus status = UserStatus.ACTIVE;
