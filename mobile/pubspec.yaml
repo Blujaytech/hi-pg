@@ -1,7 +1,7 @@
 name: pg_platform_mobile
 description: PG Management & Discovery Platform - Owner + Student app (Flutter, single codebase, two role-gated flows).
 publish_to: 'none'
-version: 0.2.19+32
+version: 0.2.20+33
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
