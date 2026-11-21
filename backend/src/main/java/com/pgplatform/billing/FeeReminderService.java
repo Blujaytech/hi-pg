@@ -1,7 +1,6 @@
 package com.pgplatform.billing;
 
 import com.pgplatform.notification.NotificationService;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,7 +25,6 @@ public class FeeReminderService {
         this.notificationService = notificationService;
     }
 
-    @Scheduled(cron = "${app.billing.reminder-cron:0 0 9 * * *}", zone = "Asia/Kolkata")
     @Transactional
     public void sendScheduledReminders() {
         sendScheduledReminders(LocalDate.now(INDIA_ZONE));

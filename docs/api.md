@@ -427,3 +427,9 @@ Customer submission never proves receipt. Only owner approval allocates the bed.
 - Customer profile GET/PUT includes optional `guardianName` and `guardianPhone`; phone fields accept a valid Indian mobile number with optional `+91` prefix.
 - PG create/update accepts only the supported canonical Indian-city list (common aliases such as Bangalore/Gurgaon are normalized). `POST /owner/pgs/{pgId}/photo` accepts one private JPEG/PNG up to 5 MB and returns a short-lived signed `photoUrl` in owner and public discovery responses.
 - Complaint responses include the resident's current `roomNumber` and `bedLabel`; owners can list all complaints for a PG with `GET /owner/pgs/{pgId}/complaints`.
+
+## Internal job triggers (Cloud Scheduler only, 2026-11-21)
+
+`POST /api/v1/internal/jobs/{job}` -- not for mobile/web clients. Requires header `X-Job-Token: <INTERNAL_JOBS_TOKEN>`; no JWT. Returns `404` when the environment has no token configured or the job is unknown, `401` for a missing/wrong token, otherwise `200 {"job": "...", "outcome": "COMPLETED" | "SKIPPED", "durationMs": n}`. `SKIPPED` means the job's feature flag is off.
+
+Jobs: `booking-hold-expiry`, `direct-payment-review`, `account-deletion-cleanup`, `stay-transitions`, `fee-reminders`, `engagement-notifications`. See ADR-0035.

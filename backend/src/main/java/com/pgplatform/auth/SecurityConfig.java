@@ -53,7 +53,9 @@ public class SecurityConfig {
                                 "/terms",
                                 "/account-deletion",
                                 "/api/v1/public/**",
-                                "/api/v1/webhooks/**"
+                                "/api/v1/webhooks/**",
+                                // Cloud Scheduler triggers; guarded by X-Job-Token in InternalJobController.
+                                "/api/v1/internal/jobs/**"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )

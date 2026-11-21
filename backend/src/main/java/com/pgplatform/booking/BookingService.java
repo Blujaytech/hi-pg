@@ -24,7 +24,6 @@ import com.pgplatform.student.Student;
 import com.pgplatform.student.CustomerProfileService;
 import com.pgplatform.student.StudentRepository;
 import com.pgplatform.student.StudentStatus;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -336,14 +335,12 @@ public class BookingService {
         return BookingResponse.from(booking);
     }
 
-    @Scheduled(fixedDelayString = "${app.booking.hold-expiry-check-ms:60000}")
     @Transactional
     public void expirePaymentHolds() {
         expirePaymentHoldsInternal(Instant.now());
     }
 
     /** Keeps physical occupancy in sync with the date-range calendar. */
-    @Scheduled(cron = "${app.booking.stay-transition-cron:0 5 * * * *}", zone = "Asia/Kolkata")
     @Transactional
     public void transitionDueStays() {
         LocalDate today = LocalDate.now();

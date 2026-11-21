@@ -54,6 +54,10 @@ Unhandled exceptions are logged server-side at ERROR (`GlobalExceptionHandler`, 
 
 Never commit real secrets. `.env.example` files document the shape; real values live in `.env` (git-ignored) locally, and in a proper secrets manager beyond local dev. `app.jwt.secret` in `application.yml` has a dev-only fallback value that **must** be overridden via `JWT_SECRET` outside local dev. Same pattern for `RAZORPAY_KEY_ID`/`RAZORPAY_KEY_SECRET`/`RAZORPAY_WEBHOOK_SECRET` -- blank by default, only ever read from environment variables.
 
+## Internal job endpoint
+
+`POST /api/v1/internal/jobs/{job}` is outside JWT auth so Cloud Scheduler can call it. It is guarded by a constant-time comparison against `INTERNAL_JOBS_TOKEN` (Secret Manager) sent in `X-Job-Token`, returns 404 when no token is configured, and only accepts the fixed `BackgroundJob` names -- it runs idempotent maintenance work and returns no user data. Rotate the secret by adding a new version, redeploying, and updating the Scheduler jobs' header.
+
 ## CORS
 
 `SecurityConfig.corsConfigurationSource` reads allowed origins from `app.cors.allowed-origins` (env-configurable, comma-separated) -- never a wildcard, and `allowCredentials(true)` requires an explicit origin list rather than `*` anyway (browsers reject the combination). Confirm the production value is the real web app origin(s) only before Phase 16.

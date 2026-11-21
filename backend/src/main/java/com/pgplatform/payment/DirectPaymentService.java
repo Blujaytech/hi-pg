@@ -20,7 +20,6 @@ import com.pgplatform.payment.dto.DirectPaymentRejectRequest;
 import com.pgplatform.payment.dto.DirectPaymentRequestResponse;
 import com.pgplatform.payment.dto.DirectPaymentSubmitRequest;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -250,7 +249,6 @@ public class DirectPaymentService {
         return DirectPaymentRequestResponse.from(request);
     }
 
-    @Scheduled(fixedDelayString = "${app.booking.direct-payment-review-check-ms:60000}")
     @Transactional
     public void markOverdueReviews() {
         List<DirectPaymentRequest> due = repository.findAllByStatusAndReviewDueAtBeforeAndDeletedAtIsNull(

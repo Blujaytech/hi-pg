@@ -319,3 +319,18 @@ PG cities are selected from a server-owned supported-city list (with explicit al
 **Owner invitation SMS**: admin-created PG invitation SMS is separate from Firebase Phone Authentication and from Play Store publication. Delivery uses the existing auditable `owner_sms_messages` record and exposes `SENT`, `FAILED`, or `SKIPPED` plus a safe failure reason in the admin listing panel. A retry reuses the same business-event record and never resends after success. Twilio remains disabled until `APP_SMS_ENABLED`, credentials, sender, claim URL, and applicable India business-messaging requirements are configured.
 
 **Failure boundary**: external notification delivery is still a side effect and cannot roll back booking, payment, complaint, or property state. The durable inbox preserves the user-visible result. Transactional email, WhatsApp, external-channel delivery receipts, dead-letter retry workers, and invalid-FCM-token pruning remain follow-up work.
+
+## 2026-11-21 -- ADR-0035: Periodic jobs are triggered by Cloud Scheduler so Cloud Run can bill per request
+
+**Context**: production traffic is a few dozen requests a day, yet the Cloud Run service used instance-based billing (CPU always allocated) so Spring `@Scheduled` jobs could run. Background timers kept the single instance alive 24/7, making Cloud Run the largest line item on the bill.
+
+**Decision**: all periodic work is enumerated in `jobs.BackgroundJob` and executed through `jobs.BackgroundJobRunner`. Two interchangeable triggers exist:
+
+- `InProcessJobScheduler` (default, `APP_JOBS_IN_PROCESS=true`) keeps the previous Spring-scheduler behaviour for local/dev and any always-on host.
+- `POST /api/v1/internal/jobs/{job}` lets Cloud Scheduler trigger a job over HTTP. It sits outside JWT auth and requires the shared secret `INTERNAL_JOBS_TOKEN` (Secret Manager) in `X-Job-Token`; with no token configured it returns 404.
+
+Production sets `APP_JOBS_IN_PROCESS=false`, uses request-based billing, and runs one Cloud Scheduler job per enabled `BackgroundJob`, so a job is never triggered by both mechanisms. Jobs already re-check state under their own transactions/locks, so a Scheduler retry or overlap is safe.
+
+**Not moved**: the SSE keep-alive heartbeat stays on the in-process scheduler; it only matters while a stream request is open, which is exactly when request-based billing allocates CPU.
+
+**Rollback**: `gcloud run services update ... --no-cpu-throttling --update-env-vars=APP_JOBS_IN_PROCESS=true` and pause the Scheduler jobs.

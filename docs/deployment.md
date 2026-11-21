@@ -94,6 +94,8 @@ reverse proxy (nginx, Traefik), confirm it does the same before relying on the r
 | `FIREBASE_PROJECT_ID` | Yes when `FIREBASE_ENABLED=true` | Firebase target project ID. Hi PG currently uses the shared services project `hi-pg-platform-services-c96e2` for both staging and production mobile identities and FCM. |
 | `ENGAGEMENT_NOTIFICATIONS_ENABLED` | Optional | Enables scheduled, frequency-capped discovery reminders for active customers who have a push-capable device and no active booking. Defaults to `false` for safe rollout. |
 | `ENGAGEMENT_NOTIFICATIONS_CRON` | Optional | Cron for discovery reminders in `Asia/Kolkata`; defaults to `0 30 18 * * *` (6:30 PM daily eligibility check). |
+| `APP_JOBS_IN_PROCESS` | Optional | `true` (default) runs periodic jobs on the in-process Spring scheduler. Set `false` on Cloud Run with request-based billing, where Cloud Scheduler triggers them instead (see "Periodic jobs with Cloud Scheduler"). |
+| `INTERNAL_JOBS_TOKEN` | When `APP_JOBS_IN_PROCESS=false` | Shared secret Cloud Scheduler sends as `X-Job-Token` to `POST /api/v1/internal/jobs/{job}`. Store in Secret Manager. Blank disables the endpoint. |
 | `APP_SMS_ENABLED` | Yes for admin-created PG owner invitations | Enables business SMS. This is independent of Play Store publication and Firebase login OTP. Keep it `false` until the provider and India messaging compliance are ready. |
 | `APP_SMS_PROVIDER` | When business SMS is enabled | Currently `TWILIO` is supported. |
 | `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_FROM_NUMBER` | When `APP_SMS_PROVIDER=TWILIO` | Private provider credentials and an SMS-capable sender. Store them in Secret Manager, not source control. |
@@ -201,6 +203,31 @@ flutter build apk --debug \
   --dart-define=API_BASE_URL=https://hi-pg-api-staging-242105097677.asia-south1.run.app/api/v1 \
   --dart-define=GOOGLE_OAUTH_WEB_CLIENT_ID=115637607332-a355j4thoo2iabm8bp3pn0kbulv9aabs.apps.googleusercontent.com
 ```
+
+## Periodic jobs with Cloud Scheduler (production)
+
+Production runs with request-based billing (`--cpu-throttling`) so an idle service costs nothing.
+Background jobs are triggered by Cloud Scheduler instead of the in-process scheduler (ADR-0035):
+
+```bash
+# one-time: shared secret, readable by the runtime service account
+openssl rand -hex 32 | gcloud secrets create internal-jobs-token --project=hi-pg-production --data-file=-
+gcloud secrets add-iam-policy-binding internal-jobs-token --project=hi-pg-production   --member=serviceAccount:hi-pg-api-runtime@hi-pg-production.iam.gserviceaccount.com   --role=roles/secretmanager.secretAccessor
+
+gcloud run services update hi-pg-api-production --project=hi-pg-production --region=asia-south1   --cpu-throttling --update-env-vars=APP_JOBS_IN_PROCESS=false   --update-secrets=INTERNAL_JOBS_TOKEN=internal-jobs-token:latest
+
+# one Scheduler job per enabled job (Asia/Kolkata):
+#   booking-hold-expiry       * * * * *
+#   direct-payment-review     * * * * *
+#   account-deletion-cleanup  */5 * * * *
+#   stay-transitions          5 * * * *
+#   fee-reminders             0 9 * * *
+#   engagement-notifications  30 18 * * *   (only if ENGAGEMENT_NOTIFICATIONS_ENABLED=true)
+gcloud scheduler jobs create http hipg-booking-hold-expiry --project=hi-pg-production   --location=asia-south1 --schedule="* * * * *" --time-zone=Asia/Kolkata --http-method=POST   --uri=https://hi-pg-api-production-861205582126.asia-south1.run.app/api/v1/internal/jobs/booking-hold-expiry   --headers=X-Job-Token="$(gcloud secrets versions access latest --secret=internal-jobs-token --project=hi-pg-production)"
+```
+
+Rollback to always-on: `gcloud run services update hi-pg-api-production ... --no-cpu-throttling
+--update-env-vars=APP_JOBS_IN_PROCESS=true`, then `gcloud scheduler jobs pause` each job.
 
 ## Database migrations
 

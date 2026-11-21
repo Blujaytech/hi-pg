@@ -5,7 +5,6 @@ import com.pgplatform.auth.User;
 import com.pgplatform.booking.BookingRepository;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -75,7 +74,6 @@ public class EngagementNotificationService {
         this.clock = clock;
     }
 
-    @Scheduled(cron = "${app.notifications.engagement-cron:0 30 18 * * *}", zone = "Asia/Kolkata")
     @Transactional
     public void sendScheduledEngagements() {
         Boolean lockAcquired = jdbcTemplate.queryForObject(

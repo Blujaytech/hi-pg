@@ -5,7 +5,6 @@ import com.pgplatform.owner.PgPhotoUrls;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,7 +29,6 @@ public class AccountDeletionStorageCleanupService {
         cleanup("and audit_id = ?", auditId);
     }
 
-    @Scheduled(fixedDelayString = "${app.account-deletion.cleanup-interval-ms:300000}")
     @Transactional
     public void retryPending() {
         cleanup("", null);
