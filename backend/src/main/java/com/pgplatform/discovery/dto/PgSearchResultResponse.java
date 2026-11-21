@@ -16,6 +16,7 @@ public record PgSearchResultResponse(
         GenderPreference genderPreference,
         Double latitude,
         Double longitude,
+        String locationUrl,
         long availableBeds,
         BigDecimal minRentPerBed,
         BigDecimal maxRentPerBed,
@@ -23,6 +24,7 @@ public record PgSearchResultResponse(
         // monthly stays, DAY_WISE and MIXED rooms take day-wise stays.
         boolean offersMonthly,
         boolean offersDayWise,
+        boolean stayTypeConfigured,
         BigDecimal minDayWiseRate,
         boolean verified,
         PgVerificationStatus verificationStatus

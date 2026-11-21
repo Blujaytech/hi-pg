@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Mirrors AppColors.brand in lib/core/theme.dart. -->
-    <color name="brand_launch">#F84464</color>
-    <color name="ic_launcher_background">#F84464</color>
+    <!-- Plain native launch canvas; the in-app cinematic splash follows. -->
+    <color name="brand_launch">#FFFFFF</color>
+    <color name="ic_launcher_background">#FFFAFB</color>
+    <color name="brand_notification">#F84464</color>
 </resources>

@@ -12,6 +12,8 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
 
+import java.util.UUID;
+
 @Service
 public class OwnerSmsService {
     private static final Logger log = LoggerFactory.getLogger(OwnerSmsService.class);
@@ -39,6 +41,14 @@ public class OwnerSmsService {
     }
 
     public String claimUrl() { return claimUrl; }
+
+    @Transactional(readOnly = true)
+    public OwnerSmsResult delivery(UUID pgId, String eventKey) {
+        return messageRepository.findByPgIdAndEventKeyAndDeletedAtIsNull(pgId, eventKey)
+                .map(message -> new OwnerSmsResult(
+                        message.getStatus(), message.getProviderMessageId(), message.getFailureReason()))
+                .orElse(null);
+    }
 
     /** Sends at most one successful SMS for a business event and keeps an auditable result. */
     @Transactional

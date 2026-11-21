@@ -55,11 +55,9 @@ class _ReceiptListScreenState extends State<ReceiptListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: AppBarTitle(
-          title: 'Receipts',
-          subtitle: widget.studentName,
-        ),
+      appBar: PremiumAppBar(
+        title: 'Receipts',
+        subtitle: widget.studentName ?? 'Verified payment records',
       ),
       body: FutureBuilder<List<Receipt>>(
         future: _future,

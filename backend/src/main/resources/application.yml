@@ -16,11 +16,10 @@ spring:
     baseline-on-migrate: true
   servlet:
     multipart:
-      # Matches the 10 MB ceiling DocumentService/OwnerKycService enforce. Spring's
-      # 1 MB default rejected anything larger at the servlet layer first, so the
-      # documented limit was never the one callers actually hit.
-      max-file-size: 10MB
-      max-request-size: 12MB
+      # Excel imports may contain embedded property photos. Individual document
+      # and KYC services retain their own stricter per-file validation.
+      max-file-size: 20MB
+      max-request-size: 22MB
 
 server:
   address: 0.0.0.0
@@ -85,6 +84,9 @@ app:
     stay-transition-cron: ${STAY_TRANSITION_CRON:0 5 * * * *}
   billing:
     reminder-cron: ${BILLING_REMINDER_CRON:0 0 9 * * *}
+  notifications:
+    engagement-enabled: ${ENGAGEMENT_NOTIFICATIONS_ENABLED:false}
+    engagement-cron: ${ENGAGEMENT_NOTIFICATIONS_CRON:0 30 18 * * *}
   rate-limit:
     auth:
       window-seconds: 60

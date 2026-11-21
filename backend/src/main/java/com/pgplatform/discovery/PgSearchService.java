@@ -16,6 +16,7 @@ import com.pgplatform.owner.GenderPreference;
 import com.pgplatform.owner.Pg;
 import com.pgplatform.owner.PgRepository;
 import com.pgplatform.owner.PgPhotoRepository;
+import com.pgplatform.owner.PgPhotoUrls;
 import com.pgplatform.owner.dto.PgPhotoResponse;
 import com.pgplatform.owner.PgDirectPaymentSettingsRepository;
 import com.pgplatform.owner.PgStatus;
@@ -176,6 +177,7 @@ public class PgSearchService {
         return new PgDetailsResponse(
                 pg.getId(), pg.getName(), pg.getAddress(), pg.getCity(), pg.getState(), pg.getPincode(),
                 pg.getDescription(), photoUrl(pg), photos(pg), pg.getGenderPreference(), pg.getLatitude(), pg.getLongitude(),
+                pg.getLocationUrl(),
                 totalBeds, availableBeds, directPaymentAvailable, verified, pg.getVerificationStatus(),
                 pg.isBookingEnabled(), floorResponses
         );
@@ -200,9 +202,9 @@ public class PgSearchService {
         boolean offersDayWise = modes.contains(RoomBookingMode.DAY_WISE) || modes.contains(RoomBookingMode.MIXED);
         return new PgSearchResultResponse(
                 pg.getId(), pg.getName(), pg.getCity(), pg.getAddress(), pg.getDescription(), photoUrl(pg),
-                pg.getGenderPreference(), pg.getLatitude(), pg.getLongitude(),
+                pg.getGenderPreference(), pg.getLatitude(), pg.getLongitude(), pg.getLocationUrl(),
                 availableBeds, minRent, maxRent,
-                offersMonthly, offersDayWise,
+                offersMonthly, offersDayWise, !modes.isEmpty(),
                 offersDayWise ? roomRepository.findMinDayWiseRateForPg(pg.getId()) : null,
                 pg.getVerificationStatus() == com.pgplatform.owner.PgVerificationStatus.VERIFIED
                         && pg.isBookingEnabled(),
@@ -211,21 +213,44 @@ public class PgSearchService {
     }
 
     private String photoUrl(Pg pg) {
-        return pg.getPhotoStorageKey() == null ? null
-                : storageGateway.generateSignedUrl(pg.getPhotoStorageKey(), Duration.ofHours(1));
+        if (pg.getPhotoStorageKey() == null) return null;
+        if (PgPhotoUrls.isDatabaseStorageKey(pg.getPhotoStorageKey())) {
+            return pgPhotoRepository.findByStorageKeyAndDeletedAtIsNull(pg.getPhotoStorageKey())
+                    .map(PgPhotoUrls::databaseUrl).orElse(null);
+        }
+        return storageGateway.generateSignedUrl(pg.getPhotoStorageKey(), Duration.ofHours(1));
     }
 
     private List<PgPhotoResponse> photos(Pg pg) {
         List<PgPhotoResponse> photos = pgPhotoRepository
                 .findAllByPgIdAndDeletedAtIsNullOrderByDisplayOrderAscCreatedAtAsc(pg.getId()).stream()
-                .map(photo -> new PgPhotoResponse(photo.getId(), storageGateway.generateSignedUrl(
-                        photo.getStorageKey(), Duration.ofHours(1)), photo.isCover(), photo.getDisplayOrder()))
+                .map(photo -> new PgPhotoResponse(photo.getId(), photoUrl(photo),
+                        photo.isCover(), photo.getDisplayOrder()))
                 .toList();
         if (photos.isEmpty() && pg.getPhotoStorageKey() != null) {
             return List.of(new PgPhotoResponse(legacyCoverPhotoId(pg), photoUrl(pg), true, 0));
         }
         return photos;
     }
+
+    private String photoUrl(com.pgplatform.owner.PgPhoto photo) {
+        return PgPhotoUrls.isDatabaseStorageKey(photo.getStorageKey())
+                ? PgPhotoUrls.databaseUrl(photo)
+                : storageGateway.generateSignedUrl(photo.getStorageKey(), Duration.ofHours(1));
+    }
+
+    @Transactional(readOnly = true)
+    public PhotoContent getPhotoContent(UUID pgId, UUID photoId) {
+        pgRepository.findByIdAndDeletedAtIsNullAndStatus(pgId, PgStatus.ACTIVE)
+                .orElseThrow(() -> new NotFoundException("PG not found"));
+        com.pgplatform.owner.PgPhoto photo = pgPhotoRepository
+                .findByIdAndPgIdAndDeletedAtIsNull(photoId, pgId)
+                .filter(value -> value.getContent() != null)
+                .orElseThrow(() -> new NotFoundException("PG photo not found"));
+        return new PhotoContent(photo.getContent(), photo.getContentType(), photo.getOriginalFileName());
+    }
+
+    public record PhotoContent(byte[] content, String contentType, String fileName) { }
 
     /**
      * Older PGs store their cover image directly on the PG record rather than

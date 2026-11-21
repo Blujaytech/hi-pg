@@ -296,15 +296,29 @@ Authenticated, any role. Registers a push-notification device token for the logg
 | POST | `/me/device-tokens` | `{token, platform: ANDROID\|IOS\|WEB}` -- upsert by token (re-registering the same token updates it, including reassigning it to a different user if the same device logged in as someone else) |
 | DELETE | `/me/device-tokens/{token}` | no-ops if the token isn't yours or is already gone -- never a 403, to avoid confirming/denying whether a token exists |
 
-No client actually calls this yet -- see `docs/decisions.md` ADR-0020 for why (no Firebase project/credentials configured, so there's nothing real to register a token *for*).
+The Flutter app registers and refreshes its FCM token after authentication and removes it during sign-out. Android notification taps carry an internal `actionRoute`, allowing the app to open the relevant screen instead of only opening the home tab.
 
-## Notifications -- Phase 13
+## Me: persistent notifications (`/me/notifications`)
 
-Not a REST resource -- `NotificationService.notifyUser(userId, title, message)` is called internally whenever something happens that a user should hear about: a booking is confirmed or cancelled (`BookingService`, both the student and the PG owner), an online payment is received (`PaymentOrderService`), a student files a complaint (the PG owner), or a complaint is marked resolved (the student). Delivery is push (to every registered device token) and email (if the user has one); failures for one recipient/channel are logged and swallowed, never allowed to fail the operation that triggered them. `LoggingNotificationGateway` is still the only external-delivery implementation -- live in-app SSE events work locally; see ADR-0020/ADR-0024.
+Authenticated, any role. Every business notification is first stored in the user's inbox, then fanned out through email, FCM, and the authenticated SSE stream. External-channel failures never remove the inbox record or fail the business operation.
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/me/notifications?limit=50` | Returns `{notifications, unreadCount}` newest first; `limit` is clamped to `1..100`. |
+| PATCH | `/me/notifications/{notificationId}/read` | Marks one notification owned by the caller as read and returns it. |
+| PATCH | `/me/notifications/read-all` | Marks every unread notification owned by the caller as read. |
+
+Notification payload: `{id, title, message, category, actionRoute?, read, createdAt}`. Categories are `BOOKING`, `PAYMENT`, `COMPLAINT`, `PROPERTY`, `ACCOUNT`, and `GENERAL`. `actionRoute` is an app-internal path beginning with `/`; arbitrary external URLs are rejected for admin messages.
+
+## Admin: direct notifications (`/admin/notifications`)
+
+ADMIN only. `POST /api/v1/admin/notifications` accepts `{audience, title, message, actionRoute?, recipients?}`. `audience` is `ALL`, `OWNERS`, `STUDENTS`, or `DIRECT`. `DIRECT` requires one or more recipient UUIDs, emails, or phone numbers. The response is `{matchedRecipients, notificationsCreated}`. Only active, non-deleted accounts are eligible.
+
+`NotificationService.notifyUser(...)` remains the internal fan-out point for booking, payment, complaint, property, and account events. Firebase Admin delivers FCM when `FIREBASE_ENABLED=true`; `LoggingNotificationGateway` remains the local fallback. Email remains provider-dependent.
 
 ## Me: live events stream (`/me/events/stream`) -- Phase 14
 
-Authenticated, any role. `GET /api/v1/me/events/stream` -- Server-Sent Events, same transport shape as the public bed-availability stream (Phase 10) but per-user and behind auth instead of per-PG and public. Every call to `NotificationService.notifyUser` (see Notifications, above) now also publishes to this stream, so the same four trigger points -- booking confirmed/cancelled, payment received, complaint resolved -- get a live in-app echo for anyone with the app open right now, on top of the push/email delivery that already happened. Event payload: `{title, message, sentAt}`.
+Authenticated, any role. `GET /api/v1/me/events/stream` -- Server-Sent Events, same transport shape as the public bed-availability stream (Phase 10) but per-user and behind auth instead of per-PG and public. Every persisted notification is also published here for an immediate in-app echo. Event payload: `{notificationId, title, message, category, actionRoute, sentAt}`.
 
 Flutter/dio-only client today (`LiveEventsListener`, wraps `StudentHomeScreen` and `PgListScreen`, shows a SnackBar per event) -- the browser `EventSource` API can't set an `Authorization` header, so the web app doesn't consume this yet (same constraint noted for booking/fee UI in ADR-0018/0019). See ADR-0021.
 
@@ -312,7 +326,7 @@ Same single-instance caveat as the Phase 10 stream (ADR-0016): the emitter regis
 
 ## Not yet built
 
-WhatsApp notifications (explicitly deferred per the technical plan), production wiring for external integrations, and browser-side consumption of the live events stream (needs a cookie- or query-token-based auth path for `EventSource`, not attempted -- see ADR-0021). Add each new endpoint's contract here **before or alongside** implementation -- contract-first (CLAUDE.md).
+WhatsApp notifications, a transactional email implementation, delivery receipts/retries for FCM/email, and browser-side consumption of the authenticated live-events stream remain deferred. Owner invitation SMS requires a configured business-messaging provider; it is not related to Play Store publication.
 
 ## Admin-created PG listings and mobile ownership claims
 
@@ -325,6 +339,7 @@ These listings start `UNCLAIMED`, `UNVERIFIED`, and `bookingEnabled=false`.
 | GET | `/admin/pg-listings` | Lists admin-created PGs, private owner contact, claim/verification state, and customer-interest count. |
 | POST | `/admin/pg-listings` | Creates a listing from `{name, ownerName, ownerMobile, address, city, state?, pincode?, latitude, longitude, description?, genderPreference}`. Latitude and longitude are required so the public map is authoritative. |
 | PUT | `/admin/pg-listings/{pgId}` | Updates the listing and its private owner contact using the same body. |
+| POST | `/admin/pg-listings/{pgId}/invitation` | Retries the owner invitation SMS unless an earlier attempt already succeeded. The listing response includes `invitationDeliveryStatus` and `invitationFailureReason`. |
 | POST | `/auth/owner/firebase-phone` | Exchanges a verified Firebase ID token for the normal Hi PG owner JWT. Only an existing owner or a mobile invited on an admin-created PG may enter. |
 | GET | `/owner/claims/suggestions` | Returns unclaimed PGs whose normalized invited mobile matches the authenticated owner's verified mobile. |
 | POST | `/owner/claims/{pgId}` | Claims one matching PG and moves it to `CLAIM_PENDING`; booking remains disabled until KYC approval. |
@@ -352,7 +367,7 @@ This section supersedes the older Phase 11/12 instant-booking and stub-payment d
 - `POST /student/autopay` accepts `{dueDay: 1..28}` and creates a monthly Razorpay Subscription mandate; the customer authorizes it once. Subsequent debits need no owner approval. Failure webhooks notify both parties. `GET /student/autopay` returns mandate/next-charge status.
 - `POST /owner/fees/{feeId}/extensions` accepts `{newDueDate, note?}` and writes immutable extension history. Daily reminders are deduplicated and notify owner/customer on the effective due date and day three overdue.
 - Deposit APIs: `GET /owner|student/bookings/{bookingId}/deposit`, `POST /owner/bookings/{bookingId}/deposit-deductions`, and `POST /owner/bookings/{bookingId}/deposit-refunds`. Deductions require an itemized reason; refunds use the original captured Razorpay payment.
-- Owner phone verification: `POST /owner/profile/phone/otp/request` and `/verify`. KYC: `PUT /owner/pgs/{pgId}/kyc`, multipart `POST .../documents`, `POST .../submit`, and `GET .../kyc`. Required types are PAN card, Aadhaar front/back, and owner photo. The profile request only collects the legal name; document bytes go through private object storage.
+- Owner phone verification: the mobile app verifies the SMS code with Firebase and sends the resulting trusted ID token to `POST /owner/profile/phone/firebase`. The legacy `/otp/request` and `/verify` endpoints remain for compatibility but are not used by current Android builds. KYC: `PUT /owner/pgs/{pgId}/kyc`, multipart `POST .../documents`, `POST .../submit`, and `GET .../kyc`. Required types are PAN card, Aadhaar front/back, and owner photo. The profile request only collects the legal name; document bytes go through private object storage.
 - Admin KYC: `GET /admin/kyc/pending`, `PATCH /admin/kyc/{submissionId}`, and `GET /admin/kyc/documents/{documentId}/download-url`. Verification requires a Razorpay linked account and commission basis points. The web review console is `/admin/onboarding` and requires an ADMIN JWT.
 - `/webhooks/razorpay` verifies the raw-body HMAC. Malformed JSON returns 400; processing failures become 5xx for gateway retry. Payment, subscription, transfer/refund, and deposit refund processing is idempotent.
 

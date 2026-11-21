@@ -167,7 +167,10 @@ class _MyFeesScreenState extends State<MyFeesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Fees & payments')),
+      appBar: const PremiumAppBar(
+        title: 'Fees & payments',
+        subtitle: 'Rent history, dues and secure payments',
+      ),
       body: FutureBuilder<_PaymentViewData>(
         future: _future,
         builder: (context, snapshot) {

@@ -26,6 +26,7 @@ class AuthState extends ChangeNotifier {
   AuthStatus status = AuthStatus.unknown;
   UserRole? role;
   String? fullName;
+  String? profilePhotoUrl;
   String? userId;
   String? _refreshToken;
 
@@ -49,6 +50,7 @@ class AuthState extends ChangeNotifier {
       // status. Treat it as signed out; the next login overwrites storage.
       role = null;
       fullName = null;
+      profilePhotoUrl = null;
       userId = null;
       _refreshToken = null;
       status = AuthStatus.unauthenticated;
@@ -66,6 +68,7 @@ class AuthState extends ChangeNotifier {
     );
     role = session.role;
     fullName = session.fullName;
+    profilePhotoUrl = null;
     userId = session.userId;
     _refreshToken = session.refreshToken;
     status = AuthStatus.authenticated;
@@ -144,9 +147,19 @@ class AuthState extends ChangeNotifier {
   void _clearSession() {
     role = null;
     fullName = null;
+    profilePhotoUrl = null;
     userId = null;
     _refreshToken = null;
     status = AuthStatus.unauthenticated;
+    notifyListeners();
+  }
+
+  void updateStudentProfile({
+    required String name,
+    required String? photoUrl,
+  }) {
+    fullName = name.trim().isEmpty ? fullName : name.trim();
+    profilePhotoUrl = photoUrl;
     notifyListeners();
   }
 

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -11,6 +13,7 @@ import 'package:provider/provider.dart';
 import 'app_router.dart';
 import 'auth/auth_state.dart';
 import 'core/theme.dart';
+import 'notification/push_notification_service.dart';
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -52,12 +55,22 @@ class PgPlatformApp extends StatefulWidget {
 class _PgPlatformAppState extends State<PgPlatformApp> {
   final AuthState _authState = AuthState();
   late final GoRouter _router;
+  StreamSubscription<String>? _pushRouteSubscription;
 
   @override
   void initState() {
     super.initState();
     _router = buildRouter(_authState);
+    _pushRouteSubscription = PushNotificationService.instance.routes.listen(
+      (route) => _router.push(route),
+    );
     _authState.bootstrap();
+  }
+
+  @override
+  void dispose() {
+    _pushRouteSubscription?.cancel();
+    super.dispose();
   }
 
   @override

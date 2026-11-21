@@ -33,4 +33,15 @@ public class AdminPgListingController {
                                          @Valid @RequestBody AdminPgListingRequest request) {
         return service.update(pgId, request);
     }
+
+    @DeleteMapping("/{pgId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable UUID pgId) {
+        service.delete(pgId);
+    }
+
+    @PostMapping("/{pgId}/invitation")
+    public AdminPgListingResponse retryInvitation(@PathVariable UUID pgId) {
+        return service.retryInvitation(pgId);
+    }
 }

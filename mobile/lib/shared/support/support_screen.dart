@@ -48,7 +48,10 @@ class _SupportScreenState extends State<SupportScreen> {
     return FutureBuilder<List<SupportTicket>>(
       future: _future,
       builder: (context, snapshot) => Scaffold(
-        appBar: AppBar(title: const Text('Help & support')),
+        appBar: const PremiumAppBar(
+          title: 'Help & support',
+          subtitle: 'Questions, requests and issue tracking',
+        ),
         floatingActionButton: snapshot.hasData && snapshot.data!.isNotEmpty
             ? FloatingActionButton.extended(
                 onPressed: _create,

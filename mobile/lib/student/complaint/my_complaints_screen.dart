@@ -49,7 +49,10 @@ class _MyComplaintsScreenState extends State<MyComplaintsScreen> {
     return FutureBuilder<List<Complaint>>(
       future: _future,
       builder: (context, snapshot) => Scaffold(
-        appBar: AppBar(title: const Text('Raise a complaint')),
+        appBar: const PremiumAppBar(
+          title: 'Complaints',
+          subtitle: 'Report and follow up on stay issues',
+        ),
         floatingActionButton: snapshot.hasData && snapshot.data!.isNotEmpty
             ? FloatingActionButton.extended(
                 onPressed: _openNewComplaint,

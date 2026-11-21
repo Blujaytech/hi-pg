@@ -31,7 +31,7 @@ class FirebasePhoneAuth {
       return activeRequest;
     }
 
-    final request = _sendCode(
+    final request = _sendCodeWithNetworkRetry(
       phone: normalizedPhone,
       forceResend: forceResend,
     );
@@ -43,6 +43,19 @@ class FirebasePhoneAuth {
         _phoneInProgress = null;
       }
     });
+  }
+
+  Future<void> _sendCodeWithNetworkRetry({
+    required String phone,
+    required bool forceResend,
+  }) async {
+    try {
+      await _sendCode(phone: phone, forceResend: forceResend);
+    } on FirebasePhoneAuthFailure catch (error) {
+      if (error.code != 'network-request-failed') rethrow;
+      await Future<void>.delayed(const Duration(milliseconds: 900));
+      await _sendCode(phone: phone, forceResend: forceResend);
+    }
   }
 
   Future<void> _sendCode({

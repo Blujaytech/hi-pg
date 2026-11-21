@@ -5,12 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f84464">
   <meta name="color-scheme" content="light">
-  <title>Hi Paying Guest | Find your next stay</title>
+  <title>Hi PG | Find Your PG. Feel at Home.</title>
   <meta name="description" content="Discover PG accommodation with current availability, clear pricing and simple booking. Hi PG also gives property owners one place to manage rooms, residents, fees and support.">
   <link rel="canonical" href="{{PUBLIC_SITE_URL}}/">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Hi PG">
-  <meta property="og:title" content="Find your next stay | Hi Paying Guest">
+  <meta property="og:title" content="Find Your PG. Feel at Home. | Hi PG">
   <meta property="og:description" content="One thoughtfully designed Android app for finding a PG stay and managing a PG property.">
   <meta property="og:url" content="{{PUBLIC_SITE_URL}}/">
   <meta property="og:image" content="{{PUBLIC_SITE_URL}}/assets/app-icon.png">
@@ -24,10 +24,7 @@
 
   <header class="site-header landing-header">
     <nav class="nav landing-nav" aria-label="Primary navigation">
-      <a class="brand brand-with-mark" href="/" aria-label="Hi PG home">
-        <img src="/assets/app-icon.png" alt="" width="40" height="40">
-        <span>hi <strong>pg</strong></span>
-      </a>
+      <a class="brand plain-logo" href="/" aria-label="Hi PG home"><span>hi</span><strong>pg</strong></a>
 
       <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="main-navigation">
         <span class="sr-only">Open navigation</span>
@@ -48,11 +45,11 @@
     <section class="hero section-shell" aria-labelledby="hero-title">
       <div class="hero-copy reveal">
         <div class="eyebrow-pill">
-          <span class="live-dot" aria-hidden="true"></span>
-          Hi Paying Guest
+          <span class="plain-logo plain-logo-small" aria-hidden="true"><span>hi</span><strong>pg</strong></span>
+          <span><strong>Official Hi PG app</strong><small>Find Your PG. Feel at Home.</small></span>
         </div>
         <h1 id="hero-title">Find your next stay.<br><span>Made simpler.</span></h1>
-        <p class="hero-lead"><strong>Hi Paying Guest</strong> helps you find a comfortable PG, understand the price, book with confidence, and manage everyday PG life—all from one thoughtfully designed app.</p>
+        <p class="hero-lead"><strong>Hi PG</strong> helps you find a comfortable PG, understand the price, book with confidence, and manage everyday PG life—all from one thoughtfully designed app.</p>
         <div class="hero-actions">
           <a class="button button-primary button-large" href="{{APP_DOWNLOAD_URL}}" data-download-link>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20h14M12 3v12m0 0 5-5m-5 5-5-5"/></svg>
@@ -78,7 +75,7 @@
           <div class="phone-screen">
             <div class="phone-status"><span>9:41</span><span>&#9679; &#9698; &#9646;</span></div>
             <div class="phone-appbar">
-              <div class="mini-brand"><img src="/assets/app-icon.png" alt=""><strong>hi <span>pg</span></strong></div>
+              <div class="mini-brand"><span class="plain-logo" aria-hidden="true"><span>hi</span><strong>pg</strong></span></div>
               <div class="avatar">NS</div>
             </div>
             <p class="phone-kicker">GOOD MORNING</p>
@@ -104,7 +101,7 @@
               <div><span class="quick-icon">&#9638;</span><strong>Bookings</strong><small>Manage stay</small></div>
               <div><span class="quick-icon">&#8377;</span><strong>Payments</strong><small>View history</small></div>
             </div>
-            <div class="phone-nav"><span class="active">&#8962;<small>Home</small></span><span>&#8981;<small>Explore</small></span><span>&#9671;<small>Account</small></span></div>
+            <div class="phone-nav"><span class="active">&#8962;<small>Home</small></span><span>&#8981;<small>Search</small></span><span>&#9638;<small>Bookings</small></span><span>&#9671;<small>Support</small></span><span>&#9679;<small>Profile</small></span></div>
           </div>
         </div>
         <div class="floating-card floating-card-top"><span class="float-icon mint">&#10003;</span><span><strong>Availability</strong><small>Updated and easy to compare</small></span></div>
@@ -236,16 +233,16 @@
           <span class="section-label">Get Hi PG</span>
           <h2 id="download-title">Take Hi PG with you.</h2>
           <p>Download the Android application directly from Hi PG and start exploring the experience.</p>
-          <a class="button button-primary button-large" href="{{APP_DOWNLOAD_URL}}" data-download-link>
+          <a class="button button-primary button-large" href="{{APP_DOWNLOAD_URL}}" data-download-link aria-describedby="download-release-details">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20h14M12 3v12m0 0 5-5m-5 5-5-5"/></svg>
             Download Android APK
           </a>
-          <p class="release-note">Version {{APP_VERSION}} &middot; {{APP_APK_SIZE}} &middot; {{APP_MIN_ANDROID}}</p>
+          <p class="release-note" id="download-release-details">Version {{APP_VERSION}} &middot; {{APP_APK_SIZE}} &middot; {{APP_MIN_ANDROID}}</p>
         </div>
 
         <div class="download-card">
           <div class="app-identity">
-            <img src="/assets/app-icon.png" alt="Hi PG application icon" width="76" height="76">
+            <span class="plain-logo plain-logo-tile" role="img" aria-label="Hi PG"><span>hi</span><strong>pg</strong></span>
             <span><strong>Hi PG</strong><small>Android application</small></span>
             <span class="signed-badge">Android APK</span>
           </div>
@@ -257,6 +254,7 @@
           <div class="checksum">
             <div><span>SHA-256 checksum</span><button type="button" data-copy-checksum aria-label="Copy APK checksum">Copy</button></div>
             <code id="apk-checksum">{{APP_APK_SHA256}}</code>
+            <span class="sr-only" data-copy-status aria-live="polite"></span>
           </div>
         </div>
       </div>
@@ -288,7 +286,7 @@
 
     <section class="closing-cta">
       <div class="section-shell closing-inner reveal">
-        <img src="/assets/app-icon.png" alt="" width="68" height="68">
+        <span class="plain-logo plain-logo-tile" aria-hidden="true"><span>hi</span><strong>pg</strong></span>
         <div><span class="section-label light-label">Ready when you are</span><h2>Find better. Manage smarter. Live easier.</h2></div>
         <a class="button button-white button-large" href="{{APP_DOWNLOAD_URL}}" data-download-link>Get Hi PG for Android <span>&rarr;</span></a>
       </div>
@@ -298,7 +296,7 @@
   <footer class="site-footer landing-footer">
     <div class="footer-main section-shell">
       <div class="footer-brand-block">
-        <a class="brand brand-with-mark" href="/"><img src="/assets/app-icon.png" alt="" width="44" height="44"><span>hi <strong>pg</strong></span></a>
+        <a class="brand plain-logo" href="/" aria-label="Hi PG home"><span>hi</span><strong>pg</strong></a>
         <p>A clearer way to discover, book and manage PG accommodation.</p>
         <a href="mailto:{{LEGAL_SUPPORT_EMAIL}}">{{LEGAL_SUPPORT_EMAIL}}</a>
       </div>
@@ -309,6 +307,6 @@
     <div class="footer-bottom section-shell"><p>&copy; 2026 {{LEGAL_OPERATOR_NAME}}. All rights reserved.</p><p>Designed for PG living in India.</p></div>
   </footer>
 
-  <div class="mobile-download-bar" aria-label="Download Hi PG"><div><img src="/assets/app-icon.png" alt="" width="38" height="38"><span><strong>Hi PG</strong><small>{{APP_APK_SIZE}} APK</small></span></div><a href="{{APP_DOWNLOAD_URL}}" data-download-link>Download</a></div>
+  <div class="mobile-download-bar" aria-label="Download Hi PG"><div><span class="plain-logo" aria-hidden="true"><span>hi</span><strong>pg</strong></span><span><strong>Hi PG for Android</strong><small>{{APP_VERSION}} &middot; {{APP_APK_SIZE}}</small></span></div><a href="{{APP_DOWNLOAD_URL}}" data-download-link>Download</a></div>
 </body>
 </html>

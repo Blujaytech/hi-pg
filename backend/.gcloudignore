@@ -1,0 +1,7 @@
+.gcloudignore
+.git/
+.idea/
+bin/
+target/
+*.iml
+*.log

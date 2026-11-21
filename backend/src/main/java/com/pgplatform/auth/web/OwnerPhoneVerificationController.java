@@ -4,6 +4,7 @@ import com.pgplatform.auth.OwnerPhoneVerificationService;
 import com.pgplatform.auth.UserPrincipal;
 import com.pgplatform.auth.dto.OwnerPhoneOtpRequest;
 import com.pgplatform.auth.dto.OwnerPhoneOtpVerifyRequest;
+import com.pgplatform.auth.dto.FirebasePhoneVerificationRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -34,6 +35,13 @@ public class OwnerPhoneVerificationController {
     public ResponseEntity<Void> verify(@AuthenticationPrincipal UserPrincipal principal,
                                        @Valid @RequestBody OwnerPhoneOtpVerifyRequest request) {
         service.verify(principal.getId(), request);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/firebase")
+    public ResponseEntity<Void> verifyFirebase(@AuthenticationPrincipal UserPrincipal principal,
+                                               @Valid @RequestBody FirebasePhoneVerificationRequest request) {
+        service.verifyFirebase(principal.getId(), request);
         return ResponseEntity.noContent().build();
     }
 }

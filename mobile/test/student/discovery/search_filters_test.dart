@@ -114,7 +114,8 @@ void main() {
 
   test('stay type keeps PGs that offer it, and unknowns from older servers',
       () {
-    PgSearchResult pg(String name, {bool? monthly, bool? dayWise}) =>
+    PgSearchResult pg(String name,
+            {bool? monthly, bool? dayWise, bool configured = true}) =>
         PgSearchResult(
           id: name,
           name: name,
@@ -129,19 +130,27 @@ void main() {
           maxRentPerBed: 6000,
           offersMonthly: monthly,
           offersDayWise: dayWise,
+          stayTypeConfigured: configured,
         );
     final pgs = [
       pg('monthly only', monthly: true, dayWise: false),
       pg('day-wise only', monthly: false, dayWise: true),
       pg('both', monthly: true, dayWise: true),
-      pg('unknown'),
+      pg('imported, not configured',
+          monthly: false, dayWise: false, configured: false),
+      pg('unknown older server', configured: false),
     ];
     List<String> names(StayType type) =>
         SearchFilters(stayType: type).apply(pgs).map((p) => p.name).toList();
 
-    expect(names(StayType.any), hasLength(4));
-    expect(names(StayType.monthly), ['monthly only', 'both', 'unknown']);
-    expect(names(StayType.dayWise), ['day-wise only', 'both', 'unknown']);
+    expect(names(StayType.any), hasLength(5));
+    expect(names(StayType.monthly), [
+      'monthly only',
+      'both',
+      'imported, not configured',
+      'unknown older server',
+    ]);
+    expect(names(StayType.dayWise), ['day-wise only', 'both']);
     expect(const SearchFilters(stayType: StayType.dayWise).activeCount, 1);
   });
 }

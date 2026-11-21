@@ -1,16 +1,18 @@
-enum GenderPreference { male, female, coEd }
+enum GenderPreference { male, female, coEd, unspecified }
 
 extension GenderPreferenceX on GenderPreference {
   String get apiValue => switch (this) {
         GenderPreference.male => 'MALE',
         GenderPreference.female => 'FEMALE',
         GenderPreference.coEd => 'CO_ED',
+        GenderPreference.unspecified => 'UNSPECIFIED',
       };
 
   String get label => switch (this) {
         GenderPreference.male => 'Male',
         GenderPreference.female => 'Female',
         GenderPreference.coEd => 'Co-Living',
+        GenderPreference.unspecified => 'Unspecified',
       };
 
   static GenderPreference fromApi(String value) =>
@@ -30,6 +32,7 @@ class PgSearchResult {
   final GenderPreference genderPreference;
   final double? latitude;
   final double? longitude;
+  final String? locationUrl;
   final int availableBeds;
   final double? minRentPerBed;
   final double? maxRentPerBed;
@@ -38,6 +41,7 @@ class PgSearchResult {
   /// fields -- treat as unknown, not as "no".
   final bool? offersMonthly;
   final bool? offersDayWise;
+  final bool stayTypeConfigured;
   final double? minDayWiseRate;
   final bool verified;
   final String verificationStatus;
@@ -52,11 +56,13 @@ class PgSearchResult {
     required this.genderPreference,
     required this.latitude,
     required this.longitude,
+    this.locationUrl,
     required this.availableBeds,
     required this.minRentPerBed,
     required this.maxRentPerBed,
     this.offersMonthly,
     this.offersDayWise,
+    this.stayTypeConfigured = false,
     this.minDayWiseRate,
     this.verified = false,
     this.verificationStatus = 'UNVERIFIED',
@@ -73,11 +79,13 @@ class PgSearchResult {
             GenderPreferenceX.fromApi(json['genderPreference'] as String),
         latitude: (json['latitude'] as num?)?.toDouble(),
         longitude: (json['longitude'] as num?)?.toDouble(),
+        locationUrl: json['locationUrl'] as String?,
         availableBeds: json['availableBeds'] as int,
         minRentPerBed: (json['minRentPerBed'] as num?)?.toDouble(),
         maxRentPerBed: (json['maxRentPerBed'] as num?)?.toDouble(),
         offersMonthly: json['offersMonthly'] as bool?,
         offersDayWise: json['offersDayWise'] as bool?,
+        stayTypeConfigured: json['stayTypeConfigured'] as bool? ?? false,
         minDayWiseRate: (json['minDayWiseRate'] as num?)?.toDouble(),
         verified: json['verified'] as bool? ?? false,
         verificationStatus:
@@ -240,6 +248,7 @@ class PgDetails {
   final GenderPreference genderPreference;
   final double? latitude;
   final double? longitude;
+  final String? locationUrl;
   final int totalBeds;
   final int availableBeds;
   final bool directPaymentAvailable;
@@ -261,6 +270,7 @@ class PgDetails {
     required this.genderPreference,
     required this.latitude,
     required this.longitude,
+    this.locationUrl,
     required this.totalBeds,
     required this.availableBeds,
     required this.directPaymentAvailable,
@@ -287,6 +297,7 @@ class PgDetails {
             GenderPreferenceX.fromApi(json['genderPreference'] as String),
         latitude: (json['latitude'] as num?)?.toDouble(),
         longitude: (json['longitude'] as num?)?.toDouble(),
+        locationUrl: json['locationUrl'] as String?,
         totalBeds: json['totalBeds'] as int,
         availableBeds: json['availableBeds'] as int,
         directPaymentAvailable:

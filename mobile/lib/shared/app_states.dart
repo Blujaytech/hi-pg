@@ -1,6 +1,72 @@
 import 'package:flutter/material.dart';
 
 import '../core/theme.dart';
+import 'brand/hi_pg_brand.dart';
+
+class PremiumAppBar extends StatelessWidget implements PreferredSizeWidget {
+  final String? title;
+  final String? subtitle;
+  final Widget? titleWidget;
+  final Widget? leading;
+  final List<Widget>? actions;
+  final PreferredSizeWidget? bottom;
+
+  const PremiumAppBar({
+    super.key,
+    this.title,
+    this.subtitle,
+    this.titleWidget,
+    this.leading,
+    this.actions,
+    this.bottom,
+  }) : assert(title != null || titleWidget != null);
+
+  @override
+  Size get preferredSize =>
+      Size.fromHeight(kToolbarHeight + (bottom?.preferredSize.height ?? 0));
+
+  @override
+  Widget build(BuildContext context) {
+    return AppBar(
+      backgroundColor: const Color(0xFFFFFAFB),
+      foregroundColor: AppColors.ink,
+      systemOverlayStyle: AppTheme.lightChrome,
+      leading: leading,
+      actions: actions,
+      bottom: bottom,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(22)),
+      ),
+      title: titleWidget ??
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                title!,
+                style: const TextStyle(
+                  color: AppColors.ink,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -.4,
+                ),
+              ),
+              if (subtitle != null)
+                Text(
+                  subtitle!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.muted,
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+            ],
+          ),
+    );
+  }
+}
 
 class AppLoadingView extends StatelessWidget {
   final String label;
@@ -10,17 +76,47 @@ class AppLoadingView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const SizedBox(
-            width: 26,
-            height: 26,
-            child: CircularProgressIndicator(strokeWidth: 2.4),
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0, end: 1),
+        duration: MediaQuery.disableAnimationsOf(context)
+            ? Duration.zero
+            : const Duration(milliseconds: 650),
+        curve: Curves.easeOutBack,
+        builder: (context, value, _) => Opacity(
+          opacity: value.clamp(0, 1),
+          child: Transform.scale(
+            scale: .84 + (.16 * value),
+            child: Container(
+              margin: const EdgeInsets.all(24),
+              padding: const EdgeInsets.fromLTRB(28, 24, 28, 22),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: AppShadows.card,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const HiPgPlainLogo(fontSize: 30),
+                  const SizedBox(height: 18),
+                  Text(
+                    label,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                  const SizedBox(height: 12),
+                  const SizedBox(
+                    width: 116,
+                    child: LinearProgressIndicator(
+                      minHeight: 4,
+                      borderRadius: BorderRadius.all(Radius.circular(4)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
-          const SizedBox(height: 16),
-          Text(label, style: Theme.of(context).textTheme.bodySmall),
-        ],
+        ),
       ),
     );
   }
@@ -48,26 +144,31 @@ class AppEmptyView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(32),
+        padding: const EdgeInsets.all(AppSpacing.xl),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 84,
-              height: 84,
-              decoration: const BoxDecoration(
-                color: AppColors.brandSoft,
-                shape: BoxShape.circle,
+              width: 96,
+              height: 96,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Colors.white, AppColors.brandSoft],
+                ),
+                borderRadius: BorderRadius.circular(30),
+                boxShadow: AppShadows.card,
               ),
-              child: Icon(icon, color: AppColors.brandText, size: 36),
+              child: Icon(icon, color: AppColors.brand, size: 40),
             ),
-            const SizedBox(height: 22),
+            const SizedBox(height: AppSpacing.lg),
             Text(
               title,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.titleLarge,
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpacing.xs),
             ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 300),
               child: Text(
@@ -80,7 +181,7 @@ class AppEmptyView extends StatelessWidget {
               ),
             ),
             if (actionLabel != null && onAction != null) ...[
-              const SizedBox(height: 24),
+              const SizedBox(height: AppSpacing.lg),
               FilledButton.icon(
                 onPressed: onAction,
                 style: FilledButton.styleFrom(minimumSize: const Size(0, 50)),
@@ -105,27 +206,25 @@ class AppErrorView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(32),
+        padding: const EdgeInsets.all(AppSpacing.xl),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 76,
-              height: 76,
-              decoration: const BoxDecoration(
-                color: AppColors.fill,
-                shape: BoxShape.circle,
+              width: 88,
+              height: 88,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(28),
+                boxShadow: AppShadows.card,
               ),
-              child: const Icon(
-                Icons.cloud_off_rounded,
-                color: AppColors.ink,
-                size: 32,
-              ),
+              child: const Icon(Icons.cloud_off_rounded,
+                  color: AppColors.brand, size: 36),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: AppSpacing.lg),
             Text("Couldn't load this",
                 style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpacing.xs),
             ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 300),
               child: Text(
@@ -137,7 +236,7 @@ class AppErrorView extends StatelessWidget {
                     ?.copyWith(color: AppColors.muted),
               ),
             ),
-            const SizedBox(height: 22),
+            const SizedBox(height: AppSpacing.lg),
             OutlinedButton.icon(
               onPressed: onRetry,
               style: OutlinedButton.styleFrom(minimumSize: const Size(0, 48)),
@@ -168,10 +267,10 @@ class AppMessageBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         color: background,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: AppRadii.medium,
         border: Border.all(color: color.withValues(alpha: 0.10)),
       ),
       child: Row(
@@ -224,7 +323,7 @@ class StatusPill extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: background,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(AppRadii.xs),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -374,13 +473,13 @@ class PickerField extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: AppColors.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-        side: const BorderSide(color: AppColors.border),
+      shape: const RoundedRectangleBorder(
+        borderRadius: AppRadii.medium,
+        side: BorderSide(color: AppColors.border),
       ),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: AppRadii.medium,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(12, 10, 14, 10),
           child: Row(
@@ -467,6 +566,72 @@ class FormSheet extends StatelessWidget {
             const SizedBox(height: 22),
             ...children,
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Keeps page content aligned and readable on phones, tablets, and wide
+/// windows without forcing individual screens to invent their own gutters.
+class AppContentWidth extends StatelessWidget {
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+  final double maxWidth;
+
+  const AppContentWidth({
+    super.key,
+    required this.child,
+    this.padding = const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+    this.maxWidth = AppBreakpoints.maxContentWidth,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: maxWidth),
+        child: Padding(padding: padding, child: child),
+      ),
+    );
+  }
+}
+
+/// Standard white surface for grouped content such as search controls and
+/// property summaries.
+class AppSurface extends StatelessWidget {
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+  final VoidCallback? onTap;
+  final bool elevated;
+
+  const AppSurface({
+    super.key,
+    required this.child,
+    this.padding = const EdgeInsets.all(AppSpacing.md),
+    this.onTap,
+    this.elevated = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const shape = RoundedRectangleBorder(
+      borderRadius: AppRadii.medium,
+      side: BorderSide(color: AppColors.border),
+    );
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: AppRadii.medium,
+        boxShadow: elevated ? AppShadows.card : null,
+      ),
+      child: Material(
+        color: AppColors.surface,
+        shape: shape,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(padding: padding, child: child),
         ),
       ),
     );

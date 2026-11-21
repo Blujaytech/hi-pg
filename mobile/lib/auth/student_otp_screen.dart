@@ -230,68 +230,49 @@ class _StudentOtpScreenState extends State<StudentOtpScreen> {
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop && !_busy) _changePhone();
       },
-      child: Scaffold(
-        backgroundColor: AppColors.surface,
-        appBar: authAppBar(
-          leading: AuthBackButton(onPressed: onCodeStep ? _changePhone : null),
+      child: AuthPageScaffold(
+        compact: true,
+        leading: AuthBackButton(
+          onPressed: onCodeStep ? _changePhone : null,
         ),
-        body: SafeArea(
-          top: false,
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(24, 4, 24, 28),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 240),
-                  layoutBuilder: (current, previous) => Stack(
-                    alignment: Alignment.topLeft,
-                    children: [...previous, if (current != null) current],
-                  ),
-                  child: AuthHeader(
-                    key: ValueKey(_step),
-                    eyebrow: 'Customer',
-                    title:
-                        onCodeStep ? 'Enter your code' : "What's your number?",
-                    subtitle: onCodeStep
-                        ? 'We sent a 6-digit code to ${_phoneController.text.trim()}.'
-                        : widget.returnTo != null
-                            ? "Verify your number to finish booking. We'll text you a 6-digit code."
-                            : "We'll text you a 6-digit code to sign in or create your account.",
-                  ),
-                ),
-                const SizedBox(height: 22),
-                _StepProgress(step: _step),
-                if (_error != null) ...[
-                  const SizedBox(height: 18),
-                  AppMessageBanner(
-                    icon: Icons.error_outline_rounded,
-                    message: _error!,
-                    color: AppColors.danger,
-                    background: AppColors.dangerSoft,
-                  ),
-                ],
-                const SizedBox(height: 24),
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 240),
-                  child: onCodeStep ? _codeStep() : _phoneStep(),
-                ),
-                const SizedBox(height: 28),
-                const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.shield_outlined,
-                        color: AppColors.subtle, size: 15),
-                    SizedBox(width: 6),
-                    Text(
-                      'Your session is securely protected',
-                      style: TextStyle(color: AppColors.subtle, fontSize: 12),
-                    ),
-                  ],
-                ),
-              ],
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 240),
+              layoutBuilder: (current, previous) => Stack(
+                alignment: Alignment.topLeft,
+                children: [...previous, if (current != null) current],
+              ),
+              child: AuthHeader(
+                key: ValueKey(_step),
+                eyebrow: 'Customer',
+                title: onCodeStep ? 'Enter your code' : "What's your number?",
+                subtitle: onCodeStep
+                    ? 'We sent a 6-digit code to ${_phoneController.text.trim()}.'
+                    : widget.returnTo != null
+                        ? "Verify your number to finish booking. We'll text you a 6-digit code."
+                        : "We'll text you a 6-digit code to sign in or create your account.",
+              ),
             ),
-          ),
+            const SizedBox(height: 22),
+            _StepProgress(step: _step),
+            if (_error != null) ...[
+              const SizedBox(height: 18),
+              AppMessageBanner(
+                icon: Icons.error_outline_rounded,
+                message: _error!,
+                color: AppColors.danger,
+                background: AppColors.dangerSoft,
+              ),
+            ],
+            const SizedBox(height: 24),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 240),
+              child: onCodeStep ? _codeStep() : _phoneStep(),
+            ),
+            const SizedBox(height: 4),
+          ],
         ),
       ),
     );

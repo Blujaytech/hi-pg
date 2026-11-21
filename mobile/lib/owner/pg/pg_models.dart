@@ -1,21 +1,24 @@
-enum GenderPreference { male, female, coEd }
+enum GenderPreference { male, female, coEd, unspecified }
 
 extension GenderPreferenceX on GenderPreference {
   String get apiValue => switch (this) {
         GenderPreference.male => 'MALE',
         GenderPreference.female => 'FEMALE',
         GenderPreference.coEd => 'CO_ED',
+        GenderPreference.unspecified => 'UNSPECIFIED',
       };
 
   String get label => switch (this) {
         GenderPreference.male => 'Male',
         GenderPreference.female => 'Female',
         GenderPreference.coEd => 'Co-Living',
+        GenderPreference.unspecified => 'Unspecified',
       };
 
   static GenderPreference fromApi(String value) => switch (value) {
         'MALE' => GenderPreference.male,
         'FEMALE' => GenderPreference.female,
+        'UNSPECIFIED' => GenderPreference.unspecified,
         _ => GenderPreference.coEd,
       };
 }

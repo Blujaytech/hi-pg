@@ -43,7 +43,7 @@ class _OwnerLoginScreenState extends State<OwnerLoginScreen> {
           email: _emailController.text.trim(),
           password: _passwordController.text);
       if (mounted) {
-        context.go(auth.role == UserRole.admin ? '/admin' : '/owner');
+        context.go(auth.role == UserRole.admin ? '/admin' : '/owner/dashboard');
       }
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
@@ -54,105 +54,89 @@ class _OwnerLoginScreenState extends State<OwnerLoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.surface,
-      appBar: authAppBar(leading: const AuthBackButton()),
-      body: SafeArea(
-        top: false,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 4, 24, 28),
-          child: AutofillGroup(
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+    return AuthPageScaffold(
+      leading: const AuthBackButton(),
+      child: AutofillGroup(
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const AuthHeader(
+                eyebrow: 'Owner workspace',
+                title: 'Welcome back',
+                subtitle:
+                    'Manage properties, customers, collections and daily operations from one calm workspace.',
+              ),
+              const SizedBox(height: 28),
+              if (_error != null) ...[
+                AppMessageBanner(
+                  icon: Icons.error_outline_rounded,
+                  message: _error!,
+                  color: AppColors.danger,
+                  background: AppColors.dangerSoft,
+                ),
+                const SizedBox(height: 16),
+              ],
+              TextFormField(
+                controller: _emailController,
+                enabled: !_loading,
+                keyboardType: TextInputType.emailAddress,
+                textInputAction: TextInputAction.next,
+                autofillHints: const [AutofillHints.email],
+                decoration: const InputDecoration(
+                  labelText: 'Email address',
+                  prefixIcon: Icon(Icons.alternate_email_rounded),
+                ),
+                validator: (value) => value == null || !value.contains('@')
+                    ? 'Enter a valid email'
+                    : null,
+              ),
+              const SizedBox(height: 14),
+              PasswordFormField(
+                controller: _passwordController,
+                enabled: !_loading,
+                onSubmitted: _submit,
+                validator: (value) => value == null || value.isEmpty
+                    ? 'Enter your password'
+                    : null,
+              ),
+              const SizedBox(height: 24),
+              FilledButton(
+                onPressed: _submit,
+                child: ProgressLabel(
+                  loading: _loading,
+                  label: 'Open owner dashboard',
+                  loadingLabel: 'Signing you in...',
+                ),
+              ),
+              const SizedBox(height: 14),
+              OutlinedButton.icon(
+                onPressed:
+                    _loading ? null : () => context.push('/owner/phone-login'),
+                icon: const Icon(Icons.phone_iphone_rounded),
+                label: const Text('Claim an invited PG'),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Use the mobile number recorded for your property.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 14),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const AuthHeader(
-                    eyebrow: 'PG owner & administration',
-                    title: 'Welcome back',
-                    subtitle:
-                        'Owners manage their PGs here. Authorised administrators are routed to KYC review.',
-                  ),
-                  const SizedBox(height: 30),
-                  if (_error != null) ...[
-                    AppMessageBanner(
-                      icon: Icons.error_outline_rounded,
-                      message: _error!,
-                      color: AppColors.danger,
-                      background: AppColors.dangerSoft,
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-                  TextFormField(
-                    controller: _emailController,
-                    enabled: !_loading,
-                    keyboardType: TextInputType.emailAddress,
-                    textInputAction: TextInputAction.next,
-                    autofillHints: const [AutofillHints.email],
-                    decoration: const InputDecoration(
-                      labelText: 'Email address',
-                      prefixIcon: Icon(Icons.alternate_email_rounded),
-                    ),
-                    validator: (v) => (v == null || !v.contains('@'))
-                        ? 'Enter a valid email'
-                        : null,
-                  ),
-                  const SizedBox(height: 14),
-                  PasswordFormField(
-                    controller: _passwordController,
-                    enabled: !_loading,
-                    onSubmitted: _submit,
-                    validator: (v) =>
-                        (v == null || v.isEmpty) ? 'Enter your password' : null,
-                  ),
-                  const SizedBox(height: 26),
-                  FilledButton(
-                    onPressed: _submit,
-                    child: ProgressLabel(
-                      loading: _loading,
-                      label: 'Log in',
-                      loadingLabel: 'Logging in...',
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  OutlinedButton.icon(
-                    onPressed: _loading
-                        ? null
-                        : () => context.push('/owner/phone-login'),
-                    icon: const Icon(Icons.phone_iphone_rounded),
-                    label: const Text('Claim an invited PG with mobile OTP'),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Use the same mobile number that hi pg recorded for the property.',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodySmall
-                        ?.copyWith(color: AppColors.muted),
-                  ),
-                  const SizedBox(height: 18),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        'New to hi pg?',
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodyMedium
-                            ?.copyWith(color: AppColors.muted),
-                      ),
-                      TextButton(
-                        onPressed: _loading
-                            ? null
-                            : () => context.push('/owner/signup'),
-                        child: const Text('Create an account'),
-                      ),
-                    ],
+                  Text('New to hi pg?',
+                      style: Theme.of(context).textTheme.bodyMedium),
+                  TextButton(
+                    onPressed:
+                        _loading ? null : () => context.push('/owner/signup'),
+                    child: const Text('Create account'),
                   ),
                 ],
               ),
-            ),
+            ],
           ),
         ),
       ),

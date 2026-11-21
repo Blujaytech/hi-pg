@@ -15,6 +15,7 @@ import '../../auth/google_student_sign_in.dart';
 import '../../core/api_exception.dart';
 import '../../core/theme.dart';
 import '../../shared/api_client.dart';
+import '../../shared/app_states.dart';
 import '../booking/booking_repository.dart';
 import '../booking/booking_models.dart';
 import '../payment/payment_repository.dart';
@@ -24,6 +25,7 @@ import '../payment/razorpay_checkout.dart';
 import '../profile/customer_profile_repository.dart';
 import 'discovery_models.dart';
 import 'discovery_repository.dart';
+import 'property_location.dart';
 
 enum _GuestSignInChoice { google, mobile }
 
@@ -149,7 +151,7 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
       return;
     }
 
-    final here = GoRouterState.of(context).matchedLocation;
+    final here = GoRouterState.of(context).uri.toString();
     context.push(Uri(path: '/student/login', queryParameters: {'from': here})
         .toString());
   }
@@ -206,7 +208,7 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
     }
     if (ownerGmail) await _resolveOwnerGmail(bed);
     if (useMobileFallback && mounted) {
-      final here = GoRouterState.of(context).matchedLocation;
+      final here = GoRouterState.of(context).uri.toString();
       context.push(Uri(path: '/student/login', queryParameters: {'from': here})
           .toString());
     }
@@ -268,7 +270,7 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
       if (mounted) await _signInWithGoogleForBed();
       return;
     }
-    final here = GoRouterState.of(context).matchedLocation;
+    final here = GoRouterState.of(context).uri.toString();
     context.push(Uri(path: '/student/login', queryParameters: {'from': here})
         .toString());
   }
@@ -468,23 +470,14 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
       if (checkOutTime == null || !mounted) return;
     }
 
-    final formattedDate = '${moveInDate.day.toString().padLeft(2, '0')}/'
-        '${moveInDate.month.toString().padLeft(2, '0')}/${moveInDate.year}';
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Book ${bed.label}?'),
-        content: Text('${bookingType.label} booking\nCheck-in: $formattedDate'
-            '${checkOutDate == null ? '' : '\nCheckout: ${DateFormat('d MMM yyyy').format(checkOutDate)} at ${checkOutTime!.format(context)}'}'
-            '\n\nA temporary bed hold will be created. Choose secure online payment or pay the owner directly.'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel')),
-          FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Continue to payment')),
-        ],
+      builder: (dialogContext) => _BookingReviewDialog(
+        bedLabel: bed.label,
+        bookingType: bookingType,
+        checkIn: moveInDate!,
+        checkOut: checkOutDate,
+        checkOutTime: checkOutTime,
       ),
     );
     if (confirmed != true || !mounted) return;
@@ -643,13 +636,8 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
     }
   }
 
-  Future<void> _openRouteInGoogleMaps(double lat, double lng) async {
-    final uri = Uri.https('www.google.com', '/maps/dir/', {
-      'api': '1',
-      'destination': '$lat,$lng',
-      'travelmode': 'driving',
-      'dir_action': 'navigate',
-    });
+  Future<void> _openRouteInGoogleMaps(String destination) async {
+    final uri = propertyDirectionsUri(destination);
     try {
       final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (opened || !mounted) return;
@@ -669,10 +657,28 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
     }
   }
 
+  Future<void> _openGoogleMapsUrl(Uri uri) async {
+    try {
+      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (opened || !mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text(
+                'Install Google Maps or a browser to open this location.')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Google Maps could not be opened on this device.')),
+      );
+    }
+  }
+
   Future<void> _registerInterest(PgDetails pg) async {
     if (_registeringInterest || _interestRegistered) return;
     if (_auth.status != AuthStatus.authenticated) {
-      final here = GoRouterState.of(context).matchedLocation;
+      final here = GoRouterState.of(context).uri.toString();
       context.push(Uri(path: '/student/login', queryParameters: {'from': here})
           .toString());
       return;
@@ -705,8 +711,9 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('PG details'),
+      appBar: PremiumAppBar(
+        title: 'PG details',
+        subtitle: 'Photos, rooms, amenities and location',
         bottom: _booking
             ? const PreferredSize(
                 preferredSize: Size.fromHeight(2),
@@ -729,6 +736,18 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
           }
 
           final pg = snapshot.data!;
+          final address = [pg.address, pg.city, pg.state, pg.pincode]
+              .whereType<String>()
+              .where((value) => value.trim().isNotEmpty)
+              .join(', ');
+          final destination = propertyDestination(
+            locationUrl: pg.locationUrl,
+            name: pg.name,
+            address: pg.address,
+            city: pg.city,
+            state: pg.state,
+            pincode: pg.pincode,
+          );
           final availableBeds = _selectedBookingType == null
               ? (_liveAvailableBeds ?? pg.availableBeds)
               : pg.availableBeds;
@@ -762,16 +781,17 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
                           .bodyMedium
                           ?.copyWith(color: AppColors.muted)),
                 ],
-                if (pg.latitude != null && pg.longitude != null) ...[
-                  const SizedBox(height: 26),
-                  _LocationSection(
-                    latitude: pg.latitude!,
-                    longitude: pg.longitude!,
-                    address: '${pg.address}, ${pg.city}',
-                    onDirections: () =>
-                        _openRouteInGoogleMaps(pg.latitude!, pg.longitude!),
+                const SizedBox(height: 26),
+                _PropertyLocationSection(
+                  latitude: pg.latitude,
+                  longitude: pg.longitude,
+                  address: address,
+                  destination: destination,
+                  onOpenMap: () => _openGoogleMapsUrl(
+                    propertyMapUri(pg.locationUrl, destination),
                   ),
-                ],
+                  onDirections: () => _openRouteInGoogleMaps(destination),
+                ),
                 const SizedBox(height: 22),
                 if (!pg.verified || !pg.bookingEnabled)
                   _UnverifiedListingCard(
@@ -789,20 +809,26 @@ class _PgDetailsScreenState extends State<PgDetailsScreen> {
                   ),
                   const SizedBox(height: 22),
                   Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                          child: Text('Rooms & beds',
-                              style: Theme.of(context).textTheme.titleLarge)),
-                      Text(
-                        '${pg.floors.length} floor/block${pg.floors.length == 1 ? '' : 's'}',
-                        style: Theme.of(context).textTheme.bodySmall,
+                      const Expanded(
+                        child: _BookingStepHeader(
+                          step: 2,
+                          title: 'Select your bed',
+                          subtitle:
+                              'Open a floor or block and choose an available bed.',
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          '${pg.floors.length} floor/block${pg.floors.length == 1 ? '' : 's'}',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 5),
-                  Text('Choose a floor/block, then select an available bed.',
-                      style: Theme.of(context).textTheme.bodySmall),
                   const SizedBox(height: 14),
                   if (pg.floors.isEmpty)
                     const _NoRoomsState()
@@ -924,12 +950,12 @@ class _StayAvailabilityControls extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              'Choose your stay',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleSmall,
+            const _BookingStepHeader(
+              step: 1,
+              title: 'Choose your stay',
+              subtitle: 'Select a booking mode and confirm your dates.',
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 14),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -959,6 +985,170 @@ class _StayAvailabilityControls extends StatelessWidget {
   }
 }
 
+class _BookingStepHeader extends StatelessWidget {
+  final int step;
+  final String title;
+  final String subtitle;
+
+  const _BookingStepHeader({
+    required this.step,
+    required this.title,
+    required this.subtitle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 30,
+          height: 30,
+          alignment: Alignment.center,
+          decoration: const BoxDecoration(
+            color: AppColors.brand,
+            shape: BoxShape.circle,
+          ),
+          child: Text(
+            '$step',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 2),
+              Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _BookingReviewDialog extends StatelessWidget {
+  final String bedLabel;
+  final BookingType bookingType;
+  final DateTime checkIn;
+  final DateTime? checkOut;
+  final TimeOfDay? checkOutTime;
+
+  const _BookingReviewDialog({
+    required this.bedLabel,
+    required this.bookingType,
+    required this.checkIn,
+    required this.checkOut,
+    required this.checkOutTime,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final dateFormat = DateFormat('d MMM yyyy');
+    return AlertDialog(
+      titlePadding: const EdgeInsets.fromLTRB(24, 22, 24, 0),
+      contentPadding: const EdgeInsets.fromLTRB(24, 16, 24, 4),
+      actionsPadding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      title: const _BookingStepHeader(
+        step: 3,
+        title: 'Review your booking',
+        subtitle: 'Confirm these details before choosing payment.',
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _BookingReviewRow(label: 'Bed', value: bedLabel),
+          _BookingReviewRow(label: 'Stay', value: bookingType.label),
+          _BookingReviewRow(
+            label: 'Check-in',
+            value: dateFormat.format(checkIn),
+          ),
+          if (checkOut != null)
+            _BookingReviewRow(
+              label: 'Checkout',
+              value: '${dateFormat.format(checkOut!)}'
+                  '${checkOutTime == null ? '' : ' · ${checkOutTime!.format(context)}'}',
+            ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: const BoxDecoration(
+              color: AppColors.brandSoft,
+              borderRadius: AppRadii.small,
+            ),
+            child: const Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.timer_outlined,
+                    size: 18, color: AppColors.brandText),
+                SizedBox(width: 9),
+                Expanded(
+                  child: Text(
+                    'Continuing creates a temporary bed hold. Confirmation happens only after payment verification.',
+                    style: TextStyle(
+                      color: AppColors.brandText,
+                      fontSize: 12,
+                      height: 1.4,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Go back'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, true),
+          child: const Text('Choose payment'),
+        ),
+      ],
+    );
+  }
+}
+
+class _BookingReviewRow extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _BookingReviewRow({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 7),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 72,
+            child: Text(label, style: Theme.of(context).textTheme.bodySmall),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: Theme.of(context).textTheme.labelLarge,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _PropertyHeader extends StatelessWidget {
   final PgDetails pg;
   final int availableBeds;
@@ -978,32 +1168,87 @@ class _PropertyHeader extends StatelessWidget {
       if (pg.photoUrl != null) pg.photoUrl!,
       ...pg.photos.map((photo) => photo.url),
     }.toList();
+    final monthlyRents = pg.floors
+        .expand((floor) => floor.rooms)
+        .map((room) => room.rentPerBed)
+        .where((rent) => rent > 0)
+        .toList();
+    final minimumMonthlyRent = monthlyRents.isEmpty
+        ? null
+        : monthlyRents
+            .reduce((current, next) => current < next ? current : next);
     return Container(
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: AppColors.ink,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: AppRadii.large,
+        boxShadow: AppShadows.card,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (photoUrls.isNotEmpty)
-            SizedBox(
-              height: 145,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  Image.network(
-                    photoUrls.first,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => const ColoredBox(
-                      color: AppColors.inkSoft,
-                      child: Center(
-                        child: Icon(Icons.apartment_rounded,
-                            color: Colors.white54, size: 40),
-                      ),
+          SizedBox(
+            height: 220,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Hero(
+                  tag: 'pg-image-${pg.id}',
+                  child: photoUrls.isNotEmpty
+                      ? Image.network(
+                          photoUrls.first,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) =>
+                              const _DetailsPlaceholder(),
+                        )
+                      : const _DetailsPlaceholder(),
+                ),
+                const DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Colors.transparent, Color(0x99000000)],
+                      stops: [.52, 1],
                     ),
                   ),
+                ),
+                Positioned(
+                  left: 12,
+                  bottom: 12,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: pg.verified
+                          ? AppColors.success.withValues(alpha: .94)
+                          : AppColors.warning.withValues(alpha: .94),
+                      borderRadius: BorderRadius.circular(AppRadii.pill),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          pg.verified
+                              ? Icons.verified_rounded
+                              : Icons.shield_outlined,
+                          color: Colors.white,
+                          size: 14,
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          pg.verified ? 'Verified property' : 'Unverified',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                if (photoUrls.isNotEmpty)
                   Positioned(
                     right: 10,
                     bottom: 10,
@@ -1044,65 +1289,23 @@ class _PropertyHeader extends StatelessWidget {
                       ),
                     ),
                   ),
-                ],
-              ),
+              ],
             ),
+          ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 13, 14, 14),
+            padding: const EdgeInsets.fromLTRB(16, 15, 16, 16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        pg.name,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          height: 1.2,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -.3,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: pg.verified
-                            ? AppColors.success.withValues(alpha: .2)
-                            : const Color(0xFFF59E0B).withValues(alpha: .2),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: pg.verified
-                              ? AppColors.successBright
-                              : const Color(0xFFFBBF24),
-                        ),
-                      ),
-                      child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        Icon(
-                          pg.verified
-                              ? Icons.verified_rounded
-                              : Icons.shield_outlined,
-                          size: 13,
-                          color: pg.verified
-                              ? AppColors.successBright
-                              : const Color(0xFFFBBF24),
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          pg.verified ? 'Verified' : 'Unverified',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ]),
-                    ),
-                  ],
+                Text(
+                  pg.name,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    height: 1.2,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -.5,
+                  ),
                 ),
                 const SizedBox(height: 6),
                 Row(
@@ -1126,6 +1329,17 @@ class _PropertyHeader extends StatelessWidget {
                     ),
                   ],
                 ),
+                if (minimumMonthlyRent != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    'Rooms from ${_rupees.format(minimumMonthlyRent)}/month',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 11),
                 Row(
                   children: [
@@ -1160,6 +1374,34 @@ class _PropertyHeader extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _DetailsPlaceholder extends StatelessWidget {
+  const _DetailsPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    return const ColoredBox(
+      color: AppColors.inkSoft,
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.apartment_rounded, color: Colors.white70, size: 52),
+            SizedBox(height: 8),
+            Text(
+              'Property photos coming soon',
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1284,16 +1526,124 @@ class _HeaderMetric extends StatelessWidget {
   }
 }
 
+class _PropertyLocationSection extends StatefulWidget {
+  final double? latitude;
+  final double? longitude;
+  final String address;
+  final String destination;
+  final VoidCallback onOpenMap;
+  final VoidCallback onDirections;
+
+  const _PropertyLocationSection({
+    required this.latitude,
+    required this.longitude,
+    required this.address,
+    required this.destination,
+    required this.onOpenMap,
+    required this.onDirections,
+  });
+
+  @override
+  State<_PropertyLocationSection> createState() =>
+      _PropertyLocationSectionState();
+}
+
+class _PropertyLocationSectionState extends State<_PropertyLocationSection> {
+  PropertyCoordinates? _coordinates;
+  bool _resolving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final latitude = widget.latitude;
+    final longitude = widget.longitude;
+    if (latitude != null && longitude != null) {
+      _coordinates = PropertyCoordinates(latitude, longitude);
+    } else {
+      _resolve();
+    }
+  }
+
+  Future<void> _resolve() async {
+    setState(() => _resolving = true);
+    final coordinates = await geocodeProperty(widget.destination);
+    if (!mounted) return;
+    setState(() {
+      _coordinates = coordinates;
+      _resolving = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final coordinates = _coordinates;
+    if (coordinates != null) {
+      return _LocationSection(
+        latitude: coordinates.latitude,
+        longitude: coordinates.longitude,
+        address: widget.address,
+        onOpenMap: widget.onOpenMap,
+        onDirections: widget.onDirections,
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Location', style: Theme.of(context).textTheme.titleLarge),
+        const SizedBox(height: 5),
+        Text(widget.address, style: Theme.of(context).textTheme.bodySmall),
+        const SizedBox(height: 12),
+        Container(
+          height: 190,
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: AppColors.fill,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (_resolving)
+                const CircularProgressIndicator(strokeWidth: 2.5)
+              else
+                const Icon(Icons.map_rounded, size: 44, color: AppColors.brand),
+              const SizedBox(height: 12),
+              Text(
+                _resolving
+                    ? 'Loading the property map...'
+                    : 'Google Maps has the property location',
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+              if (!_resolving) ...[
+                const SizedBox(height: 4),
+                TextButton(onPressed: _resolve, child: const Text('Retry map')),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+        _LocationActions(
+          onOpenMap: widget.onOpenMap,
+          onDirections: widget.onDirections,
+        ),
+      ],
+    );
+  }
+}
+
 class _LocationSection extends StatefulWidget {
   final double latitude;
   final double longitude;
   final String address;
+  final VoidCallback onOpenMap;
   final VoidCallback onDirections;
 
   const _LocationSection({
     required this.latitude,
     required this.longitude,
     required this.address,
+    required this.onOpenMap,
     required this.onDirections,
   });
 
@@ -1429,12 +1779,41 @@ class _LocationSectionState extends State<_LocationSection> {
           ),
         ),
         const SizedBox(height: 10),
-        SizedBox(
-          width: double.infinity,
+        _LocationActions(
+          onOpenMap: widget.onOpenMap,
+          onDirections: widget.onDirections,
+        ),
+      ],
+    );
+  }
+}
+
+class _LocationActions extends StatelessWidget {
+  final VoidCallback onOpenMap;
+  final VoidCallback onDirections;
+
+  const _LocationActions({
+    required this.onOpenMap,
+    required this.onDirections,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
           child: OutlinedButton.icon(
-            onPressed: widget.onDirections,
+            onPressed: onOpenMap,
+            icon: const Icon(Icons.map_outlined),
+            label: const Text('View map'),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: FilledButton.icon(
+            onPressed: onDirections,
             icon: const Icon(Icons.directions_rounded),
-            label: const Text('Start directions in Google Maps'),
+            label: const Text('Enroute'),
           ),
         ),
       ],

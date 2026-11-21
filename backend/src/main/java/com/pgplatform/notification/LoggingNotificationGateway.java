@@ -5,6 +5,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
+import java.util.Map;
+
 /**
  * Dev/placeholder implementation: logs instead of actually sending. Replace
  * with real FCM (push) / SES-Postmark-Resend (email) / SMS provider
@@ -28,7 +30,7 @@ public class LoggingNotificationGateway implements NotificationGateway {
     }
 
     @Override
-    public void sendPush(String deviceToken, String title, String body) {
-        log.info("[PUSH -> {}] title='{}' body='{}'", deviceToken, title, body);
+    public void sendPush(String deviceToken, String title, String body, Map<String, String> data) {
+        log.info("[PUSH -> {}] title='{}' body='{}' data={}", deviceToken, title, body, data);
     }
 }

@@ -110,11 +110,9 @@ class _FeeListScreenState extends State<FeeListScreen> {
         final ready = snapshot.connectionState == ConnectionState.done &&
             !snapshot.hasError;
         return Scaffold(
-          appBar: AppBar(
-            title: AppBarTitle(
-              title: 'Fees',
-              subtitle: widget.studentName,
-            ),
+          appBar: PremiumAppBar(
+            title: 'Fees',
+            subtitle: widget.studentName ?? 'Rent, dues and payment history',
           ),
           floatingActionButton: ready && fees.isNotEmpty
               ? FloatingActionButton.extended(

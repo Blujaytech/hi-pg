@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -20,10 +22,27 @@ void main() {
     await tester.pump();
 
     expect(find.byKey(const Key('launch-animation')), findsOneWidget);
+    expect(find.byKey(const Key('launch-room-background')), findsOneWidget);
+    final launchImage = tester.widget<Image>(
+      find.byKey(const Key('launch-room-background')),
+    );
+    expect(
+      launchImage.image,
+      const AssetImage('assets/branding/hi_pg_splash_room.png'),
+    );
+    expect(launchImage.fit, BoxFit.cover);
+    expect(find.byKey(const Key('launch-logo')), findsOneWidget);
+    expect(find.byKey(const Key('launch-headline')), findsOneWidget);
+    expect(find.byKey(const Key('launch-home-underline')), findsOneWidget);
+    expect(find.byKey(const Key('launch-feature-location')), findsOneWidget);
+    expect(find.byKey(const Key('launch-feature-bed')), findsOneWidget);
+    expect(find.byKey(const Key('launch-feature-shield')), findsOneWidget);
+    expect(find.byKey(const Key('launch-top-wave')), findsOneWidget);
+    expect(find.byKey(const Key('launch-bottom-wave')), findsOneWidget);
     expect(find.byKey(const Key('owner-entry-button')), findsNothing);
 
-    // The animation runs ~2.8s, then hands off once the session is read.
-    await tester.pump(const Duration(milliseconds: 3000));
+    // The animation runs 4s, then hands off once the session is read.
+    await tester.pump(const Duration(milliseconds: 4100));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('launch-animation')), findsNothing);
@@ -37,5 +56,54 @@ void main() {
 
     expect(find.text("What's your number?"), findsOneWidget);
     expect(find.text('Search for a stay'), findsNothing);
+  });
+
+  testWidgets('uses the reduced-motion launch frame before navigation',
+      (WidgetTester tester) async {
+    FlutterSecureStorage.setMockInitialValues({});
+    tester.binding.platformDispatcher.accessibilityFeaturesTestValue =
+        const FakeAccessibilityFeatures(disableAnimations: true);
+    addTearDown(
+      tester.binding.platformDispatcher.clearAccessibilityFeaturesTestValue,
+    );
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      const MethodChannel('hipg/launch'),
+      (_) async => null,
+    );
+
+    await tester.pumpWidget(const PgPlatformApp());
+    await tester.pump();
+
+    expect(find.byKey(const Key('launch-animation')), findsOneWidget);
+    expect(find.byKey(const Key('launch-room-background')), findsOneWidget);
+
+    await tester.pump(const Duration(milliseconds: 1200));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('launch-animation')), findsNothing);
+    expect(find.byKey(const Key('student-entry-button')), findsOneWidget);
+  });
+
+  testWidgets('fits the layered splash on a compact portrait screen',
+      (WidgetTester tester) async {
+    await tester.binding.setSurfaceSize(const Size(360, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    FlutterSecureStorage.setMockInitialValues({});
+    final nativeHandoff = Completer<void>();
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      const MethodChannel('hipg/launch'),
+      (_) => nativeHandoff.future,
+    );
+
+    await tester.pumpWidget(const PgPlatformApp());
+    await tester.pump();
+
+    expect(find.byKey(const Key('launch-animation')), findsOneWidget);
+    expect(find.byKey(const Key('launch-headline')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    nativeHandoff.complete();
+    await tester.pump();
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 }

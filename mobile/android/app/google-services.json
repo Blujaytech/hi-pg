@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "115637607332-bkm3egf6c8ujushcs17t7iqrog1ao0gg.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.hipg.app",
+            "certificate_hash": "8ba8eed84f9f0f273813e961706c20bcbcb0eac7"
+          }
+        },
+        {
           "client_id": "115637607332-c92sus0525qifeiu5qga7ibifng92c3u.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {

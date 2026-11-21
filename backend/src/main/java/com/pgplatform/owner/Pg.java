@@ -41,6 +41,9 @@ public class Pg extends BaseEntity {
 
     private Double longitude;
 
+    @Column(name = "location_url", length = 1000)
+    private String locationUrl;
+
     @Column(columnDefinition = "text")
     private String description;
 

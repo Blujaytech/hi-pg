@@ -98,12 +98,14 @@ class SearchFilters {
     if (!words.every(text.contains)) return false;
     if (gender != null && pg.genderPreference != gender) return false;
     if (availableOnly && pg.availableBeds <= 0) return false;
-    // Unknown (null) stay types come from an older server; keep those PGs
-    // rather than hide everything.
-    if (stayType == StayType.monthly && pg.offersMonthly == false) {
+    // Imported listings do not have rooms yet. Keep those unconfigured PGs
+    // in monthly discovery, while day-wise remains an explicit owner choice.
+    if (stayType == StayType.monthly &&
+        pg.stayTypeConfigured &&
+        pg.offersMonthly != true) {
       return false;
     }
-    if (stayType == StayType.dayWise && pg.offersDayWise == false) {
+    if (stayType == StayType.dayWise && pg.offersDayWise != true) {
       return false;
     }
     if (hasBudget) {

@@ -86,7 +86,7 @@ class _RoleSelectScreenState extends State<RoleSelectScreen>
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: AppTheme.lightChrome,
       child: Scaffold(
-        backgroundColor: AppColors.surface,
+        backgroundColor: const Color(0xFFFFFAFB),
         body: SafeArea(
           child: LayoutBuilder(
             builder: (context, constraints) {
@@ -99,13 +99,6 @@ class _RoleSelectScreenState extends State<RoleSelectScreen>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        _step(
-                          0,
-                          const Align(
-                            alignment: Alignment.centerLeft,
-                            child: HiPgLockup(height: 28),
-                          ),
-                        ),
                         const Spacer(flex: 2),
                         const SizedBox(height: 16),
                         _step(1, const _Hero()),
@@ -171,7 +164,7 @@ class _RoleSelectScreenState extends State<RoleSelectScreen>
                                 key: const Key('student-entry-button'),
                                 onPressed: () => context.push('/student/login'),
                                 style: FilledButton.styleFrom(
-                                    minimumSize: const Size(0, 54)),
+                                    minimumSize: const Size(0, 50)),
                                 icon:
                                     const Icon(Icons.search_rounded, size: 21),
                                 label: const Text('Search for a stay'),
@@ -187,7 +180,7 @@ class _RoleSelectScreenState extends State<RoleSelectScreen>
                                 key: const Key('owner-entry-button'),
                                 onPressed: () => context.push('/owner/login'),
                                 style: OutlinedButton.styleFrom(
-                                    minimumSize: const Size(0, 54)),
+                                    minimumSize: const Size(0, 50)),
                                 icon:
                                     const Icon(Icons.domain_rounded, size: 20),
                                 label: const Text("I'm a PG owner"),
@@ -244,24 +237,13 @@ class _RoleSelectScreenState extends State<RoleSelectScreen>
   }
 }
 
-/// The house mark on a soft rose disc.
+/// The single welcome-page brand treatment.
 class _Hero extends StatelessWidget {
   const _Hero();
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Container(
-        width: 120,
-        height: 120,
-        alignment: Alignment.center,
-        decoration: const BoxDecoration(
-          color: AppColors.brandSoft,
-          shape: BoxShape.circle,
-        ),
-        child: const HiPgMark(size: 64),
-      ),
-    );
+    return const Center(child: HiPgPlainLogo(fontSize: 64));
   }
 }
 
@@ -276,12 +258,11 @@ class _Benefit extends StatelessWidget {
     return Column(
       children: [
         Container(
-          width: 44,
-          height: 44,
+          width: 48,
+          height: 48,
           decoration: BoxDecoration(
-            color: AppColors.surface,
-            shape: BoxShape.circle,
-            border: Border.all(color: AppColors.border),
+            color: AppColors.brandSoft,
+            borderRadius: BorderRadius.circular(16),
           ),
           child: Icon(icon, color: AppColors.brand, size: 21),
         ),

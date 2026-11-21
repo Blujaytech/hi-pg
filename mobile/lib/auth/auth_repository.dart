@@ -1,4 +1,7 @@
+import 'package:dio/dio.dart';
+
 import '../shared/api_client.dart';
+import '../core/api_exception.dart';
 import 'auth_models.dart';
 
 /// Every call the app makes to /api/v1/auth/**. Screens/state should go
@@ -53,9 +56,9 @@ class AuthRepository {
     required String idToken,
     String? fullName,
   }) async {
-    final response = await _client.post<Map<String, dynamic>>(
+    final response = await _postAuthWithNetworkRetry(
       '/auth/student/firebase-phone',
-      data: {
+      {
         'idToken': idToken,
         if (fullName != null && fullName.isNotEmpty) 'fullName': fullName,
       },
@@ -67,9 +70,9 @@ class AuthRepository {
     required String idToken,
     String? fullName,
   }) async {
-    final response = await _client.post<Map<String, dynamic>>(
+    final response = await _postAuthWithNetworkRetry(
       '/auth/owner/firebase-phone',
-      data: {
+      {
         'idToken': idToken,
         if (fullName != null && fullName.isNotEmpty) 'fullName': fullName,
       },
@@ -78,9 +81,9 @@ class AuthRepository {
   }
 
   Future<AuthSession> googleStudentLogin({required String idToken}) async {
-    final response = await _client.post<Map<String, dynamic>>(
+    final response = await _postAuthWithNetworkRetry(
       '/auth/student/google',
-      data: {'idToken': idToken},
+      {'idToken': idToken},
     );
     return AuthSession.fromJson(response.data!);
   }
@@ -101,5 +104,18 @@ class AuthRepository {
       if (currentPassword != null && currentPassword.isNotEmpty)
         'currentPassword': currentPassword,
     });
+  }
+
+  Future<Response<Map<String, dynamic>>> _postAuthWithNetworkRetry(
+    String path,
+    Map<String, dynamic> data,
+  ) async {
+    try {
+      return await _client.post<Map<String, dynamic>>(path, data: data);
+    } on ApiException catch (error) {
+      if (error.statusCode != null) rethrow;
+      await Future<void>.delayed(const Duration(milliseconds: 900));
+      return _client.post<Map<String, dynamic>>(path, data: data);
+    }
   }
 }

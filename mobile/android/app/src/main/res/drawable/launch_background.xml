@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Pre-Android 12 launch window: brand mark centred on rose. Kept identical
+<!-- Pre-Android 12 launch window: plain wordmark centred on white. Kept identical
      to drawable-v21/launch_background.xml. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:drawable="@color/brand_launch" />

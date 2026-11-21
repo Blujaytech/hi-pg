@@ -23,7 +23,7 @@ public class FirebasePhoneIdentityVerifier {
             throw new UnsupportedOperationException("Firebase phone authentication is not configured");
         }
         try {
-            FirebaseToken token = auth.verifyIdToken(idToken, true);
+            FirebaseToken token = auth.verifyIdToken(idToken);
             Object phoneClaim = token.getClaims().get("phone_number");
             String phone = phoneClaim instanceof String ? (String) phoneClaim : null;
             if (!StringUtils.hasText(phone)) {
@@ -31,7 +31,10 @@ public class FirebasePhoneIdentityVerifier {
             }
             return new FirebasePhoneIdentity(token.getUid(), phone);
         } catch (FirebaseAuthException exception) {
-            throw new BadCredentialsException("Invalid Firebase identity token", exception);
+            throw new FirebaseIdentityException(
+                    "Phone verification could not be confirmed. Request a new code and try again.",
+                    exception
+            );
         }
     }
 }

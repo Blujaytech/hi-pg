@@ -35,6 +35,8 @@ class NotificationServiceTest extends AbstractIntegrationTest {
     private UserRepository userRepository;
     @Autowired
     private DeviceTokenService deviceTokenService;
+    @Autowired
+    private UserNotificationRepository userNotificationRepository;
 
     private UUID createUser(String email) {
         User user = new User();
@@ -59,8 +61,18 @@ class NotificationServiceTest extends AbstractIntegrationTest {
 
         ArgumentCaptor<String> tokenCaptor = ArgumentCaptor.forClass(String.class);
         verify(notificationGateway, times(2)).sendPush(tokenCaptor.capture(),
-                org.mockito.ArgumentMatchers.eq("Hello"), org.mockito.ArgumentMatchers.eq("World"));
+                org.mockito.ArgumentMatchers.eq("Hello"), org.mockito.ArgumentMatchers.eq("World"),
+                org.mockito.ArgumentMatchers.anyMap());
         assertThat(tokenCaptor.getAllValues()).containsExactlyInAnyOrder("token-a", "token-b");
+        assertThat(userNotificationRepository
+                .findAllByUserIdAndDeletedAtIsNullOrderByCreatedAtDesc(
+                        userId, org.springframework.data.domain.PageRequest.of(0, 10)))
+                .singleElement()
+                .satisfies(item -> {
+                    assertThat(item.getTitle()).isEqualTo("Hello");
+                    assertThat(item.getMessage()).isEqualTo("World");
+                    assertThat(item.getReadAt()).isNull();
+                });
     }
 
     @Test
@@ -72,7 +84,9 @@ class NotificationServiceTest extends AbstractIntegrationTest {
         verify(notificationGateway, never()).sendEmail(org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
         verify(notificationGateway, never()).sendPush(org.mockito.ArgumentMatchers.anyString(),
-                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyMap());
+        assertThat(notificationService.list(userId, 10).notifications()).hasSize(1);
     }
 
     @Test
@@ -91,6 +105,7 @@ class NotificationServiceTest extends AbstractIntegrationTest {
         notificationService.notifyUser(userId, "Hi", "There");
 
         verify(notificationGateway, times(1)).sendPush(org.mockito.ArgumentMatchers.eq("shared-token"),
-                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyMap());
     }
 }

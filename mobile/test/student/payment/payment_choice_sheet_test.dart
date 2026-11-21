@@ -3,6 +3,22 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:pg_platform_mobile/student/payment/payment_choice_sheet.dart';
 
 void main() {
+  testWidgets('presents online payment as the recommended final step',
+      (tester) async {
+    await tester.pumpWidget(const MaterialApp(home: _PaymentSheetHost(true)));
+
+    await tester.tap(find.text('Open payment choices'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('STEP 3 · PAYMENT'), findsOneWidget);
+    expect(find.text('Recommended'), findsOneWidget);
+
+    await tester.tap(find.text('Pay Online'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Selected: online'), findsOneWidget);
+  });
+
   testWidgets('keeps direct owner payment visible when setup is pending',
       (tester) async {
     await tester.pumpWidget(const MaterialApp(home: _PaymentSheetHost(false)));

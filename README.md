@@ -4,7 +4,7 @@ Hi PG is an Android-first platform for paying-guest accommodation. Customers can
 
 This repository is a deployable monorepo containing a Flutter application, Spring Boot API, PostgreSQL schema and migrations, Next.js web application, and deployment configuration.
 
-> **Current state (October 2026):** the core product flows are implemented through Flyway migration `V28`. The checked-in Render Blueprint is useful for development or a controlled pilot. A public production launch still requires production cloud accounts, paid database backups, approved legal documents, restricted credentials, release signing, live Razorpay/Firebase configuration, monitoring, and store review.
+> **Current state (November 2026):** the core product flows are implemented through Flyway migration `V32`. The checked-in Render Blueprint is useful for development or a controlled pilot. A public production launch still requires production cloud accounts, paid database backups, approved legal documents, restricted credentials, release signing, live payment/SMS configuration, monitoring, and store review.
 
 ## Table of contents
 
@@ -94,7 +94,7 @@ This repository is a deployable monorepo containing a Flutter application, Sprin
 | Payments | Razorpay Checkout, Route, Subscriptions/AutoPay, and direct-owner claims |
 | Maps | Google Maps SDK for Android and device geolocation |
 | Documents | Private S3-compatible storage; Cloudflare R2 is the current deployment choice |
-| Notifications | Firebase/FCM integration plus authenticated SSE; provider configuration is environment-specific |
+| Notifications | Persistent user inbox, Firebase/FCM, authenticated SSE, admin direct messaging, and auditable owner-invitation SMS |
 | Pilot deployment | Render Docker service + PostgreSQL via `render.yaml` |
 | Recommended production | Cloud Run + Cloud SQL + Secret Manager + Artifact Registry, with Vercel for web |
 
@@ -209,6 +209,9 @@ Firebase Android configuration belongs at `mobile/android/app/google-services.js
 | `GOOGLE_OAUTH_CLIENT_ID` | Google login | Web OAuth client ID accepted as the token audience |
 | `FIREBASE_ENABLED` | Firebase auth/push | Enables backend Firebase verification and delivery |
 | `FIREBASE_PROJECT_ID` | When Firebase is enabled | Firebase project used for identities and FCM |
+| `APP_SMS_ENABLED`, `APP_SMS_PROVIDER` | Owner invitations | Enables the separately configured business-SMS channel; currently supports `TWILIO` |
+| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER` | When business SMS is enabled | Private Twilio credentials and sender number |
+| `APP_CLAIM_URL` | Owner invitations | HTTPS download/login page included in invitation messages |
 | `RAZORPAY_KEY_ID` | Online payments | Razorpay public key identifier |
 | `RAZORPAY_KEY_SECRET` | Online payments | Razorpay private API credential |
 | `RAZORPAY_WEBHOOK_SECRET` | Online payments | Verifies `/api/v1/webhooks/razorpay` callbacks |
@@ -530,7 +533,6 @@ The repository is feature-rich but the following must be completed or verified f
 - [ ] AAB is installed through Play Internal Testing and tested on real devices.
 
 ### Deployment
-
 - [ ] All automated tests, lint, analysis, build, and dependency audit checks pass.
 - [ ] Staging smoke test passes.
 - [ ] Production deployment is explicitly approved.
@@ -538,7 +540,6 @@ The repository is feature-rich but the following must be completed or verified f
 - [ ] Monitoring is watched during the release window.
 
 ## Documentation
-
 - [Architecture](docs/architecture.md)
 - [API contract](docs/api.md)
 - [Database model](docs/database.md)

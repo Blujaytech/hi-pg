@@ -44,13 +44,16 @@ export function LiveAvailabilityBadge({
   }, [pgId]);
 
   return (
-    <div>
-      <div className="text-slate-500">
-        Available now {live && <span className="text-green-600">• live</span>}
+    <div className="flex items-end justify-between gap-3">
+      <div>
+        <div className="text-xs font-bold text-slate-500">
+          Available now {live && <span className="text-success">• live</span>}
+        </div>
+        <div className={`mt-1 text-2xl font-extrabold ${available > 0 ? 'text-success' : 'text-slate-400'}`}>
+          {available} <span className="text-sm font-semibold text-slate-500">of {total} beds</span>
+        </div>
       </div>
-      <div className={`text-lg font-semibold ${available > 0 ? 'text-green-700' : 'text-slate-400'}`}>
-        {available} / {total}
-      </div>
+      <span className={`h-3 w-3 rounded-full ${available > 0 ? 'bg-emerald-400' : 'bg-slate-300'}`} aria-hidden="true" />
     </div>
   );
 }

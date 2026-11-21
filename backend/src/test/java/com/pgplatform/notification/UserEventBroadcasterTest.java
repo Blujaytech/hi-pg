@@ -15,11 +15,15 @@ class UserEventBroadcasterTest {
     @Test
     void publishingWithNoSubscribersIsANoOpAndSubscribingThenPublishingNeverThrows() {
         UUID userId = UUID.randomUUID();
+        UserNotification notification = new UserNotification();
+        notification.setId(UUID.randomUUID());
+        notification.setTitle("Title");
+        notification.setMessage("Message");
 
-        assertThatNoException().isThrownBy(() -> broadcaster.publish(userId, "Title", "Message"));
+        assertThatNoException().isThrownBy(() -> broadcaster.publish(userId, notification));
 
         SseEmitter emitter = broadcaster.subscribe(userId);
-        assertThatNoException().isThrownBy(() -> broadcaster.publish(userId, "Title", "Message"));
+        assertThatNoException().isThrownBy(() -> broadcaster.publish(userId, notification));
         emitter.complete();
     }
 }

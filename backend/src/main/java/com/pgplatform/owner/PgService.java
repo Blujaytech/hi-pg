@@ -128,7 +128,9 @@ public class PgService {
                 .orElseThrow(() -> new NotFoundException("PG photo not found"));
         photo.markDeleted();
         pgPhotoRepository.save(photo);
-        storageGateway.delete(photo.getStorageKey());
+        if (!PgPhotoUrls.isDatabaseStorageKey(photo.getStorageKey())) {
+            storageGateway.delete(photo.getStorageKey());
+        }
         if (photo.getStorageKey().equals(pg.getPhotoStorageKey())) {
             PgPhoto replacement = pgPhotoRepository
                     .findAllByPgIdAndDeletedAtIsNullOrderByDisplayOrderAscCreatedAtAsc(pgId)
@@ -200,8 +202,7 @@ public class PgService {
     }
 
     private PgResponse response(Pg pg) {
-        String photoUrl = pg.getPhotoStorageKey() == null ? null
-                : storageGateway.generateSignedUrl(pg.getPhotoStorageKey(), Duration.ofHours(1));
+        String photoUrl = coverPhotoUrl(pg);
         List<PgPhotoResponse> photos = pgPhotoRepository
                 .findAllByPgIdAndDeletedAtIsNullOrderByDisplayOrderAscCreatedAtAsc(pg.getId())
                 .stream().map(this::photoResponse).toList();
@@ -210,8 +211,19 @@ public class PgService {
     }
 
     private PgPhotoResponse photoResponse(PgPhoto photo) {
-        return new PgPhotoResponse(photo.getId(), storageGateway.generateSignedUrl(
-                photo.getStorageKey(), Duration.ofHours(1)), photo.isCover(), photo.getDisplayOrder());
+        String url = PgPhotoUrls.isDatabaseStorageKey(photo.getStorageKey())
+                ? PgPhotoUrls.databaseUrl(photo)
+                : storageGateway.generateSignedUrl(photo.getStorageKey(), Duration.ofHours(1));
+        return new PgPhotoResponse(photo.getId(), url, photo.isCover(), photo.getDisplayOrder());
+    }
+
+    private String coverPhotoUrl(Pg pg) {
+        if (pg.getPhotoStorageKey() == null) return null;
+        if (PgPhotoUrls.isDatabaseStorageKey(pg.getPhotoStorageKey())) {
+            return pgPhotoRepository.findByStorageKeyAndDeletedAtIsNull(pg.getPhotoStorageKey())
+                    .map(PgPhotoUrls::databaseUrl).orElse(null);
+        }
+        return storageGateway.generateSignedUrl(pg.getPhotoStorageKey(), Duration.ofHours(1));
     }
 
     private void validatePhoto(byte[] content, String fileName, String contentType) {

@@ -10,6 +10,7 @@ import 'auth/owner_signup_screen.dart';
 import 'auth/role_select_screen.dart';
 import 'auth/splash_screen.dart';
 import 'auth/student_otp_screen.dart';
+import 'notification/notification_inbox_screen.dart';
 import 'owner/complaint/complaint_list_screen.dart';
 import 'owner/dashboard/dashboard_screen.dart';
 import 'owner/direct_payment/direct_payment_requests_screen.dart';
@@ -27,6 +28,7 @@ import 'owner/room/room_list_screen.dart';
 import 'owner/calendar/booking_calendar_screen.dart';
 import 'owner/room/room_models.dart';
 import 'owner/student/student_list_screen.dart';
+import 'owner/student/owner_customers_screen.dart';
 import 'shared/account/account_screen.dart';
 import 'shared/app_shell.dart';
 import 'shared/support/support_screen.dart';
@@ -35,6 +37,8 @@ import 'student/booking/booking_models.dart';
 import 'student/complaint/my_complaints_screen.dart';
 import 'student/discovery/pg_details_screen.dart';
 import 'student/discovery/pg_search_screen.dart';
+import 'student/discovery/discovery_models.dart' as discovery;
+import 'student/discovery/search_filters.dart';
 import 'student/fee/my_fees_screen.dart';
 import 'student/payment/direct_owner_payment_screen.dart';
 import 'student/profile/customer_profile_screen.dart';
@@ -42,17 +46,21 @@ import 'student/student_home_screen.dart';
 
 const _ownerTabs = [
   AppTab(
-      icon: Icons.home_outlined,
-      selectedIcon: Icons.home_rounded,
-      label: 'Home'),
-  AppTab(
       icon: Icons.insights_outlined,
       selectedIcon: Icons.insights_rounded,
-      label: 'Insights'),
+      label: 'Dashboard'),
+  AppTab(
+      icon: Icons.apartment_outlined,
+      selectedIcon: Icons.apartment_rounded,
+      label: 'Properties'),
+  AppTab(
+      icon: Icons.people_outline_rounded,
+      selectedIcon: Icons.people_rounded,
+      label: 'Customers'),
   AppTab(
       icon: Icons.bar_chart_outlined,
       selectedIcon: Icons.bar_chart_rounded,
-      label: 'Reports'),
+      label: 'Finance'),
   AppTab(
       icon: Icons.person_outline_rounded,
       selectedIcon: Icons.person_rounded,
@@ -94,8 +102,11 @@ CustomTransitionPage<void> _fadePage(GoRouterState state, Widget child) {
   );
 }
 
-bool _isExplore(String location) =>
-    location == '/explore' || location.startsWith('/explore/');
+bool _isExplore(String location) {
+  final uri = Uri.tryParse(location);
+  if (uri == null || uri.hasScheme || uri.hasAuthority) return false;
+  return uri.path == '/explore' || uri.path.startsWith('/explore/');
+}
 
 /// Route gating, as a pure function so it can be unit tested.
 ///
@@ -131,7 +142,7 @@ String? routeRedirect({
     if (from != null && _isExplore(from)) return from;
     return switch (role) {
       UserRole.admin => '/admin',
-      UserRole.owner => '/owner',
+      UserRole.owner => '/owner/dashboard',
       _ => '/student',
     };
   }
@@ -139,8 +150,8 @@ String? routeRedirect({
   final isOwnerRoute = location.startsWith('/owner');
   final isStudentRoute = location.startsWith('/student');
   final isAdminRoute = location.startsWith('/admin');
-  if (role == UserRole.owner && isStudentRoute) return '/owner';
-  if (role == UserRole.owner && isAdminRoute) return '/owner';
+  if (role == UserRole.owner && isStudentRoute) return '/owner/dashboard';
+  if (role == UserRole.owner && isAdminRoute) return '/owner/dashboard';
   if (role == UserRole.student && (isOwnerRoute || isAdminRoute)) {
     return '/student';
   }
@@ -195,11 +206,17 @@ GoRouter buildRouter(AuthState authState) {
         path: '/support',
         builder: (context, state) => const SupportScreen(),
       ),
+      GoRoute(
+        path: '/notifications',
+        builder: (context, state) => const NotificationInboxScreen(),
+      ),
 
       // Public PG browsing: no account needed until a bed is booked.
       GoRoute(
         path: '/explore',
-        builder: (context, state) => const PgSearchScreen(),
+        builder: (context, state) => PgSearchScreen(
+          browseAll: state.uri.queryParameters['browse'] == 'all',
+        ),
         routes: [
           GoRoute(
             path: 'pgs/:pgId',
@@ -221,13 +238,18 @@ GoRouter buildRouter(AuthState authState) {
         branches: [
           StatefulShellBranch(routes: [
             GoRoute(
+                path: '/owner/dashboard',
+                builder: (context, state) => const DashboardScreen()),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(
                 path: '/owner',
                 builder: (context, state) => const PgListScreen()),
           ]),
           StatefulShellBranch(routes: [
             GoRoute(
-                path: '/owner/dashboard',
-                builder: (context, state) => const DashboardScreen()),
+                path: '/owner/customers',
+                builder: (context, state) => const OwnerCustomersScreen()),
           ]),
           StatefulShellBranch(routes: [
             GoRoute(
@@ -349,7 +371,25 @@ GoRouter buildRouter(AuthState authState) {
           StatefulShellBranch(routes: [
             GoRoute(
                 path: '/student/search',
-                builder: (context, state) => const PgSearchScreen()),
+                builder: (context, state) {
+                  final category = state.uri.queryParameters['category'];
+                  final gender = switch (category) {
+                    'men' => discovery.GenderPreference.male,
+                    'women' => discovery.GenderPreference.female,
+                    'coliving' => discovery.GenderPreference.coEd,
+                    _ => null,
+                  };
+                  final stayType = switch (category) {
+                    'monthly' => StayType.monthly,
+                    'day-wise' => StayType.dayWise,
+                    _ => StayType.any,
+                  };
+                  return PgSearchScreen(
+                    browseAll: state.uri.queryParameters['browse'] == 'all',
+                    initialGender: gender,
+                    initialStayType: stayType,
+                  );
+                }),
           ]),
           StatefulShellBranch(routes: [
             GoRoute(

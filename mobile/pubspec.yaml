@@ -1,7 +1,7 @@
 name: pg_platform_mobile
 description: PG Management & Discovery Platform - Owner + Student app (Flutter, single codebase, two role-gated flows).
 publish_to: 'none'
-version: 0.1.1+2
+version: 0.2.19+32
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
@@ -60,6 +60,11 @@ flutter:
 
   assets:
     - assets/fonts/OFL.txt
+    - assets/branding/hi_pg_launcher_icon.png
+    - assets/branding/hi_pg_splash_room.png
+    - assets/home/mens_pg.jpg
+    - assets/home/womens_pg.jpg
+    - assets/home/coliving.jpg
 
   # Brand typeface (SIL Open Font License, registered with LicenseRegistry in
   # main.dart). Bundled rather than fetched at runtime so first launch and

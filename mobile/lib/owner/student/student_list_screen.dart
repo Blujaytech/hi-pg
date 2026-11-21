@@ -267,9 +267,9 @@ class _StudentListScreenState extends State<StudentListScreen> {
       builder: (context, snapshot) {
         final students = snapshot.data ?? const <Student>[];
         return Scaffold(
-          appBar: AppBar(
-            title: _TitleWithSubtitle(
-                title: 'Customers', subtitle: widget.pg?.name),
+          appBar: PremiumAppBar(
+            title: 'Customers',
+            subtitle: widget.pg?.name ?? 'Residents and current stays',
           ),
           body: _buildBody(snapshot, students),
         );
@@ -364,31 +364,6 @@ class _StudentListScreenState extends State<StudentListScreen> {
           );
         },
       ),
-    );
-  }
-}
-
-class _TitleWithSubtitle extends StatelessWidget {
-  final String title;
-  final String? subtitle;
-
-  const _TitleWithSubtitle({required this.title, this.subtitle});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title),
-        if (subtitle != null)
-          Text(subtitle!,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                  color: Colors.white.withValues(alpha: .72),
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w500)),
-      ],
     );
   }
 }

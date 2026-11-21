@@ -1,5 +1,6 @@
 package com.pgplatform.common;
 
+import com.pgplatform.auth.FirebaseIdentityException;
 import com.pgplatform.document.DocumentStorageException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
@@ -12,6 +13,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.util.List;
 
@@ -42,6 +44,22 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiError> handleBadCredentials(BadCredentialsException ex, HttpServletRequest req) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(ApiError.of(401, "UNAUTHORIZED", "Invalid credentials", req.getRequestURI()));
+    }
+
+    @ExceptionHandler(FirebaseIdentityException.class)
+    public ResponseEntity<ApiError> handleFirebaseIdentity(FirebaseIdentityException ex, HttpServletRequest req) {
+        log.warn("Firebase identity verification failed on {} {}", req.getMethod(), req.getRequestURI(), ex);
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(ApiError.of(401, "FIREBASE_IDENTITY_REJECTED", ex.getMessage(), req.getRequestURI()));
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiError> handleUploadTooLarge(MaxUploadSizeExceededException ex,
+                                                         HttpServletRequest req) {
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+                .body(ApiError.of(413, "UPLOAD_TOO_LARGE",
+                        "The Excel file is too large. Upload a file smaller than 20 MB.",
+                        req.getRequestURI()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

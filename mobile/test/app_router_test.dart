@@ -36,20 +36,27 @@ void main() {
       () {
     expect(customer('/student/login', from: '/explore/pgs/pg-1'),
         '/explore/pgs/pg-1');
+    expect(
+      customer('/student/login', from: '/explore/pgs/pg-1?stayType=DAY_WISE'),
+      '/explore/pgs/pg-1?stayType=DAY_WISE',
+    );
     expect(customer('/student/login'), '/student');
   });
 
   test('only explore pages are accepted as a return target', () {
     expect(customer('/student/login', from: '/owner'), '/student');
     expect(customer('/student/login', from: 'https://example.com'), '/student');
+    expect(
+        customer('/student/login', from: '//example.com/explore'), '/student');
     expect(customer('/student/login', from: '/explorer'), '/student');
   });
 
   test('each role stays in its own area', () {
-    expect(owner('/student/bookings'), '/owner');
+    expect(owner('/owner/login'), '/owner/dashboard');
+    expect(owner('/student/bookings'), '/owner/dashboard');
     expect(customer('/owner'), '/student');
     expect(customer('/explore/pgs/pg-1'), isNull);
-    expect(owner('/admin'), '/owner');
+    expect(owner('/admin'), '/owner/dashboard');
     expect(admin('/student'), '/admin');
     expect(admin('/admin'), isNull);
     expect(admin('/owner'), isNull);

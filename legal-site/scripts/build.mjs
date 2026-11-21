@@ -72,7 +72,11 @@ const values = {
 };
 
 const versionedAssets = new Map();
-for (const assetPath of ['/assets/styles.css', '/assets/site.js']) {
+for (const assetPath of [
+  '/assets/styles.css',
+  '/assets/site.js',
+  '/assets/app-icon.png',
+]) {
   const sourcePath = join(source, assetPath.replace(/^\//, ''));
   const digest = createHash('sha256')
     .update(await readFile(sourcePath))

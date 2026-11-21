@@ -32,11 +32,12 @@ class _ReportScreenState extends State<ReportScreen> {
     return DefaultTabController(
       length: 3,
       child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Reports'),
-          bottom: const TabBar(
-            labelColor: Colors.white,
-            unselectedLabelColor: Color(0xB8FFFFFF),
+        appBar: const PremiumAppBar(
+          title: 'Finance',
+          subtitle: 'Revenue, occupancy and outstanding dues',
+          bottom: TabBar(
+            labelColor: AppColors.brand,
+            unselectedLabelColor: AppColors.muted,
             indicatorColor: AppColors.brand,
             dividerColor: Colors.transparent,
             tabs: [

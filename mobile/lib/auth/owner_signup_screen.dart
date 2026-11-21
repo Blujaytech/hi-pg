@@ -49,7 +49,7 @@ class _OwnerSignupScreenState extends State<OwnerSignupScreen> {
                 ? null
                 : _phoneController.text.trim(),
           );
-      if (mounted) context.go('/owner');
+      if (mounted) context.go('/owner/dashboard');
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
     } finally {
@@ -59,121 +59,113 @@ class _OwnerSignupScreenState extends State<OwnerSignupScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.surface,
-      appBar: authAppBar(
-          leading: const AuthBackButton(fallback: '/owner/login')),
-      body: SafeArea(
-        top: false,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 4, 24, 28),
-          child: AutofillGroup(
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+    return AuthPageScaffold(
+      compact: true,
+      leading: const AuthBackButton(fallback: '/owner/login'),
+      child: AutofillGroup(
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const AuthHeader(
+                eyebrow: 'Owner onboarding',
+                title: 'Build your workspace',
+                subtitle:
+                    'Create your secure owner account. You can add or claim properties immediately after sign-up.',
+              ),
+              const SizedBox(height: 30),
+              if (_error != null) ...[
+                AppMessageBanner(
+                  icon: Icons.error_outline_rounded,
+                  message: _error!,
+                  color: AppColors.danger,
+                  background: AppColors.dangerSoft,
+                ),
+                const SizedBox(height: 16),
+              ],
+              TextFormField(
+                controller: _nameController,
+                enabled: !_loading,
+                textCapitalization: TextCapitalization.words,
+                textInputAction: TextInputAction.next,
+                autofillHints: const [AutofillHints.name],
+                decoration: const InputDecoration(
+                  labelText: 'Full name',
+                  prefixIcon: Icon(Icons.person_outline_rounded),
+                ),
+                validator: (v) =>
+                    (v == null || v.trim().isEmpty) ? 'Enter your name' : null,
+              ),
+              const SizedBox(height: 14),
+              TextFormField(
+                controller: _emailController,
+                enabled: !_loading,
+                keyboardType: TextInputType.emailAddress,
+                textInputAction: TextInputAction.next,
+                autofillHints: const [AutofillHints.email],
+                decoration: const InputDecoration(
+                  labelText: 'Email address',
+                  prefixIcon: Icon(Icons.alternate_email_rounded),
+                ),
+                validator: (v) => (v == null || !v.contains('@'))
+                    ? 'Enter a valid email'
+                    : null,
+              ),
+              const SizedBox(height: 14),
+              TextFormField(
+                controller: _phoneController,
+                enabled: !_loading,
+                keyboardType: TextInputType.phone,
+                textInputAction: TextInputAction.next,
+                autofillHints: const [AutofillHints.telephoneNumber],
+                decoration: const InputDecoration(
+                  labelText: 'Phone (optional)',
+                  prefixIcon: Icon(Icons.phone_outlined),
+                ),
+              ),
+              const SizedBox(height: 14),
+              PasswordFormField(
+                controller: _passwordController,
+                enabled: !_loading,
+                helperText: 'At least 8 characters',
+                autofillHints: const [AutofillHints.newPassword],
+                onSubmitted: _submit,
+                validator: (v) => (v == null || v.length < 8)
+                    ? 'At least 8 characters'
+                    : null,
+              ),
+              const SizedBox(height: 26),
+              FilledButton(
+                onPressed: _submit,
+                child: ProgressLabel(
+                  loading: _loading,
+                  label: 'Create owner workspace',
+                  loadingLabel: 'Preparing workspace...',
+                ),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const AuthHeader(
-                    eyebrow: 'PG owner',
-                    title: 'Create your account',
-                    subtitle:
-                        'Set up your property on hi pg in under a minute.',
+                  Text(
+                    'Already have an account?',
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodyMedium
+                        ?.copyWith(color: AppColors.muted),
                   ),
-                  const SizedBox(height: 30),
-                  if (_error != null) ...[
-                    AppMessageBanner(
-                      icon: Icons.error_outline_rounded,
-                      message: _error!,
-                      color: AppColors.danger,
-                      background: AppColors.dangerSoft,
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-                  TextFormField(
-                    controller: _nameController,
-                    enabled: !_loading,
-                    textCapitalization: TextCapitalization.words,
-                    textInputAction: TextInputAction.next,
-                    autofillHints: const [AutofillHints.name],
-                    decoration: const InputDecoration(
-                      labelText: 'Full name',
-                      prefixIcon: Icon(Icons.person_outline_rounded),
-                    ),
-                    validator: (v) => (v == null || v.trim().isEmpty)
-                        ? 'Enter your name'
-                        : null,
-                  ),
-                  const SizedBox(height: 14),
-                  TextFormField(
-                    controller: _emailController,
-                    enabled: !_loading,
-                    keyboardType: TextInputType.emailAddress,
-                    textInputAction: TextInputAction.next,
-                    autofillHints: const [AutofillHints.email],
-                    decoration: const InputDecoration(
-                      labelText: 'Email address',
-                      prefixIcon: Icon(Icons.alternate_email_rounded),
-                    ),
-                    validator: (v) => (v == null || !v.contains('@'))
-                        ? 'Enter a valid email'
-                        : null,
-                  ),
-                  const SizedBox(height: 14),
-                  TextFormField(
-                    controller: _phoneController,
-                    enabled: !_loading,
-                    keyboardType: TextInputType.phone,
-                    textInputAction: TextInputAction.next,
-                    autofillHints: const [AutofillHints.telephoneNumber],
-                    decoration: const InputDecoration(
-                      labelText: 'Phone (optional)',
-                      prefixIcon: Icon(Icons.phone_outlined),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  PasswordFormField(
-                    controller: _passwordController,
-                    enabled: !_loading,
-                    helperText: 'At least 8 characters',
-                    autofillHints: const [AutofillHints.newPassword],
-                    onSubmitted: _submit,
-                    validator: (v) => (v == null || v.length < 8)
-                        ? 'At least 8 characters'
-                        : null,
-                  ),
-                  const SizedBox(height: 26),
-                  FilledButton(
-                    onPressed: _submit,
-                    child: ProgressLabel(
-                      loading: _loading,
-                      label: 'Create account',
-                      loadingLabel: 'Creating account...',
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        'Already have an account?',
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodyMedium
-                            ?.copyWith(color: AppColors.muted),
-                      ),
-                      TextButton(
-                        onPressed: _loading
-                            ? null
-                            : () => context.canPop()
-                                ? context.pop()
-                                : context.go('/owner/login'),
-                        child: const Text('Log in'),
-                      ),
-                    ],
+                  TextButton(
+                    onPressed: _loading
+                        ? null
+                        : () => context.canPop()
+                            ? context.pop()
+                            : context.go('/owner/login'),
+                    child: const Text('Log in'),
                   ),
                 ],
               ),
-            ),
+            ],
           ),
         ),
       ),

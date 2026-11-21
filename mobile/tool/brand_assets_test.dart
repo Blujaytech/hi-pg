@@ -1,9 +1,9 @@
-// Regenerates every Android launcher-icon and native-splash bitmap from the
-// same HiPgMarkPainter the app draws at runtime, so the brand never drifts
-// between the home screen, the splash and the in-app logo.
+// Generates Android launcher icons and the matching native launch mark from
+// the Hi PG palette and typeface. The cinematic Flutter splash remains an
+// independent in-app asset.
 //
-// Run from mobile/ after changing the mark:
-//   flutter test tool/brand_assets_test.dart
+// Run from mobile/ after changing the launcher source:
+//   powershell -ExecutionPolicy Bypass -File tool/generate_brand_assets.ps1
 //
 // Lives under tool/ (not test/) so a normal `flutter test` never rewrites
 // resources as a side effect.
@@ -11,11 +11,15 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:pg_platform_mobile/core/theme.dart';
-import 'package:pg_platform_mobile/shared/brand/hi_pg_brand.dart';
 
-const _res = 'android/app/src/main/res';
+const _outputRoot = 'build/generated_launcher_assets';
+const _res = '$_outputRoot/android/app/src/main/res';
+const _iconFont = 'assets/fonts/Inter-ExtraBold.ttf';
+const _iconFontFamily = 'HiPgIconInter';
+const _plainLogoAsset = 'assets/branding/hi_pg_logo_plain.png';
+late ui.Image _plainLogo;
 const _densities = {
   'mdpi': 1.0,
   'hdpi': 1.5,
@@ -30,64 +34,138 @@ Future<void> _render(
   draw(Canvas(recorder), pixels.toDouble());
   final image = await recorder.endRecording().toImage(pixels, pixels);
   final png = await image.toByteData(format: ui.ImageByteFormat.png);
-  File(path)
-    ..createSync(recursive: true)
-    ..writeAsBytesSync(png!.buffer.asUint8List());
+  await File(path)
+      .create(recursive: true)
+      .then((file) => file.writeAsBytes(png!.buffer.asUint8List()));
 }
 
-void _mark(Canvas canvas, Offset center, double size, {Color? face}) {
-  canvas.save();
-  canvas.translate(center.dx - size / 2, center.dy - size / 2);
-  HiPgMarkPainter(color: AppColors.surface, faceColor: face)
-      .paint(canvas, Size.square(size));
-  canvas.restore();
+Future<void> _loadIconFont() async {
+  final bytes = await File(_iconFont).readAsBytes();
+  await (FontLoader(_iconFontFamily)
+        ..addFont(Future.value(ByteData.sublistView(bytes))))
+      .load();
 }
 
-/// Transparent canvas, white mark with a cut-out face, sized to Android's
-/// adaptive-icon safe zone. Doubles as the themed (monochrome) icon layer
-/// and the Android 12+ splash icon.
-void _foreground(Canvas canvas, double size) => _mark(
-      canvas,
-      Offset(size / 2, size / 2),
-      size * HiPgMarkPainter.adaptiveMarkFraction,
-    );
+Future<void> _loadPlainLogo() async {
+  final bytes = await File(_plainLogoAsset).readAsBytes();
+  final codec = await ui.instantiateImageCodec(bytes);
+  final frame = await codec.getNextFrame();
+  _plainLogo = frame.image;
+  codec.dispose();
+}
 
-/// Pre-Android 8 launchers: a full rose tile (square or round) with the mark.
-void _legacy(Canvas canvas, double size, {required bool round}) {
-  final inset = size * 2 / 48;
-  final tile = Rect.fromLTRB(inset, inset, size - inset, size - inset);
-  final paint = Paint()..color = AppColors.brand;
-  if (round) {
-    canvas.drawOval(tile, paint);
-  } else {
-    canvas.drawRRect(
-        RRect.fromRectAndRadius(tile, Radius.circular(size * .22)), paint);
-  }
-  _mark(canvas, tile.center, size * (round ? .54 : .6), face: AppColors.brand);
+void _background(Canvas canvas, double size) {
+  canvas.drawRect(
+    Rect.fromLTWH(0, 0, size, size),
+    Paint()..color = const Color(0xFFFFFAFB),
+  );
+}
+
+void _wordmark(Canvas canvas, double size, {required bool adaptive}) {
+  final fontSize = size * (adaptive ? 0.235 : 0.285);
+  final painter = TextPainter(
+    text: TextSpan(
+      style: TextStyle(
+        fontFamily: _iconFontFamily,
+        fontSize: fontSize,
+        fontWeight: FontWeight.w800,
+        height: 1,
+        letterSpacing: -fontSize * 0.065,
+      ),
+      children: const [
+        TextSpan(text: 'hi', style: TextStyle(color: Color(0xFF77797F))),
+        TextSpan(text: 'pg', style: TextStyle(color: Color(0xFFF84464))),
+      ],
+    ),
+    textDirection: TextDirection.ltr,
+    textScaler: TextScaler.noScaling,
+  )..layout();
+  painter.paint(
+    canvas,
+    Offset(
+      (size - painter.width) / 2,
+      (size - painter.height) / 2 - size * 0.012,
+    ),
+  );
+  painter.dispose();
+}
+
+void _launcher(Canvas canvas, double size) {
+  _background(canvas, size);
+  _wordmark(canvas, size, adaptive: false);
+}
+
+void _adaptiveForeground(Canvas canvas, double size) {
+  _wordmark(canvas, size, adaptive: true);
+}
+
+void _nativeSplashMark(Canvas canvas, double size) {
+  canvas.drawColor(Colors.white, BlendMode.src);
+  const source = Rect.fromLTWH(270, 422, 715, 397);
+  final width = size * .5;
+  final height = width * source.height / source.width;
+  final destination = Rect.fromLTWH(
+    (size - width) / 2,
+    (size - height) / 2,
+    width,
+    height,
+  );
+  canvas.drawImageRect(
+    _plainLogo,
+    source,
+    destination,
+    Paint()..filterQuality = FilterQuality.high,
+  );
+}
+
+void _notificationMark(Canvas canvas, double size) {
+  final fontSize = size * .29;
+  final painter = TextPainter(
+    text: TextSpan(
+      text: 'hipg',
+      style: TextStyle(
+        color: Colors.white,
+        fontFamily: _iconFontFamily,
+        fontSize: fontSize,
+        fontWeight: FontWeight.w800,
+        height: 1,
+        letterSpacing: -fontSize * .065,
+      ),
+    ),
+    textDirection: TextDirection.ltr,
+    textScaler: TextScaler.noScaling,
+  )..layout();
+  painter.paint(
+    canvas,
+    Offset((size - painter.width) / 2, (size - painter.height) / 2),
+  );
+  painter.dispose();
 }
 
 void main() {
-  testWidgets('generate Android launcher icons and splash', (tester) async {
+  testWidgets('generate Android launcher icons', (tester) async {
     await tester.runAsync(() async {
+      await _loadIconFont();
+      await _loadPlainLogo();
       for (final density in _densities.entries) {
         final d = density.value;
         await _render('$_res/mipmap-${density.key}/ic_launcher.png',
-            (48 * d).round(), (c, s) => _legacy(c, s, round: false));
+            (48 * d).round(), _launcher);
         await _render('$_res/mipmap-${density.key}/ic_launcher_round.png',
-            (48 * d).round(), (c, s) => _legacy(c, s, round: true));
+            (48 * d).round(), _launcher);
         await _render('$_res/mipmap-${density.key}/ic_launcher_foreground.png',
-            (108 * d).round(), _foreground);
+            (108 * d).round(), _adaptiveForeground);
         await _render('$_res/drawable-${density.key}/splash_mark.png',
-            (288 * d).round(), _foreground);
+            (288 * d).round(), _nativeSplashMark);
+        await _render('$_res/drawable-${density.key}/ic_stat_hipg.png',
+            (24 * d).round(), _notificationMark);
       }
-      // Store listing icon (Play Console wants 512x512, full-bleed).
-      await _render('android/app/src/main/ic_launcher-playstore.png', 512,
-          (canvas, size) {
-        canvas.drawRect(
-            Offset.zero & Size.square(size), Paint()..color = AppColors.brand);
-        _mark(canvas, Offset(size / 2, size / 2), size * .6,
-            face: AppColors.brand);
-      });
+      await _render(
+        '$_outputRoot/android/app/src/main/ic_launcher-playstore.png',
+        512,
+        _launcher,
+      );
+      _plainLogo.dispose();
     });
   });
 }

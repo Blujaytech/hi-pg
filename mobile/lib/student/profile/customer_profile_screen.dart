@@ -1,8 +1,10 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../auth/auth_state.dart';
 import '../../core/api_exception.dart';
 import '../../core/env.dart';
 import '../../core/theme.dart';
@@ -229,6 +231,10 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
       }
       if (!mounted) return;
       setState(() => _applyProfile(saved));
+      context.read<AuthState>().updateStudentProfile(
+            name: saved.fullName,
+            photoUrl: saved.profilePhotoUrl,
+          );
 
       if (widget.requiredFor != null) {
         final eligibility = await _repository.eligibility(widget.requiredFor!);
@@ -270,12 +276,15 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_editing && widget.requiredFor != null
+      appBar: PremiumAppBar(
+        title: _editing && widget.requiredFor != null
             ? 'Complete your profile'
             : _editing
                 ? 'Edit profile'
-                : 'Profile & verification'),
+                : 'Profile & verification',
+        subtitle: _editing
+            ? 'Keep your booking information accurate'
+            : 'Personal details and identity readiness',
         actions: [
           if (!_loading && !_editing && _profile != null)
             TextButton.icon(

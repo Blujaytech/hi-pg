@@ -15,7 +15,9 @@ public record AdminPgListingResponse(
         String pincode,
         Double latitude,
         Double longitude,
+        String locationUrl,
         String description,
+        String photoUrl,
         GenderPreference genderPreference,
         PgStatus status,
         PgClaimStatus claimStatus,
@@ -24,6 +26,8 @@ public record AdminPgListingResponse(
         String ownerName,
         String ownerMobile,
         PgInvitationStatus invitationStatus,
+        OwnerSmsStatus invitationDeliveryStatus,
+        String invitationFailureReason,
         long interestCount,
         Instant createdAt
 ) { }

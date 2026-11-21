@@ -199,27 +199,42 @@ class HiPgMark extends StatelessWidget {
   }
 }
 
-/// The mark inside the rose app-icon tile, as it appears on the home screen.
+/// The same full-colour icon Android displays on the home screen.
 class HiPgAppIcon extends StatelessWidget {
   final double size;
+  final bool elevated;
 
-  const HiPgAppIcon({super.key, this.size = 56});
+  const HiPgAppIcon({
+    super.key,
+    this.size = 56,
+    this.elevated = false,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      alignment: Alignment.center,
+    final icon = ClipRRect(
+      borderRadius: BorderRadius.circular(size * .23),
+      child: Image.asset(
+        'assets/branding/hi_pg_launcher_icon.png',
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        filterQuality: FilterQuality.high,
+      ),
+    );
+    if (!elevated) return icon;
+    return DecoratedBox(
       decoration: BoxDecoration(
-        color: AppColors.brand,
-        borderRadius: BorderRadius.circular(size * .3),
+        borderRadius: BorderRadius.circular(size * .23),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.brand.withValues(alpha: .16),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
-      child: HiPgMark(
-        size: size * .6,
-        color: AppColors.surface,
-        faceColor: AppColors.brand,
-      ),
+      child: icon,
     );
   }
 }
@@ -244,6 +259,43 @@ class HiPgWordmark extends StatelessWidget {
   }
 }
 
+/// The primary in-app Hi PG logo: a clean grey-and-rose wordmark with no
+/// launcher tile, house badge, glow, or decorative background.
+class HiPgPlainLogo extends StatelessWidget {
+  final double fontSize;
+  final Color hiColor;
+  final Color pgColor;
+
+  const HiPgPlainLogo({
+    super.key,
+    this.fontSize = 28,
+    this.hiColor = const Color(0xFF77797F),
+    this.pgColor = AppColors.brand,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: 'hi pg',
+      child: ExcludeSemantics(
+        child: Text.rich(
+          TextSpan(
+            style: brandWordStyle(fontSize, hiColor).copyWith(
+              letterSpacing: -fontSize * .055,
+            ),
+            children: [
+              TextSpan(text: 'hi', style: TextStyle(color: hiColor)),
+              TextSpan(text: 'pg', style: TextStyle(color: pgColor)),
+            ],
+          ),
+          maxLines: 1,
+          textScaler: TextScaler.noScaling,
+        ),
+      ),
+    );
+  }
+}
+
 TextStyle brandWordStyle(double fontSize, Color color) => TextStyle(
       fontFamily: AppTheme.fontFamily,
       color: color,
@@ -255,8 +307,8 @@ TextStyle brandWordStyle(double fontSize, Color color) => TextStyle(
       height: 1,
     );
 
-/// Mark + wordmark, used in app bars and on the welcome screen. The house is
-/// rose by default; [wordColor] lets "hi pg" go white on the charcoal bar.
+/// Backwards-compatible lockup API. In-app branding now intentionally uses
+/// only the clean wordmark; launcher artwork remains independent.
 class HiPgLockup extends StatelessWidget {
   final double height;
   final Color color;
@@ -273,18 +325,10 @@ class HiPgLockup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Semantics(
-      label: 'hi pg',
-      child: ExcludeSemantics(
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            HiPgMark(size: height, color: color, faceColor: faceColor),
-            SizedBox(width: height * .3),
-            HiPgWordmark(fontSize: height * .82, color: wordColor),
-          ],
-        ),
-      ),
+    return HiPgPlainLogo(
+      fontSize: height,
+      hiColor: wordColor,
+      pgColor: color,
     );
   }
 }

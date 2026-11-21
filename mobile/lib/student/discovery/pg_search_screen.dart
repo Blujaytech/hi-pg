@@ -28,6 +28,7 @@ String _genderLabel(GenderPreference gender) => switch (gender) {
       GenderPreference.male => 'Men',
       GenderPreference.female => 'Women',
       GenderPreference.coEd => 'Co-Living',
+      GenderPreference.unspecified => 'Unspecified',
     };
 
 String _budgetLabel(RangeValues budget) {
@@ -46,8 +47,17 @@ String _budgetLabel(RangeValues budget) {
 class PgSearchScreen extends StatefulWidget {
   /// Injectable for tests; defaults to the public discovery API.
   final DiscoveryRepository? repository;
+  final bool browseAll;
+  final GenderPreference? initialGender;
+  final StayType initialStayType;
 
-  const PgSearchScreen({super.key, this.repository});
+  const PgSearchScreen({
+    super.key,
+    this.repository,
+    this.browseAll = false,
+    this.initialGender,
+    this.initialStayType = StayType.any,
+  });
 
   @override
   State<PgSearchScreen> createState() => _PgSearchScreenState();
@@ -60,8 +70,9 @@ class _PgSearchScreenState extends State<PgSearchScreen> {
   late final DiscoveryRepository _repository =
       widget.repository ?? DiscoveryRepository();
   final _queryController = TextEditingController();
+  final _scrollController = ScrollController();
   Timer? _debounce;
-  SearchFilters _filters = const SearchFilters();
+  late SearchFilters _filters;
 
   /// Everything fetched so far; what's shown is `_filters.apply(_loaded)`.
   List<PgSearchResult> _loaded = const [];
@@ -83,6 +94,7 @@ class _PgSearchScreenState extends State<PgSearchScreen> {
   static LocationChoice _location = const LocationChoice.allCities();
   static double? _latitude;
   static double? _longitude;
+  String? _nearbyFallbackCity;
   final _locationStore = LocationPreferenceStore();
 
   bool get _nearMe =>
@@ -94,6 +106,12 @@ class _PgSearchScreenState extends State<PgSearchScreen> {
   @override
   void initState() {
     super.initState();
+    _filters = SearchFilters(
+      gender: widget.initialGender,
+      stayType: widget.initialStayType,
+    );
+    _browseAll = widget.browseAll;
+    _scrollController.addListener(_loadMoreNearBottom);
     _restoreLocation();
   }
 
@@ -106,6 +124,8 @@ class _PgSearchScreenState extends State<PgSearchScreen> {
     if (saved.nearMe) {
       _latitude = saved.latitude;
       _longitude = saved.longitude;
+      _nearbyFallbackCity =
+          nearestListedCity(saved.latitude!, saved.longitude!);
       _location = const LocationChoice.nearMe();
     } else if (saved.city != null) {
       _latitude = null;
@@ -119,14 +139,22 @@ class _PgSearchScreenState extends State<PgSearchScreen> {
   void dispose() {
     _debounce?.cancel();
     _queryController.dispose();
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  void _loadMoreNearBottom() {
+    if (_scrollController.hasClients &&
+        _scrollController.position.extentAfter < 500) {
+      _loadMore();
+    }
   }
 
   bool get _hasMore => _page + 1 < _totalPages;
 
   Future<PagedResult<PgSearchResult>> _fetch(int page) => _repository.search(
         query: _filters.query,
-        city: _nearMe ? null : _location.city,
+        city: _nearMe ? _nearbyFallbackCity : _location.city,
         genderPreference: _filters.gender,
         minRent: _filters.minRent,
         maxRent: _filters.maxRent,
@@ -244,10 +272,12 @@ class _PgSearchScreenState extends State<PgSearchScreen> {
     if (choice.city != null) {
       _latitude = null;
       _longitude = null;
+      _nearbyFallbackCity = null;
       await _locationStore.saveCity(choice.city!);
     } else if (!choice.nearMe) {
       _latitude = null;
       _longitude = null;
+      _nearbyFallbackCity = null;
       await _locationStore.saveDismissed();
     }
     await _search();
@@ -280,6 +310,7 @@ class _PgSearchScreenState extends State<PgSearchScreen> {
     }
     _latitude = lookup.position!.latitude;
     _longitude = lookup.position!.longitude;
+    _nearbyFallbackCity = nearestListedCity(_latitude!, _longitude!);
     await _locationStore.saveNearMe(_latitude!, _longitude!);
     await _setLocation(const LocationChoice.nearMe());
   }
@@ -321,24 +352,66 @@ class _PgSearchScreenState extends State<PgSearchScreen> {
 
   Future<void> _openFilters() async {
     FocusScope.of(context).unfocus();
-    final result = await showModalBottomSheet<SearchFilters>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      showDragHandle: true,
-      builder: (_) => _FiltersSheet(initial: _filters),
-    );
+    final compact = MediaQuery.sizeOf(context).width < AppBreakpoints.compact;
+    final Future<SearchFilters?> resultFuture;
+    if (compact) {
+      resultFuture = showModalBottomSheet<SearchFilters>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        showDragHandle: true,
+        builder: (_) => _FiltersSheet(initial: _filters),
+      );
+    } else {
+      final panelWidth =
+          MediaQuery.sizeOf(context).width < 1000 ? 420.0 : 460.0;
+      resultFuture = showGeneralDialog<SearchFilters>(
+        context: context,
+        barrierDismissible: true,
+        barrierLabel: 'Close filters',
+        barrierColor: Colors.black54,
+        transitionDuration: AppDurations.standard,
+        pageBuilder: (dialogContext, _, __) => Align(
+          alignment: Alignment.centerRight,
+          child: SafeArea(
+            child: Material(
+              color: AppColors.surface,
+              elevation: 16,
+              child: SizedBox(
+                width: panelWidth,
+                height: double.infinity,
+                child: _FiltersSheet(
+                  initial: _filters,
+                  showClose: true,
+                ),
+              ),
+            ),
+          ),
+        ),
+        transitionBuilder: (_, animation, __, child) => SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(1, 0),
+            end: Offset.zero,
+          ).animate(CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+          )),
+          child: child,
+        ),
+      );
+    }
+    final result = await resultFuture;
     if (result != null && mounted) _update(result);
   }
 
   /// What's on screen, plus each PG's distance when searching near the
   /// customer (PGs without a map pin can't be placed, so they're left out).
-  (List<PgSearchResult>, Map<String, double>) _visible() {
+  (List<PgSearchResult>, Map<String, double>, bool) _visible() {
     final list = _filters.apply(_loaded);
     final latitude = _latitude;
     final longitude = _longitude;
     if (!_nearMe || latitude == null || longitude == null) {
-      return (list, const {});
+      return (list, const {}, false);
     }
     final distances = <String, double>{};
     for (final pg in list) {
@@ -350,12 +423,16 @@ class _PgSearchScreenState extends State<PgSearchScreen> {
     if (_filters.sort == SortOption.recommended) {
       near.sort((a, b) => distances[a.id]!.compareTo(distances[b.id]!));
     }
-    return (near, distances);
+    if (near.isNotEmpty) return (near, distances, false);
+    final cityFallback = list
+        .where((pg) => pg.latitude == null || pg.longitude == null)
+        .toList();
+    return (cityFallback, const {}, cityFallback.isNotEmpty);
   }
 
   @override
   Widget build(BuildContext context) {
-    final (visible, distances) = _visible();
+    final (visible, distances, cityFallback) = _visible();
     // Keep filling the list when local filters leave too little on screen.
     if (_showResults &&
         !_loading &&
@@ -366,6 +443,7 @@ class _PgSearchScreenState extends State<PgSearchScreen> {
       WidgetsBinding.instance.addPostFrameCallback((_) => _loadMore());
     }
     return Scaffold(
+      backgroundColor: AppColors.canvas,
       appBar: _appBar(),
       body: Column(
         children: [
@@ -386,14 +464,11 @@ class _PgSearchScreenState extends State<PgSearchScreen> {
             onPickLocation: _chooseLocation,
           ),
           Container(
-            height: 58,
-            decoration: const BoxDecoration(
-              color: AppColors.surface,
-              border: Border(bottom: BorderSide(color: AppColors.border)),
-            ),
+            height: 66,
+            color: AppColors.canvas,
             child: ListView(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
               children: [
                 _QuickFilter(
                   label: 'Filters',
@@ -429,7 +504,7 @@ class _PgSearchScreenState extends State<PgSearchScreen> {
           ),
           Expanded(
             child: _showResults
-                ? _buildResults(visible, distances)
+                ? _buildResults(visible, distances, cityFallback)
                 : _buildStartPage(),
           ),
         ],
@@ -445,6 +520,9 @@ class _PgSearchScreenState extends State<PgSearchScreen> {
     final signedIn =
         context.watch<AuthState>().status == AuthStatus.authenticated;
     return AppBar(
+      backgroundColor: const Color(0xFFFFFAFB),
+      foregroundColor: AppColors.ink,
+      systemOverlayStyle: AppTheme.lightChrome,
       title: Semantics(
         button: true,
         label: 'Location: ${_nearMe ? 'near you' : _location.label}. Change',
@@ -458,7 +536,10 @@ class _PgSearchScreenState extends State<PgSearchScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('Explore'),
+                  const Text(
+                    'Explore stays',
+                    style: TextStyle(color: AppColors.ink),
+                  ),
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -467,7 +548,7 @@ class _PgSearchScreenState extends State<PgSearchScreen> {
                             ? Icons.my_location_rounded
                             : Icons.location_on_rounded,
                         size: 14,
-                        color: const Color(0xFFFF8FA3),
+                        color: AppColors.brand,
                       ),
                       const SizedBox(width: 4),
                       Flexible(
@@ -475,16 +556,16 @@ class _PgSearchScreenState extends State<PgSearchScreen> {
                           _nearMe ? 'Near you' : _location.label,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: .85),
+                          style: const TextStyle(
+                            color: AppColors.muted,
                             fontSize: 12.5,
                             fontWeight: FontWeight.w600,
                             letterSpacing: 0,
                           ),
                         ),
                       ),
-                      Icon(Icons.expand_more_rounded,
-                          size: 16, color: Colors.white.withValues(alpha: .7)),
+                      const Icon(Icons.expand_more_rounded,
+                          size: 16, color: AppColors.muted),
                     ],
                   ),
                 ],
@@ -496,7 +577,7 @@ class _PgSearchScreenState extends State<PgSearchScreen> {
       actions: [
         if (guestMode)
           TextButton(
-            style: TextButton.styleFrom(foregroundColor: Colors.white),
+            style: TextButton.styleFrom(foregroundColor: AppColors.brandText),
             onPressed: () {
               if (signedIn) {
                 context.go('/student');
@@ -515,47 +596,50 @@ class _PgSearchScreenState extends State<PgSearchScreen> {
     final textTheme = Theme.of(context).textTheme;
     return ListView(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      padding: const EdgeInsets.fromLTRB(16, 28, 16, 32),
+      padding: const EdgeInsets.fromLTRB(16, 22, 16, 32),
       children: [
-        Center(
-          child: Text(
-            'How long are you staying?',
-            textAlign: TextAlign.center,
-            style: textTheme.titleMedium,
-          ),
+        Text(
+          'Find a stay that fits you',
+          style: textTheme.headlineSmall,
         ),
-        const SizedBox(height: 14),
-        Center(
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox(
-                width: 126,
-                height: 96,
+        const SizedBox(height: 5),
+        Text(
+          'Choose your stay style, then discover verified options.',
+          style: textTheme.bodyMedium?.copyWith(color: AppColors.muted),
+        ),
+        const SizedBox(height: 18),
+        Row(
+          children: [
+            Expanded(
+              child: SizedBox(
+                height: 126,
                 child: _StayTypeCard(
-                  icon: Icons.calendar_month_outlined,
+                  icon: Icons.calendar_month_rounded,
                   title: 'Monthly',
+                  subtitle: 'Your everyday home',
                   onTap: () {
                     _browseAll = true;
                     _toggleStayType(StayType.monthly);
                   },
                 ),
               ),
-              const SizedBox(width: 12),
-              SizedBox(
-                width: 126,
-                height: 96,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: SizedBox(
+                height: 126,
                 child: _StayTypeCard(
-                  icon: Icons.nights_stay_outlined,
+                  icon: Icons.nights_stay_rounded,
                   title: 'Day-wise',
+                  subtitle: 'Flexible short stays',
                   onTap: () {
                     _browseAll = true;
                     _toggleStayType(StayType.dayWise);
                   },
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
         if (_recentSearches.isNotEmpty) ...[
           const SizedBox(height: 22),
@@ -569,23 +653,30 @@ class _PgSearchScreenState extends State<PgSearchScreen> {
               ),
             ],
           ),
-          for (final query in _recentSearches)
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading:
-                  const Icon(Icons.history_rounded, color: AppColors.muted),
-              title: Text(query),
-              trailing: const Icon(Icons.north_west_rounded,
-                  size: 18, color: AppColors.subtle),
-              onTap: () => _searchFor(query),
+          for (final query in _recentSearches) ...[
+            Card(
+              margin: const EdgeInsets.only(bottom: 8),
+              child: ListTile(
+                leading: const IconTile(
+                  icon: Icons.history_rounded,
+                  size: 38,
+                  color: AppColors.brand,
+                  background: AppColors.brandSoft,
+                ),
+                title: Text(query),
+                trailing: const Icon(Icons.north_west_rounded,
+                    size: 18, color: AppColors.subtle),
+                onTap: () => _searchFor(query),
+              ),
             ),
+          ],
         ],
       ],
     );
   }
 
-  Widget _buildResults(
-      List<PgSearchResult> visible, Map<String, double> distances) {
+  Widget _buildResults(List<PgSearchResult> visible,
+      Map<String, double> distances, bool cityFallback) {
     if (_loading && _loaded.isEmpty) {
       return AppLoadingView(
           label: _nearMe ? 'Finding stays near you...' : 'Finding stays...');
@@ -622,16 +713,56 @@ class _PgSearchScreenState extends State<PgSearchScreen> {
     }
     final count = '${visible.length}${_hasMore ? '+' : ''}';
     final where = _nearMe
-        ? ' near you'
+        ? cityFallback && _nearbyFallbackCity != null
+            ? ' in $_nearbyFallbackCity'
+            : ' within ${_nearRadiusKm.round()} km'
         : _location.city != null
             ? ' in ${_location.city}'
             : '';
     return RefreshIndicator(
       onRefresh: _search,
       child: CustomScrollView(
+        controller: _scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         slivers: [
+          if (cityFallback)
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+              sliver: SliverToBoxAdapter(
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+                  decoration: BoxDecoration(
+                    color: AppColors.fill,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.info_outline_rounded,
+                        size: 17,
+                        color: AppColors.muted,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Showing ${_nearbyFallbackCity ?? 'city'} stays while nearby map coverage improves.',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: AppColors.muted,
+                                    fontSize: 11.5,
+                                  ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
             sliver: SliverToBoxAdapter(
@@ -666,36 +797,48 @@ class _PgSearchScreenState extends State<PgSearchScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             sliver: SliverLayoutBuilder(
               builder: (context, constraints) {
-                const spacing = 12.0;
-                final cellWidth = (constraints.crossAxisExtent - spacing) / 2;
-                final cellHeight = cellWidth * pgPosterImageHeightRatio +
-                    MediaQuery.textScalerOf(context).scale(pgPosterTextHeight);
+                final columns = constraints.crossAxisExtent >= 900
+                    ? 4
+                    : constraints.crossAxisExtent >= 640
+                        ? 3
+                        : 2;
+                const gap = 12.0;
+                final cardWidth =
+                    (constraints.crossAxisExtent - (gap * (columns - 1))) /
+                        columns;
+                final textHeight = MediaQuery.textScalerOf(context)
+                    .scale(pgPosterTextHeight + 6);
+                final cardHeight =
+                    (cardWidth * pgPosterImageHeightRatio) + textHeight;
                 return SliverGrid(
                   gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: spacing,
-                    mainAxisSpacing: 18,
-                    mainAxisExtent: cellHeight,
+                    crossAxisCount: columns,
+                    mainAxisSpacing: gap,
+                    crossAxisSpacing: gap,
+                    childAspectRatio: cardWidth / cardHeight,
                   ),
                   delegate: SliverChildBuilderDelegate(
                     (context, index) {
                       final pg = visible[index];
-                      return PgPosterCard(
-                        pg: pg,
-                        distanceKm: distances[pg.id],
-                        onTap: () {
-                          _rememberSearch(_filters.query);
-                          final type = switch (_filters.stayType) {
-                            StayType.monthly => 'MONTHLY',
-                            StayType.dayWise => 'DAY_WISE',
-                            StayType.any => null,
-                          };
-                          context.push(Uri(
-                            path: '${_detailsBase(context)}/${pg.id}',
-                            queryParameters:
-                                type == null ? null : {'stayType': type},
-                          ).toString());
-                        },
+                      return _SearchResultReveal(
+                        index: index,
+                        child: PgPosterCard(
+                          pg: pg,
+                          distanceKm: distances[pg.id],
+                          onTap: () {
+                            _rememberSearch(_filters.query);
+                            final type = switch (_filters.stayType) {
+                              StayType.monthly => 'MONTHLY',
+                              StayType.dayWise => 'DAY_WISE',
+                              StayType.any => null,
+                            };
+                            context.push(Uri(
+                              path: '${_detailsBase(context)}/${pg.id}',
+                              queryParameters:
+                                  type == null ? null : {'stayType': type},
+                            ).toString());
+                          },
+                        ),
                       );
                     },
                     childCount: visible.length,
@@ -729,8 +872,32 @@ class _PgSearchScreenState extends State<PgSearchScreen> {
   }
 }
 
-/// Charcoal band under the app bar: the search box, with a pin at its right
-/// edge that opens the location picker.
+class _SearchResultReveal extends StatelessWidget {
+  final int index;
+  final Widget child;
+
+  const _SearchResultReveal({required this.index, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    if (MediaQuery.disableAnimationsOf(context)) return child;
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: Duration(milliseconds: 360 + ((index % 6) * 45)),
+      curve: Curves.easeOutCubic,
+      child: child,
+      builder: (context, value, child) => Opacity(
+        opacity: value,
+        child: Transform.translate(
+          offset: Offset(0, 14 * (1 - value)),
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
+/// Premium discovery hero with the same warm visual language as home.
 class _SearchBand extends StatelessWidget {
   final TextEditingController controller;
   final String hint;
@@ -753,50 +920,89 @@ class _SearchBand extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: AppColors.ink,
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 14),
-      child: ValueListenableBuilder<TextEditingValue>(
-        valueListenable: controller,
-        builder: (context, value, _) => TextField(
-          controller: controller,
-          textInputAction: TextInputAction.search,
-          onChanged: onChanged,
-          onSubmitted: onSubmitted,
-          decoration: InputDecoration(
-            hintText: hint,
-            contentPadding: const EdgeInsets.symmetric(vertical: 13),
-            enabledBorder: const OutlineInputBorder(
-              borderRadius: BorderRadius.all(Radius.circular(8)),
-              borderSide: BorderSide.none,
-            ),
-            prefixIcon: const Icon(Icons.search_rounded),
-            suffixIcon: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (value.text.isNotEmpty)
-                  IconButton(
-                    tooltip: 'Clear',
-                    icon: const Icon(Icons.close_rounded),
-                    onPressed: onClear,
-                  ),
-                Container(width: 1, height: 24, color: AppColors.border),
-                IconButton(
-                  tooltip: 'Choose city or use your location',
-                  onPressed: onPickLocation,
-                  icon: locating
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.location_on_rounded,
-                          color: AppColors.brand),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 22),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFFFFAFB), Color(0xFFFFE9EE)],
+        ),
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Where do you want to stay?',
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
                 ),
-                const SizedBox(width: 2),
-              ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: AppShadows.card,
+            ),
+            child: ValueListenableBuilder<TextEditingValue>(
+              valueListenable: controller,
+              builder: (context, value, _) => TextField(
+                controller: controller,
+                textInputAction: TextInputAction.search,
+                onChanged: onChanged,
+                onSubmitted: onSubmitted,
+                decoration: InputDecoration(
+                  hintText: hint,
+                  fillColor: Colors.white,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 16),
+                  enabledBorder: const OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(18)),
+                    borderSide: BorderSide.none,
+                  ),
+                  focusedBorder: const OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(18)),
+                    borderSide: BorderSide(color: AppColors.brand, width: 1.2),
+                  ),
+                  prefixIcon: const Padding(
+                    padding: EdgeInsets.all(10),
+                    child: CircleAvatar(
+                      backgroundColor: AppColors.brand,
+                      child: Icon(Icons.search_rounded,
+                          color: Colors.white, size: 20),
+                    ),
+                  ),
+                  suffixIcon: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (value.text.isNotEmpty)
+                        IconButton(
+                          tooltip: 'Clear',
+                          icon: const Icon(Icons.close_rounded),
+                          onPressed: onClear,
+                        ),
+                      Container(width: 1, height: 24, color: AppColors.border),
+                      IconButton(
+                        tooltip: 'Choose city or use your location',
+                        onPressed: onPickLocation,
+                        icon: locating
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.my_location_rounded,
+                                color: AppColors.brand),
+                      ),
+                      const SizedBox(width: 2),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -805,41 +1011,58 @@ class _SearchBand extends StatelessWidget {
 class _StayTypeCard extends StatelessWidget {
   final IconData icon;
   final String title;
+  final String subtitle;
   final VoidCallback onTap;
 
   const _StayTypeCard({
     required this.icon,
     required this.title,
+    required this.subtitle,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.surface,
+      color: Colors.white,
+      elevation: 1,
+      shadowColor: AppColors.ink.withValues(alpha: .12),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: AppColors.border),
+        borderRadius: BorderRadius.circular(22),
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          padding: const EdgeInsets.all(14),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(icon, color: AppColors.brand, size: 22),
-              const SizedBox(height: 6),
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: AppColors.brandSoft,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(icon, color: AppColors.brand, size: 22),
+              ),
+              const Spacer(),
               Text(
                 title,
-                textAlign: TextAlign.center,
                 maxLines: 1,
                 style: const TextStyle(
                   color: AppColors.ink,
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
                 ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall,
               ),
             ],
           ),
@@ -852,8 +1075,9 @@ class _StayTypeCard extends StatelessWidget {
 /// Full filter panel. Edits a draft; nothing changes until "Show results".
 class _FiltersSheet extends StatefulWidget {
   final SearchFilters initial;
+  final bool showClose;
 
-  const _FiltersSheet({required this.initial});
+  const _FiltersSheet({required this.initial, this.showClose = false});
 
   @override
   State<_FiltersSheet> createState() => _FiltersSheetState();
@@ -883,6 +1107,12 @@ class _FiltersSheetState extends State<_FiltersSheet> {
                       : () => setState(() => _draft = _draft.reset()),
                   child: const Text('Reset'),
                 ),
+                if (widget.showClose)
+                  IconButton(
+                    tooltip: 'Close filters',
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
               ],
             ),
           ),
@@ -1013,9 +1243,13 @@ class _QuickFilter extends StatelessWidget {
     final foreground = selected ? AppColors.brandText : AppColors.ink;
     return Material(
       color: selected ? AppColors.brandSoft : AppColors.surface,
+      elevation: selected ? 0 : .5,
+      shadowColor: AppColors.ink.withValues(alpha: .10),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(6),
-        side: BorderSide(color: selected ? AppColors.brand : AppColors.line),
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(
+          color: selected ? AppColors.brand : AppColors.border,
+        ),
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(

@@ -30,6 +30,13 @@ class OwnerOnboardingRepository {
         data: {'phone': phone, 'code': code});
   }
 
+  Future<void> verifyFirebasePhone(String idToken) async {
+    await _client.post<void>(
+      '/owner/profile/phone/firebase',
+      data: {'idToken': idToken},
+    );
+  }
+
   Future<OwnerKycSubmission> saveProfile({
     required String pgId,
     required String legalName,

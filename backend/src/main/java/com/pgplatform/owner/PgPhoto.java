@@ -17,6 +17,9 @@ public class PgPhoto extends BaseEntity {
     @Column(name = "storage_key", nullable = false, unique = true, length = 500)
     private String storageKey;
 
+    @Column(columnDefinition = "bytea")
+    private byte[] content;
+
     @Column(name = "original_file_name", nullable = false)
     private String originalFileName;
 

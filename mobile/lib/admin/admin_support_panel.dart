@@ -8,20 +8,23 @@ import '../shared/support/support_models.dart';
 import '../shared/support/support_repository.dart';
 
 class AdminSupportPanel extends StatefulWidget {
-  const AdminSupportPanel({super.key});
+  final AdminSupportRepository? repository;
+
+  const AdminSupportPanel({super.key, this.repository});
 
   @override
   State<AdminSupportPanel> createState() => _AdminSupportPanelState();
 }
 
 class _AdminSupportPanelState extends State<AdminSupportPanel> {
-  final _repository = AdminSupportRepository();
+  late final AdminSupportRepository _repository;
   late Future<List<SupportTicket>> _future;
   SupportStatus? _filter = SupportStatus.open;
 
   @override
   void initState() {
     super.initState();
+    _repository = widget.repository ?? AdminSupportRepository();
     _reload();
   }
 
@@ -65,6 +68,9 @@ class _AdminSupportPanelState extends State<AdminSupportPanel> {
         final visible = _filter == null
             ? tickets
             : tickets.where((item) => item.status == _filter).toList();
+        final open = _count(tickets, SupportStatus.open);
+        final inProgress = _count(tickets, SupportStatus.inProgress);
+        final resolved = _count(tickets, SupportStatus.resolved);
         return RefreshIndicator(
           onRefresh: () async {
             _reload();
@@ -74,6 +80,44 @@ class _AdminSupportPanelState extends State<AdminSupportPanel> {
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 36),
             children: [
+              Text('Support queue',
+                  style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 3),
+              Text(
+                  'Prioritise new requests and track each response to closure.',
+                  style: Theme.of(context).textTheme.bodySmall),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: _SupportMetric(
+                      label: 'Open',
+                      value: open,
+                      icon: Icons.mark_email_unread_outlined,
+                      tone: StatusTone.danger,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _SupportMetric(
+                      label: 'In progress',
+                      value: inProgress,
+                      icon: Icons.pending_actions_outlined,
+                      tone: StatusTone.warning,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _SupportMetric(
+                      label: 'Resolved',
+                      value: resolved,
+                      icon: Icons.task_alt_rounded,
+                      tone: StatusTone.success,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
               const AppMessageBanner(
                 icon: Icons.support_agent_rounded,
                 message:
@@ -83,10 +127,10 @@ class _AdminSupportPanelState extends State<AdminSupportPanel> {
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Row(children: [
-                  _chip('Open', SupportStatus.open),
-                  _chip('In progress', SupportStatus.inProgress),
-                  _chip('Resolved', SupportStatus.resolved),
-                  _chip('All', null),
+                  _chip('Open ($open)', SupportStatus.open),
+                  _chip('In progress ($inProgress)', SupportStatus.inProgress),
+                  _chip('Resolved ($resolved)', SupportStatus.resolved),
+                  _chip('All (${tickets.length})', null),
                 ]),
               ),
               const SizedBox(height: 14),
@@ -122,6 +166,53 @@ class _AdminSupportPanelState extends State<AdminSupportPanel> {
           onSelected: (_) => setState(() => _filter = value),
         ),
       );
+
+  int _count(List<SupportTicket> tickets, SupportStatus status) =>
+      tickets.where((item) => item.status == status).length;
+}
+
+class _SupportMetric extends StatelessWidget {
+  final String label;
+  final int value;
+  final IconData icon;
+  final StatusTone tone;
+
+  const _SupportMetric({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.tone,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final (color, background) = switch (tone) {
+      StatusTone.success => (AppColors.success, AppColors.successSoft),
+      StatusTone.warning => (AppColors.warning, AppColors.warningSoft),
+      StatusTone.danger => (AppColors.danger, AppColors.dangerSoft),
+      _ => (AppColors.ink, AppColors.fill),
+    };
+    return AppSurface(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 20, color: color),
+          const SizedBox(height: 8),
+          Text('$value', style: Theme.of(context).textTheme.titleLarge),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: background == AppColors.fill ? null : color),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _AdminTicketCard extends StatelessWidget {

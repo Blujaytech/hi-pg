@@ -139,11 +139,13 @@ class PgSearchServiceTest extends AbstractIntegrationTest {
                 .filter(pg -> pg.id().equals(mixedPgId)).findFirst().orElseThrow();
         assertThat(mixed.offersMonthly()).isTrue();
         assertThat(mixed.offersDayWise()).isTrue();
+        assertThat(mixed.stayTypeConfigured()).isTrue();
         assertThat(mixed.minDayWiseRate()).isEqualByComparingTo("500.00");
         PgSearchResultResponse monthly = results.content().stream()
                 .filter(pg -> pg.id().equals(monthlyPgId)).findFirst().orElseThrow();
         assertThat(monthly.offersMonthly()).isTrue();
         assertThat(monthly.offersDayWise()).isFalse();
+        assertThat(monthly.stayTypeConfigured()).isTrue();
         assertThat(monthly.minDayWiseRate()).isNull();
 
         // Take one bed out of service: it stays in the room's bed map, marked unavailable.

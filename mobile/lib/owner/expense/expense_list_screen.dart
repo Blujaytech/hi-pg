@@ -66,11 +66,9 @@ class _ExpenseListScreenState extends State<ExpenseListScreen> {
         final ready = snapshot.connectionState == ConnectionState.done &&
             !snapshot.hasError;
         return Scaffold(
-          appBar: AppBar(
-            title: AppBarTitle(
-              title: 'Expenses',
-              subtitle: widget.pg?.name,
-            ),
+          appBar: PremiumAppBar(
+            title: 'Expenses',
+            subtitle: widget.pg?.name ?? 'Property operating costs',
           ),
           floatingActionButton: ready && expenses.isNotEmpty
               ? FloatingActionButton.extended(

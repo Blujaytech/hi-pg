@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import '../../core/api_exception.dart';
 import '../../core/theme.dart';
 import '../../shared/app_states.dart';
+import '../../auth/firebase_phone_auth.dart';
 import '../pg/pg_models.dart';
 import 'owner_kyc_models.dart';
 import 'owner_onboarding_repository.dart';
@@ -74,9 +75,11 @@ class _OwnerKycScreenState extends State<OwnerKycScreen> {
     setState(() {});
   }
 
-  String _message(Object error) => error is ApiException
-      ? error.message
-      : 'Something went wrong. Please try again.';
+  String _message(Object error) => switch (error) {
+        ApiException() => error.message,
+        FirebasePhoneAuthFailure() => error.message,
+        _ => 'Something went wrong. Please try again.',
+      };
 
   Future<void> _verifyPhone() async {
     final phone = _phone.text.replaceAll(RegExp(r'[\s-]'), '');
@@ -89,11 +92,12 @@ class _OwnerKycScreenState extends State<OwnerKycScreen> {
       _error = null;
     });
     try {
-      await _repository.requestPhoneOtp(phone);
+      await FirebasePhoneAuth.instance.sendCode(phone: phone);
       if (!mounted) return;
       final code = await _askForOtp();
       if (code == null || !mounted) return;
-      await _repository.verifyPhoneOtp(phone, code);
+      final idToken = await FirebasePhoneAuth.instance.verifyCode(code);
+      await _repository.verifyFirebasePhone(idToken);
       if (!mounted) return;
       setState(() => _phoneVerifiedInSession = true);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -212,7 +216,10 @@ class _OwnerKycScreenState extends State<OwnerKycScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Owner & PG verification')),
+      appBar: PremiumAppBar(
+        title: 'Owner & PG verification',
+        subtitle: widget.pg?.name ?? 'Identity and property documents',
+      ),
       body: _loading
           ? const AppLoadingView(label: 'Loading verification...')
           : RefreshIndicator(

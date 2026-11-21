@@ -55,6 +55,52 @@ if (isReleaseBuild && !hasReleaseSigning) {
     )
 }
 
+if (isReleaseBuild && hasReleaseSigning) {
+    def releaseKeystoreFile = rootProject.file(releaseStoreFile)
+    def keyStore = java.security.KeyStore.getInstance(
+        keystoreProperties.getProperty("storeType") ?: "JKS"
+    )
+    releaseKeystoreFile.withInputStream { input ->
+        keyStore.load(input, releaseStorePassword.toCharArray())
+    }
+    def certificate = keyStore.getCertificate(releaseKeyAlias)
+    if (certificate == null) {
+        throw new GradleException(
+            "Release signing certificate alias '${releaseKeyAlias}' was not found in " +
+            "${releaseKeystoreFile}."
+        )
+    }
+
+    def sha1 = java.security.MessageDigest.getInstance("SHA-1")
+        .digest(certificate.encoded)
+        .collect { String.format("%02X", it & 0xff) }
+        .join(":")
+    def normalizedSha1 = sha1.replace(":", "").toLowerCase()
+    def googleServicesFile = file("google-services.json")
+    def googleServices = googleServicesFile.exists()
+        ? new groovy.json.JsonSlurper().parse(googleServicesFile)
+        : null
+    def hasMatchingOAuthClient = googleServices?.client?.any { client ->
+        client.client_info?.android_client_info?.package_name == "com.hipg.app" &&
+            client.oauth_client?.any { oauthClient ->
+                oauthClient.client_type == 1 &&
+                    oauthClient.android_info?.package_name == "com.hipg.app" &&
+                    oauthClient.android_info?.certificate_hash
+                        ?.replace(":", "")
+                        ?.toLowerCase() == normalizedSha1
+            }
+    }
+
+    if (!hasMatchingOAuthClient) {
+        throw new GradleException(
+            "Google Sign-In is not configured for the release certificate (SHA-1 ${sha1}). " +
+            "Add this SHA-1 to the com.hipg.app Android app in Firebase Project Settings, " +
+            "then download and replace android/app/google-services.json. Also register the " +
+            "Google Play app-signing SHA-1 before distributing an app bundle."
+        )
+    }
+}
+
 android {
     namespace = "com.hipg.app"
     compileSdk = flutter.compileSdkVersion

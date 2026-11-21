@@ -2,6 +2,7 @@ package com.pgplatform.auth;
 
 import com.pgplatform.auth.dto.OwnerPhoneOtpRequest;
 import com.pgplatform.auth.dto.OwnerPhoneOtpVerifyRequest;
+import com.pgplatform.auth.dto.FirebasePhoneVerificationRequest;
 import com.pgplatform.common.ConflictException;
 import com.pgplatform.common.NotFoundException;
 import org.springframework.stereotype.Service;
@@ -13,10 +14,13 @@ import java.util.UUID;
 public class OwnerPhoneVerificationService {
     private final UserRepository userRepository;
     private final OtpService otpService;
+    private final FirebasePhoneIdentityVerifier firebaseIdentityVerifier;
 
-    public OwnerPhoneVerificationService(UserRepository userRepository, OtpService otpService) {
+    public OwnerPhoneVerificationService(UserRepository userRepository, OtpService otpService,
+                                         FirebasePhoneIdentityVerifier firebaseIdentityVerifier) {
         this.userRepository = userRepository;
         this.otpService = otpService;
+        this.firebaseIdentityVerifier = firebaseIdentityVerifier;
     }
 
     public void request(UUID ownerId, OwnerPhoneOtpRequest request) {
@@ -39,6 +43,28 @@ public class OwnerPhoneVerificationService {
         owner.setPhone(request.phone());
         owner.setPhoneVerified(true);
         userRepository.save(owner);
+    }
+
+    @Transactional
+    public void verifyFirebase(UUID ownerId, FirebasePhoneVerificationRequest request) {
+        User owner = requireOwner(ownerId);
+        FirebasePhoneIdentity identity = firebaseIdentityVerifier.verify(request.idToken());
+        String phone = PhoneNumbers.normalize(identity.phone());
+        findPhoneUser(phone)
+                .filter(user -> !user.getId().equals(ownerId))
+                .ifPresent(user -> { throw new ConflictException("This phone number is already in use"); });
+        owner.setPhone(phone);
+        owner.setPhoneVerified(true);
+        owner.setFirebaseSubject(identity.uid());
+        userRepository.save(owner);
+    }
+
+    private java.util.Optional<User> findPhoneUser(String phone) {
+        java.util.Optional<User> exact = userRepository.findByPhoneAndDeletedAtIsNull(phone);
+        if (exact.isPresent()) return exact;
+        return phone.startsWith("+91") && phone.length() == 13
+                ? userRepository.findByPhoneAndDeletedAtIsNull(phone.substring(3))
+                : java.util.Optional.empty();
     }
 
     private User requireOwner(UUID ownerId) {

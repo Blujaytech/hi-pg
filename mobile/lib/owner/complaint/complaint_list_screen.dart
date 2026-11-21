@@ -79,11 +79,9 @@ class _ComplaintListScreenState extends State<ComplaintListScreen> {
         final ready = snapshot.connectionState == ConnectionState.done &&
             !snapshot.hasError;
         return Scaffold(
-          appBar: AppBar(
-            title: AppBarTitle(
-              title: 'Complaints',
-              subtitle: widget.studentName,
-            ),
+          appBar: PremiumAppBar(
+            title: 'Complaints',
+            subtitle: widget.studentName ?? 'Property issue management',
           ),
           floatingActionButton:
               widget.studentId != null && ready && complaints.isNotEmpty

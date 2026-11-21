@@ -54,3 +54,31 @@ Future<LocationLookup> lookUpLocation() async {
 /// Straight-line distance in kilometres.
 double distanceKm(double fromLat, double fromLng, double toLat, double toLng) =>
     Geolocator.distanceBetween(fromLat, fromLng, toLat, toLng) / 1000;
+
+const _listedCityCentres = <String, (double, double)>{
+  'Bengaluru': (12.9716, 77.5946),
+  'Bhubaneswar': (20.2961, 85.8245),
+  'Chennai': (13.0827, 80.2707),
+  'Hyderabad': (17.3850, 78.4867),
+  'Pune': (18.5204, 73.8567),
+};
+
+/// Nearest city where bulk-imported listings are currently supported.
+/// Used only as an honest fallback when listings do not yet have map pins.
+String nearestListedCity(double latitude, double longitude) {
+  return _listedCityCentres.entries.reduce((nearest, candidate) {
+    final nearestDistance = distanceKm(
+      latitude,
+      longitude,
+      nearest.value.$1,
+      nearest.value.$2,
+    );
+    final candidateDistance = distanceKm(
+      latitude,
+      longitude,
+      candidate.value.$1,
+      candidate.value.$2,
+    );
+    return candidateDistance < nearestDistance ? candidate : nearest;
+  }).key;
+}

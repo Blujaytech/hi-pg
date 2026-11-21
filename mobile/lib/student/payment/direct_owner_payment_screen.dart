@@ -182,7 +182,10 @@ class _DirectOwnerPaymentScreenState extends State<DirectOwnerPaymentScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Pay owner directly')),
+      appBar: const PremiumAppBar(
+        title: 'Pay owner directly',
+        subtitle: 'Verify the destination before sending money',
+      ),
       body: _loading
           ? const AppLoadingView(label: 'Loading payment details...')
           : _details == null

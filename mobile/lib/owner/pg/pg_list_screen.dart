@@ -37,6 +37,8 @@ class _PgListScreenState extends State<PgListScreen>
   bool _loading = true;
   String? _error;
   int _requestGeneration = 0;
+  final _searchController = TextEditingController();
+  String _query = '';
 
   @override
   void initState() {
@@ -49,6 +51,7 @@ class _PgListScreenState extends State<PgListScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -191,8 +194,8 @@ class _PgListScreenState extends State<PgListScreen>
     final firstName =
         fullName.isEmpty ? 'there' : fullName.split(RegExp(r'\s+')).first;
     return Scaffold(
-      appBar: AppBar(
-        title: const HiPgLockup(height: 26, wordColor: Colors.white),
+      appBar: PremiumAppBar(
+        titleWidget: const HiPgLockup(height: 26),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 16),
@@ -247,6 +250,14 @@ class _PgListScreenState extends State<PgListScreen>
     }
 
     final activeCount = _pgs.where((pg) => pg.status == PgStatus.active).length;
+    final normalizedQuery = _query.trim().toLowerCase();
+    final visiblePgs = normalizedQuery.isEmpty
+        ? _pgs
+        : _pgs.where((pg) {
+            return pg.name.toLowerCase().contains(normalizedQuery) ||
+                pg.city.toLowerCase().contains(normalizedQuery) ||
+                pg.address.toLowerCase().contains(normalizedQuery);
+          }).toList();
     return RefreshIndicator(
       onRefresh: () => _load(showSpinner: false),
       child: ListView(
@@ -274,11 +285,32 @@ class _PgListScreenState extends State<PgListScreen>
             const SizedBox(height: 14),
           ],
           _PortfolioSummary(total: _pgs.length, active: activeCount),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _searchController,
+            textInputAction: TextInputAction.search,
+            onChanged: (value) => setState(() => _query = value),
+            decoration: InputDecoration(
+              hintText: 'Search property, area or city',
+              prefixIcon: const Icon(Icons.search_rounded),
+              suffixIcon: _query.isEmpty
+                  ? null
+                  : IconButton(
+                      tooltip: 'Clear search',
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() => _query = '');
+                      },
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+            ),
+          ),
           const SizedBox(height: 28),
           SectionHeader(
             title: 'All properties',
-            trailing:
-                '${_pgs.length} ${_pgs.length == 1 ? 'property' : 'properties'}',
+            trailing: normalizedQuery.isEmpty
+                ? '${_pgs.length} ${_pgs.length == 1 ? 'property' : 'properties'}'
+                : '${visiblePgs.length} matching',
           ),
           const SizedBox(height: 12),
           if (_error != null) ...[
@@ -290,15 +322,22 @@ class _PgListScreenState extends State<PgListScreen>
             ),
             const SizedBox(height: 12),
           ],
-          for (var index = 0; index < _pgs.length; index++) ...[
-            _PropertyCard(
-              pg: _pgs[index],
-              onOpen: (section) => _open(_pgs[index], section),
-              onEdit: () => _openEditSheet(_pgs[index]),
-              onVerify: () => _open(_pgs[index], 'kyc'),
-            ),
-            if (index != _pgs.length - 1) const SizedBox(height: 12),
-          ],
+          if (visiblePgs.isEmpty)
+            const AppEmptyView(
+              icon: Icons.search_off_rounded,
+              title: 'No matching properties',
+              message: 'Try another property name, area or city.',
+            )
+          else
+            for (var index = 0; index < visiblePgs.length; index++) ...[
+              _PropertyCard(
+                pg: visiblePgs[index],
+                onOpen: (section) => _open(visiblePgs[index], section),
+                onEdit: () => _openEditSheet(visiblePgs[index]),
+                onVerify: () => _open(visiblePgs[index], 'kyc'),
+              ),
+              if (index != visiblePgs.length - 1) const SizedBox(height: 12),
+            ],
         ],
       ),
     );

@@ -1,6 +1,7 @@
 package com.pgplatform.notification;
 
 import com.google.firebase.messaging.AndroidConfig;
+import com.google.firebase.messaging.AndroidNotification;
 import com.google.firebase.messaging.FirebaseMessaging;
 import com.google.firebase.messaging.FirebaseMessagingException;
 import com.google.firebase.messaging.Message;
@@ -9,6 +10,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
+
+import java.util.Map;
 
 /** Production push delivery through FCM HTTP v1 using Cloud Run ADC. */
 @Component
@@ -34,14 +37,20 @@ public class FirebaseNotificationGateway implements NotificationGateway {
     }
 
     @Override
-    public void sendPush(String deviceToken, String title, String body) {
+    public void sendPush(String deviceToken, String title, String body, Map<String, String> data) {
+        boolean discovery = NotificationCategory.DISCOVERY.name().equals(data.get("category"));
         Message message = Message.builder()
                 .setToken(deviceToken)
                 .setNotification(Notification.builder().setTitle(title).setBody(body).build())
                 .setAndroidConfig(AndroidConfig.builder()
-                        .setPriority(AndroidConfig.Priority.HIGH)
+                        .setPriority(discovery ? AndroidConfig.Priority.NORMAL : AndroidConfig.Priority.HIGH)
+                        .setNotification(AndroidNotification.builder()
+                                .setChannelId(discovery ? "hipg_discovery" : "hipg_updates")
+                                .setIcon("ic_stat_hipg")
+                                .setColor("#F84464")
+                                .build())
                         .build())
-                .putData("type", "USER_EVENT")
+                .putAllData(data)
                 .build();
         try {
             messaging.send(message);

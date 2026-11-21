@@ -26,6 +26,7 @@ public record PgDetailsResponse(
         GenderPreference genderPreference,
         Double latitude,
         Double longitude,
+        String locationUrl,
         long totalBeds,
         long availableBeds,
         boolean directPaymentAvailable,

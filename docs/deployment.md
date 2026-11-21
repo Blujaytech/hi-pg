@@ -92,6 +92,12 @@ reverse proxy (nginx, Traefik), confirm it does the same before relying on the r
 | `GOOGLE_OAUTH_CLIENT_ID` | Yes when Google student sign-in is enabled | The **Web application** OAuth client ID. It is the expected ID-token audience and is also passed to Flutter as `GOOGLE_OAUTH_WEB_CLIENT_ID`. No client secret is used by this native ID-token flow. |
 | `FIREBASE_ENABLED` | Yes for Firebase phone login and push notifications | Set to `true` on Cloud Run after the runtime service account has access to the shared Firebase project. Keep it `false` for local/test runs that do not have Google Application Default Credentials. |
 | `FIREBASE_PROJECT_ID` | Yes when `FIREBASE_ENABLED=true` | Firebase target project ID. Hi PG currently uses the shared services project `hi-pg-platform-services-c96e2` for both staging and production mobile identities and FCM. |
+| `ENGAGEMENT_NOTIFICATIONS_ENABLED` | Optional | Enables scheduled, frequency-capped discovery reminders for active customers who have a push-capable device and no active booking. Defaults to `false` for safe rollout. |
+| `ENGAGEMENT_NOTIFICATIONS_CRON` | Optional | Cron for discovery reminders in `Asia/Kolkata`; defaults to `0 30 18 * * *` (6:30 PM daily eligibility check). |
+| `APP_SMS_ENABLED` | Yes for admin-created PG owner invitations | Enables business SMS. This is independent of Play Store publication and Firebase login OTP. Keep it `false` until the provider and India messaging compliance are ready. |
+| `APP_SMS_PROVIDER` | When business SMS is enabled | Currently `TWILIO` is supported. |
+| `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_FROM_NUMBER` | When `APP_SMS_PROVIDER=TWILIO` | Private provider credentials and an SMS-capable sender. Store them in Secret Manager, not source control. |
+| `APP_CLAIM_URL` | Recommended for owner invitations | HTTPS page owners should open after receiving an invitation; use the live Hi PG download/login page. |
 | `S3_ENABLED` / `S3_ENDPOINT` / `S3_REGION` / `S3_BUCKET` / `S3_ACCESS_KEY` / `S3_SECRET_KEY` / `S3_PATH_STYLE_ACCESS` | Yes for document/KYC uploads | Set `S3_ENABLED=true` for the real private S3-compatible gateway. Keep the bucket non-public; clients receive only time-limited signed GET URLs. Endpoint is optional for AWS S3 and required for most compatible providers. |
 | `NEXT_PUBLIC_API_BASE_URL` (web app) | Recommended | Your deployed backend's public URL + `/api/v1`; the web app currently falls back to `https://pg-platform-api.onrender.com/api/v1` in production and to localhost during development. Set this explicitly in the web host so a future backend-domain change does not require a code change. |
 | `API_BASE_URL` (mobile, via `--dart-define`) | Optional for the current Render service | Flutter defaults to `https://pg-platform-api.onrender.com/api/v1`. Override with `--dart-define=API_BASE_URL=...` for local development or a future domain. It is baked into the binary; a URL change needs a rebuild. |
@@ -107,6 +113,13 @@ The Android client configuration belongs at `mobile/android/app/google-services.
 contains public app identifiers, not a server private key. Never download or commit a Firebase
 service-account JSON key for Cloud Run. The backend uses the service account already attached to
 the Cloud Run service through Google Application Default Credentials.
+
+FCM and the persistent in-app inbox require no Play Store release. Sideloaded signed APKs can
+receive push when the Firebase Android app contains package `com.hipg.app`, its signing SHA
+fingerprints are registered, the runtime service account can send FCM, and the user grants Android
+notification permission. Admin-created PG invitation SMS is a separate Twilio integration. The
+admin listing panel shows `SENT`, `FAILED`, or `SKIPPED` and permits a retry after configuration is
+fixed; it never reports a disabled provider as a successful invitation.
 
 The shared Firebase project is separate from the staging and production Cloud Run projects. Run
 the following once from Cloud Shell to let both runtime identities verify Firebase users and send

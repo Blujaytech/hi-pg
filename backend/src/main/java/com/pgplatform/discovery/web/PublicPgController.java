@@ -11,10 +11,14 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import org.springframework.http.CacheControl;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 
 import java.math.BigDecimal;
 import java.util.UUID;
 import java.time.LocalDate;
+import java.time.Duration;
 import com.pgplatform.booking.BookingType;
 import org.springframework.format.annotation.DateTimeFormat;
 
@@ -53,6 +57,16 @@ public class PublicPgController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkIn,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkOut) {
         return pgSearchService.getDetails(pgId, bookingType, checkIn, checkOut);
+    }
+
+    @GetMapping("/api/v1/public/pgs/{pgId}/photos/{photoId}")
+    public ResponseEntity<byte[]> getPhoto(@PathVariable UUID pgId, @PathVariable UUID photoId) {
+        PgSearchService.PhotoContent photo = pgSearchService.getPhotoContent(pgId, photoId);
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.maxAge(Duration.ofHours(1)).cachePublic())
+                .contentType(MediaType.parseMediaType(photo.contentType()))
+                .contentLength(photo.content().length)
+                .body(photo.content());
     }
 
     /**

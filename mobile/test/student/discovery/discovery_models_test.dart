@@ -104,12 +104,14 @@ void main() {
           ...extra,
         };
     final both = PgSearchResult.fromJson(json(
-        {'offersMonthly': true, 'offersDayWise': true, 'minDayWiseRate': 450}));
+        {'offersMonthly': true, 'offersDayWise': true, 'stayTypeConfigured': true, 'minDayWiseRate': 450}));
     expect(both.offersMonthly, isTrue);
     expect(both.offersDayWise, isTrue);
+    expect(both.stayTypeConfigured, isTrue);
     expect(both.minDayWiseRate, 450);
     final old = PgSearchResult.fromJson(json({}));
     expect(old.offersMonthly, isNull);
     expect(old.offersDayWise, isNull);
+    expect(old.stayTypeConfigured, isFalse);
   });
 }

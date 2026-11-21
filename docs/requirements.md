@@ -27,8 +27,8 @@ Source of truth for *what* the platform must do: `PG_PLATFORM_TECHNICAL_PLAN.md`
 | Live bed availability (SSE) | **Built** (Phase 10, PG-level granularity, single-instance in-memory broadcaster -- see ADR-0016) |
 | Student registration & bed booking (concurrency-safe) | **Built** (Phase 11, Flutter-only client -- see ADR-0018; concurrency guarantee proven by `BookingConcurrencyTest`, ADR-0017) |
 | Payment gateway (Razorpay) | **Implemented, credential-gated** -- Checkout, signature/capture verification, webhooks, Route settlements, refunds, and Subscription AutoPay are active when Razorpay credentials are configured; see ADR-0027. |
-| Notifications (push/email/WhatsApp) | **Stubbed** (Phase 13 -- fan-out/wiring to 4 real trigger points is built and tested; delivery is logged only, no FCM/email-provider credentials configured; WhatsApp explicitly deferred per the plan; see ADR-0020) |
-| Real-time sync beyond bed availability | **Built** (Phase 14 -- per-user authenticated SSE stream, `/me/events/stream`, echoes all 4 of Phase 13's notification trigger points; Flutter-only client, same auth-header limitation as web `EventSource` noted in ADR-0021) |
+| Notifications (in-app/push/email/SMS/WhatsApp) | **Implemented with provider gates** -- persistent inbox, FCM token registration and tap routing, admin direct/broadcast messages, SSE foreground delivery, and auditable owner-invitation SMS are built. FCM requires Firebase runtime configuration; Twilio requires credentials; transactional email and WhatsApp remain deferred (ADR-0034). |
+| Real-time sync beyond bed availability | **Built** -- per-user authenticated SSE stream, `/me/events/stream`, echoes persisted notifications with their category and action route; Flutter-only client, same auth-header limitation as web `EventSource` noted in ADR-0021. |
 
 ## Non-functional requirements carried over from the plan
 

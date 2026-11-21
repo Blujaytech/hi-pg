@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/api_exception.dart';
 import '../../core/theme.dart';
+import '../../shared/app_states.dart';
 import '../bed/bed_models.dart';
 import '../bed/bed_repository.dart';
 import '../floor/floor_models.dart';
@@ -581,7 +582,10 @@ class _RoomListScreenState extends State<RoomListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Rooms & beds')),
+      appBar: PremiumAppBar(
+        title: 'Rooms & beds',
+        subtitle: widget.floor?.name ?? 'Availability, rent and inventory',
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _openRoomDialog(),
         icon: const Icon(Icons.add_rounded),

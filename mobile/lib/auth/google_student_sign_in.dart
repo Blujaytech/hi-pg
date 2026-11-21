@@ -52,7 +52,9 @@ class GoogleStudentSignIn {
     }
   }
 
-  Future<String> authenticate() async {
+  Future<String> authenticate() => _authenticate(allowNetworkRetry: true);
+
+  Future<String> _authenticate({required bool allowNetworkRetry}) async {
     try {
       await _ensureInitialized();
       if (!_signIn.supportsAuthenticate()) {
@@ -71,8 +73,37 @@ class GoogleStudentSignIn {
       if (error.code == GoogleSignInExceptionCode.canceled) {
         throw const GoogleStudentSignInCanceled();
       }
+      if (allowNetworkRetry && _isTransientNetworkFailure(error)) {
+        await Future<void>.delayed(const Duration(milliseconds: 900));
+        return _authenticate(allowNetworkRetry: false);
+      }
+      if (error.code == GoogleSignInExceptionCode.clientConfigurationError) {
+        throw const GoogleStudentSignInFailure(
+            'Google sign-in is unavailable in this app version. '
+            'Please update the app or continue with your mobile number.');
+      }
+      if (error.code == GoogleSignInExceptionCode.providerConfigurationError) {
+        throw const GoogleStudentSignInFailure(
+            'Google sign-in is unavailable on this device. '
+            'Please update Google Play services or continue with your mobile number.');
+      }
+      if (_isTransientNetworkFailure(error)) {
+        throw const GoogleStudentSignInFailure(
+            'Google could not connect. Switch between Wi-Fi and mobile data, '
+            'then try again.');
+      }
       throw GoogleStudentSignInFailure(
           error.description ?? 'Google sign-in could not be completed.');
     }
+  }
+
+  bool _isTransientNetworkFailure(GoogleSignInException error) {
+    if (error.code == GoogleSignInExceptionCode.interrupted) return true;
+    if (error.code != GoogleSignInExceptionCode.unknownError) return false;
+    final description = (error.description ?? '').toLowerCase();
+    return description.contains('network') ||
+        description.contains('connection') ||
+        description.contains('temporar') ||
+        description.contains('timeout');
   }
 }

@@ -1,6 +1,7 @@
 package com.pgplatform.auth;
 
 import com.pgplatform.document.DocumentStorageGateway;
+import com.pgplatform.owner.PgPhotoUrls;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -49,7 +50,9 @@ public class AccountDeletionStorageCleanupService {
 
         for (CleanupItem item : items) {
             try {
-                if (item.storageKey() != null) storageGateway.delete(item.storageKey());
+                if (item.storageKey() != null && !PgPhotoUrls.isDatabaseStorageKey(item.storageKey())) {
+                    storageGateway.delete(item.storageKey());
+                }
                 jdbcTemplate.update("""
                         update account_deletion_storage_cleanup
                         set status = 'COMPLETED', storage_key = null, completed_at = now(),

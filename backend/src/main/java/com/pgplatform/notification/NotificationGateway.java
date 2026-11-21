@@ -1,5 +1,7 @@
 package com.pgplatform.notification;
 
+import java.util.Map;
+
 /**
  * Abstraction over "send this message to a human". Phase 13 adds
  * {@code sendPush} (push is first per the technical plan: "cheapest,
@@ -13,5 +15,5 @@ package com.pgplatform.notification;
 public interface NotificationGateway {
     void sendSms(String toPhone, String message);
     void sendEmail(String toEmail, String subject, String body);
-    void sendPush(String deviceToken, String title, String body);
+    void sendPush(String deviceToken, String title, String body, Map<String, String> data);
 }

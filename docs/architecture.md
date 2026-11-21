@@ -15,7 +15,7 @@ Next.js web  ---/
 - `common/` -- `BaseEntity` (soft-delete + audit convention), exceptions, `GlobalExceptionHandler`, JPA auditing config, health endpoint.
 - `auth/` -- users, roles, JWT issuance/validation/refresh, owner email+password auth, student phone+OTP or Google auth, password reset, Spring Security config.
 - `owner/` -- Pg → Floor → Room → Bed hierarchy, ownership authorization (`OwnershipGuard`), bed auto-creation.
-- `student/`, `billing/`, `expense/`, `complaint/`, `document/`, `notification/`, `report/` -- scaffolded package directories for phases not yet built. `notification/` has a real interface (`NotificationGateway`) with a logging stub implementation, used today by OTP and password-reset flows.
+- `student/`, `billing/`, `expense/`, `complaint/`, `document/`, `notification/`, `report/` -- implemented domain packages. `notification/` owns the persistent inbox, admin audience messaging, device-token registration, Firebase/FCM delivery, and authenticated SSE fan-out; external providers remain configuration-gated.
 
 Every request is versioned under `/api/v1/`. Authentication is stateless JWT (`Authorization: Bearer <token>`), validated per-request by `JwtAuthFilter` -- no server-side session state.
 
@@ -27,9 +27,9 @@ See `database.md`. Every table follows the same convention: UUID primary key, `c
 
 There is no Postgres RLS (the prototype's Supabase setup had this for free; Spring Boot does not get it automatically). Every service method that touches an owner's data explicitly verifies the resource's owner chain matches the authenticated principal (`OwnershipGuard`), before any read or write. See `security.md`.
 
-## Real-time / live sync (not yet built)
+## Real-time / live sync
 
-Recommended and pending (Phase 10): Server-Sent Events for bed-availability push, with polling fallback. Not needed until student discovery + booking exist. Decision to be finalized and logged in `decisions.md` before that phase starts.
+Public PG availability and authenticated per-user notifications use Server-Sent Events. Both broadcaster registries are currently in-memory, so the API is intentionally kept to one active instance until a shared Pub/Sub, Redis, or PostgreSQL notification layer replaces them.
 
 ## Client apps
 

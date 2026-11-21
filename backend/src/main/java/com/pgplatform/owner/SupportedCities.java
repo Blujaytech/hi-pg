@@ -27,11 +27,15 @@ public final class SupportedCities {
     private SupportedCities() { }
 
     public static String requireCanonical(String value) {
-        String canonical = value == null ? null : CITIES.get(key(value));
+        String canonical = canonicalOrNull(value);
         if (canonical == null) {
             throw new ConflictException("Choose a valid city from the supported city list");
         }
         return canonical;
+    }
+
+    public static String canonicalOrNull(String value) {
+        return value == null ? null : CITIES.get(key(value));
     }
 
     private static String key(String value) {

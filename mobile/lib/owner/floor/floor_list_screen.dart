@@ -68,11 +68,9 @@ class _FloorListScreenState extends State<FloorListScreen> {
             : floors.map((f) => f.floorNumber).reduce((a, b) => a > b ? a : b) +
                 1;
         return Scaffold(
-          appBar: AppBar(
-            title: AppBarTitle(
-              title: 'Floors & rooms',
-              subtitle: widget.pg?.name,
-            ),
+          appBar: PremiumAppBar(
+            title: 'Floors & rooms',
+            subtitle: widget.pg?.name ?? 'Property inventory structure',
           ),
           floatingActionButton: ready && floors.isNotEmpty
               ? FloatingActionButton.extended(

@@ -234,7 +234,11 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('My bookings')),
+      backgroundColor: const Color(0xFFF7F7FA),
+      appBar: const PremiumAppBar(
+        title: 'My bookings',
+        subtitle: 'Your stays, payments and move-in details',
+      ),
       body: FutureBuilder<List<Booking>>(
         future: _future,
         builder: (context, snapshot) {
@@ -271,7 +275,7 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
             onRefresh: _refresh,
             child: ListView.separated(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(20, 6, 20, 32),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 36),
               itemCount: bookings.length + 1,
               separatorBuilder: (_, __) => const SizedBox(height: 12),
               itemBuilder: (context, index) {
@@ -394,10 +398,21 @@ class _BookingOverview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(20, 20, 18, 20),
       decoration: BoxDecoration(
-        color: AppColors.ink,
-        borderRadius: BorderRadius.circular(12),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF292B3A), Color(0xFF3B3E52)],
+        ),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.ink.withValues(alpha: .14),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -409,11 +424,12 @@ class _BookingOverview extends StatelessWidget {
                   '$active active ${active == 1 ? 'stay' : 'stays'}',
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 17,
+                    fontSize: 20,
                     fontWeight: FontWeight.w800,
+                    letterSpacing: -.4,
                   ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 4),
                 Text(
                   '$total booking${total == 1 ? '' : 's'} in your history',
                   style: TextStyle(
@@ -422,6 +438,19 @@ class _BookingOverview extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
+          ),
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: AppColors.brand,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Icon(
+              Icons.bed_rounded,
+              color: Colors.white,
+              size: 25,
             ),
           ),
         ],
@@ -456,70 +485,166 @@ class _BookingCard extends StatelessWidget {
         ? AppColors.brandText
         : AppColors.ink;
     final date = DateFormat('d MMM yyyy').format(booking.moveInDate);
+    final statusTone = booking.status == BookingStatus.paymentPending ||
+            booking.status == BookingStatus.directPaymentReview
+        ? StatusTone.warning
+        : active
+            ? StatusTone.success
+            : StatusTone.neutral;
 
-    return Card(
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFECECF1)),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.ink.withValues(alpha: .055),
+            blurRadius: 22,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            Align(
+              alignment: Alignment.centerLeft,
+              child: StatusPill(
+                label: booking.status.label,
+                tone: statusTone,
+                dot: active,
+              ),
+            ),
+            const SizedBox(height: 16),
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 IconTile(
                   icon: active
                       ? Icons.apartment_rounded
                       : Icons.event_busy_outlined,
-                  size: 46,
+                  size: 52,
                   color: typeColor,
                   background: typeColor.withValues(alpha: .10),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(booking.pgName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleMedium),
-                      const SizedBox(height: 2),
                       Text(
-                        'Room ${booking.roomNumber} · ${booking.bedLabel} · ${booking.bookingType.label}',
-                        style: Theme.of(context).textTheme.bodySmall,
+                        booking.pgName,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontSize: 17,
+                                  height: 1.18,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        'Your reserved stay',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: AppColors.muted,
+                            ),
                       ),
                     ],
                   ),
                 ),
-                StatusPill(
-                  label: booking.status.label,
-                  tone: booking.status == BookingStatus.paymentPending ||
-                          booking.status == BookingStatus.directPaymentReview
-                      ? StatusTone.warning
-                      : active
-                          ? StatusTone.success
-                          : StatusTone.neutral,
-                  dot: active,
+              ],
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _BookingDetailChip(
+                  icon: Icons.meeting_room_outlined,
+                  label: 'Room ${booking.roomNumber}',
+                ),
+                _BookingDetailChip(
+                  icon: Icons.bed_outlined,
+                  label: booking.bedLabel,
+                ),
+                _BookingDetailChip(
+                  icon: booking.bookingType == BookingType.monthly
+                      ? Icons.calendar_month_outlined
+                      : Icons.schedule_outlined,
+                  label: booking.bookingType.label,
                 ),
               ],
             ),
-            const SizedBox(height: 10),
-            Text(
-              'Total: ₹${booking.totalAmount.toStringAsFixed(0)}'
-              '${booking.securityDepositAmount > 0 ? ' (includes ₹${booking.securityDepositAmount.toStringAsFixed(0)} deposit)' : ''}',
-              style: Theme.of(context).textTheme.bodySmall,
+            const SizedBox(height: 18),
+            Container(
+              padding: const EdgeInsets.all(15),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF5F7),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: const Color(0xFFFFE4EA)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'TOTAL AMOUNT',
+                          style: TextStyle(
+                            color: AppColors.muted,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: .8,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          '₹${booking.totalAmount.toStringAsFixed(0)}',
+                          style: const TextStyle(
+                            color: AppColors.ink,
+                            fontSize: 23,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (booking.securityDepositAmount > 0)
+                    Flexible(
+                      child: Text(
+                        'Includes ₹${booking.securityDepositAmount.toStringAsFixed(0)} deposit',
+                        textAlign: TextAlign.right,
+                        style: const TextStyle(
+                          color: AppColors.muted,
+                          fontSize: 10.5,
+                          height: 1.25,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
             if (booking.plannedMoveOutDate != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                'Move-out notice: ${DateFormat('d MMM yyyy').format(booking.plannedMoveOutDate!)}',
-                style: Theme.of(context).textTheme.bodySmall,
+              const SizedBox(height: 10),
+              _BookingDateRow(
+                icon: Icons.exit_to_app_rounded,
+                label: 'Move-out notice',
+                value: DateFormat('d MMM yyyy')
+                    .format(booking.plannedMoveOutDate!),
               ),
             ],
             if (booking.status == BookingStatus.paymentPending &&
                 booking.paymentExpiresAt != null)
               _HoldCountdown(expiresAt: booking.paymentExpiresAt!),
             if (onPay != null) ...[
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               FilledButton.icon(
                 onPressed: onPay,
                 icon: paying
@@ -541,27 +666,11 @@ class _BookingCard extends StatelessWidget {
                 ),
               ),
             ],
-            const SizedBox(height: 14),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
-              decoration: BoxDecoration(
-                color: AppColors.fill,
-                borderRadius: BorderRadius.circular(13),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.calendar_today_rounded,
-                      color: AppColors.ink, size: 17),
-                  const SizedBox(width: 9),
-                  Text('Move-in', style: Theme.of(context).textTheme.bodySmall),
-                  const Spacer(),
-                  Text(date,
-                      style: const TextStyle(
-                          color: AppColors.ink,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700)),
-                ],
-              ),
+            const SizedBox(height: 12),
+            _BookingDateRow(
+              icon: Icons.calendar_today_rounded,
+              label: 'Move-in',
+              value: date,
             ),
             if (booking.cancellationReason != null) ...[
               const SizedBox(height: 12),
@@ -601,6 +710,83 @@ class _BookingCard extends StatelessWidget {
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _BookingDetailChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _BookingDetailChip({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.fill,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 15, color: AppColors.ink),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: const TextStyle(
+              color: AppColors.ink,
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BookingDateRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+
+  const _BookingDateRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.fill,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: AppColors.ink, size: 17),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            value,
+            style: const TextStyle(
+              color: AppColors.ink,
+              fontSize: 12.5,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
       ),
     );
   }

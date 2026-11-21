@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../api_client.dart';
 
@@ -30,10 +31,19 @@ class _LiveEventsListenerState extends State<LiveEventsListener> {
         if (!mounted) return;
         final title = event['title'] as String? ?? 'Notification';
         final message = event['message'] as String? ?? '';
+        final actionRoute = event['actionRoute'] as String?;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('$title: $message'),
             duration: const Duration(seconds: 4),
+            action: SnackBarAction(
+              label: 'View',
+              onPressed: () => context.push(
+                actionRoute?.isNotEmpty == true
+                    ? actionRoute!
+                    : '/notifications',
+              ),
+            ),
           ),
         );
       },

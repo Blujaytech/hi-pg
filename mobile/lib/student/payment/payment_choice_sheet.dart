@@ -25,6 +25,17 @@ Future<BookingPaymentChoice?> showBookingPaymentChoice(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          const Text(
+            'STEP 3 · PAYMENT',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: AppColors.brandText,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1,
+            ),
+          ),
+          const SizedBox(height: 7),
           Text(
             'Choose how to pay',
             textAlign: TextAlign.center,
@@ -43,14 +54,17 @@ Future<BookingPaymentChoice?> showBookingPaymentChoice(
           ),
           const SizedBox(height: 18),
           _PaymentChoiceButton(
+            icon: Icons.lock_outline_rounded,
             title: 'Pay Online',
             subtitle: 'UPI, Card or Net Banking',
+            badge: 'Recommended',
             primary: true,
             onTap: () =>
                 Navigator.pop(sheetContext, BookingPaymentChoice.online),
           ),
           const SizedBox(height: 10),
           _PaymentChoiceButton(
+            icon: Icons.account_balance_wallet_outlined,
             title: 'Pay Directly to Owner',
             subtitle: directOwnerAvailable
                 ? "Use the owner's UPI and request verification"
@@ -93,15 +107,19 @@ Future<BookingPaymentChoice?> showBookingPaymentChoice(
 }
 
 class _PaymentChoiceButton extends StatelessWidget {
+  final IconData icon;
   final String title;
   final String subtitle;
+  final String? badge;
   final bool primary;
   final bool available;
   final VoidCallback onTap;
 
   const _PaymentChoiceButton({
+    required this.icon,
     required this.title,
     required this.subtitle,
+    this.badge,
     this.primary = false,
     this.available = true,
     required this.onTap,
@@ -129,27 +147,64 @@ class _PaymentChoiceButton extends StatelessWidget {
           child: InkWell(
             onTap: onTap,
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
               child: Row(
                 children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: primary
+                          ? Colors.white.withValues(alpha: .16)
+                          : AppColors.fill,
+                      borderRadius: AppRadii.small,
+                    ),
+                    child: Icon(icon, size: 21, color: foreground),
+                  ),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          title,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: foreground,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                          ),
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                title,
+                                style: TextStyle(
+                                  color: foreground,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                            if (badge != null) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 7, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: .18),
+                                  borderRadius:
+                                      BorderRadius.circular(AppRadii.pill),
+                                ),
+                                child: Text(
+                                  badge!,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                         const SizedBox(height: 2),
                         Text(
                           subtitle,
-                          textAlign: TextAlign.center,
                           style: TextStyle(
                             color: primary
                                 ? Colors.white.withValues(alpha: .82)

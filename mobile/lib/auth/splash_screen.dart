@@ -11,14 +11,11 @@ import '../shared/brand/hi_pg_brand.dart';
 import 'auth_models.dart';
 import 'auth_state.dart';
 
-/// First route on every cold start. It continues exactly where Android's
-/// native splash stops -- same rose, same mark, same size and position --
-/// then plays the brand moment: the house hops and winks, glides left while
-/// "hi pg" springs in letter by letter, then rushes toward the camera as the
-/// screen floods white and opens into the (white) app.
-///
-/// Session restore (AuthState.bootstrap) runs in parallel; the hand-off goes
-/// to the welcome screen or the signed-in role's home once both are done.
+const _roomBackground = 'assets/branding/hi_pg_splash_room.png';
+
+/// A four-second, layered launch composition inspired by the approved artwork.
+/// Every branded element is rendered independently so it can move naturally
+/// over the cinematic room background without animating a flattened poster.
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -26,26 +23,22 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-/// Choreography, as fractions of the controller's duration.
 abstract final class _Timeline {
-  static const duration = Duration(milliseconds: 3000);
-  static const bounce = (.05, .26);
-  static const wink = (.17, .29);
-  static const move = (.27, .47);
-  static const lettersStart = .40;
-  static const letterStagger = .045;
-  static const letterDuration = .15;
-  static const tagline = (.58, .70);
-  static const blink = (.74, .79);
-  static const zoom = (.84, 1.0);
-
-  /// Share of the zoom over which the screen floods white. The flood is
-  /// opaque well before the house would be drawn at its largest, so the
-  /// final frames are a cheap solid fill rather than a huge path.
-  static const flood = (.45, .8);
-
-  /// Everything is on screen and still; used when animations are disabled.
-  static const lockupComplete = .72;
+  static const duration = Duration(milliseconds: 4000);
+  static const logo = (0.04, 0.25);
+  static const accent = (0.18, 0.32);
+  static const wordsStart = 0.25;
+  static const wordStagger = 0.055;
+  static const wordDuration = 0.18;
+  static const underline = (0.61, 0.78);
+  static const subtitle = (0.54, 0.70);
+  static const topWave = (0.0, 0.30);
+  static const bottomWave = (0.68, 0.91);
+  static const featureStarts = [0.61, 0.68, 0.75];
+  static const featureDuration = 0.17;
+  static const fadeOut = (0.94, 1.0);
+  static const reducedMotionFrame = 0.92;
+  static const reducedMotionHold = Duration(milliseconds: 1100);
 }
 
 class _SplashScreenState extends State<SplashScreen>
@@ -55,26 +48,8 @@ class _SplashScreenState extends State<SplashScreen>
   late final AnimationController _controller =
       AnimationController(vsync: this, duration: _Timeline.duration);
   late final AuthState _auth;
-  _Geometry? _geometry;
   bool _animationDone = false;
   bool _handedOff = false;
-
-  // Squash-and-stretch hop, anchored at the base of the mark.
-  static final _squashX = _sequence([1, 1.1, .94, 1.05, 1]);
-  static final _squashY = _sequence([1, .86, 1.1, .93, 1]);
-  static final _hop = _sequence([0, 0, -.17, 0, 0]);
-  static final _closeAndOpen = _sequence([0, 1, 1, 0]);
-
-  static TweenSequence<double> _sequence(List<double> stops) {
-    return TweenSequence([
-      for (var i = 0; i < stops.length - 1; i++)
-        TweenSequenceItem(
-          tween: Tween(begin: stops[i], end: stops[i + 1])
-              .chain(CurveTween(curve: Curves.easeInOutSine)),
-          weight: 1,
-        ),
-    ]);
-  }
 
   @override
   void initState() {
@@ -84,21 +59,17 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _start() async {
-    // Android 12+ keeps its system splash on top of these first frames until
-    // the platform removes it; MainActivity answers once it is gone (or
-    // decides no splash was shown) so the opening beats are never played
-    // unseen. The timeout is only a last-resort safety net.
     try {
       await _launchChannel
           .invokeMethod<void>('systemSplashGone')
           .timeout(const Duration(seconds: 6));
     } catch (_) {
-      // Older Android, other platforms and tests: nothing to wait for.
+      // Older Android, other platforms and tests have no native hand-off.
     }
     if (!mounted) return;
     if (MediaQuery.disableAnimationsOf(context)) {
-      _controller.value = _Timeline.lockupComplete;
-      Future<void>.delayed(const Duration(milliseconds: 700), _onAnimationDone);
+      _controller.value = _Timeline.reducedMotionFrame;
+      Future<void>.delayed(_Timeline.reducedMotionHold, _onAnimationDone);
     } else {
       _controller.forward().whenComplete(_onAnimationDone);
     }
@@ -127,7 +98,7 @@ class _SplashScreenState extends State<SplashScreen>
     context.go(switch (_auth.status) {
       AuthStatus.authenticated => switch (_auth.role) {
           UserRole.admin => '/admin',
-          UserRole.owner => '/owner',
+          UserRole.owner => '/owner/dashboard',
           _ => '/student',
         },
       _ => '/',
@@ -138,119 +109,299 @@ class _SplashScreenState extends State<SplashScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       key: const Key('launch-animation'),
-      backgroundColor: AppColors.brand,
+      backgroundColor: const Color(0xFFF8E9E5),
       body: Semantics(
-        label: 'hi pg',
+        label: 'hi pg. Your Next Place Feels Like Home. '
+            'Prime locations, verified PGs, safe and hassle-free.',
+        image: true,
         child: ExcludeSemantics(
           child: LayoutBuilder(
-            builder: (context, constraints) {
-              final size = constraints.biggest;
-              final geometry = _geometry?.size == size
-                  ? _geometry!
-                  : _geometry = _Geometry(size);
-              return AnimatedBuilder(
-                animation: _controller,
-                builder: (context, _) => _frame(geometry, _controller.value),
-              );
-            },
+            builder: (context, constraints) => AnimatedBuilder(
+              animation: _controller,
+              builder: (context, _) => _frame(
+                context,
+                constraints.biggest,
+                _controller.value,
+              ),
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _frame(_Geometry g, double t) {
-    final bounce = _progress(t, _Timeline.bounce);
-    final zoom = _progress(t, _Timeline.zoom);
-    final flood =
-        Curves.easeInCubic.transform(_progress(zoom, _Timeline.flood));
-    final lockupOpacity = 1 - (zoom * 3).clamp(0.0, 1.0);
-    final tagline =
-        Curves.easeOutCubic.transform(_progress(t, _Timeline.tagline));
-
-    final double markSize;
-    final Offset markTopLeft;
-    if (zoom > 0) {
-      // Rush into the house: grow it around the middle of its body.
-      // Exponential growth reads as a steady zoom; easing the exponent makes
-      // it accelerate toward the camera.
-      markSize = _Geometry.endMark *
-          math
-              .pow(g.coverSize / _Geometry.endMark,
-                  Curves.easeInQuad.transform(zoom))
-              .toDouble();
-      markTopLeft = g.zoomAnchor -
-          Offset(markSize * _Geometry.anchorX, markSize * _Geometry.anchorY);
-    } else {
-      final move =
-          Curves.easeInOutCubic.transform(_progress(t, _Timeline.move));
-      markSize = lerpDouble(g.startMark, _Geometry.endMark, move)!;
-      final center = Offset.lerp(g.center, g.endMarkCenter, move)!;
-      markTopLeft = Offset(
-        center.dx - markSize / 2,
-        center.dy - markSize / 2 + _hop.transform(bounce) * g.startMark,
-      );
-    }
+  Widget _frame(BuildContext context, Size size, double progress) {
+    final eased = Curves.easeOutCubic.transform(progress);
+    final backgroundScale = lerpDouble(1.075, 1.0, eased)!;
+    final backgroundOffset = Offset(
+      lerpDouble(-8, 0, eased)!,
+      lerpDouble(22, 0, eased)!,
+    );
+    final fadeOut = Curves.easeInCubic.transform(
+      _progress(progress, _Timeline.fadeOut),
+    );
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: flood > .5 ? AppTheme.lightChrome : AppTheme.darkChrome,
+      value: AppTheme.lightChrome,
       child: Stack(
+        fit: StackFit.expand,
         clipBehavior: Clip.hardEdge,
         children: [
-          for (var i = 0; i < _Geometry.letters.length; i++)
-            _letter(g, i, t, lockupOpacity),
-          if (flood < 1)
-            Positioned(
-              left: markTopLeft.dx,
-              top: markTopLeft.dy,
-              width: markSize,
-              height: markSize,
-              child: Transform(
-                alignment: Alignment.bottomCenter,
-                transform: Matrix4.diagonal3Values(
-                  _squashX.transform(bounce),
-                  _squashY.transform(bounce),
-                  1,
-                ),
-                child: HiPgMark(
-                  size: markSize,
-                  color: AppColors.surface,
-                  // The face melts away as the house rushes in.
-                  faceColor: Color.lerp(AppColors.brand, AppColors.surface,
-                      (zoom * 4).clamp(0.0, 1.0)),
-                  wink: _closeAndOpen.transform(_progress(t, _Timeline.wink)),
-                  blink: _closeAndOpen.transform(_progress(t, _Timeline.blink)),
-                  smile: lerpDouble(
-                    .55,
-                    1,
-                    Curves.easeOut.transform(_progress(t, _Timeline.wink)),
-                  )!,
-                ),
-              ),
-            ),
-          Positioned(
-            left: 24,
-            right: 24,
-            top: g.center.dy + _Geometry.endMark / 2 + 30 + (1 - tagline) * 10,
-            child: Opacity(
-              opacity: tagline * lockupOpacity,
-              child: Text(
-                'Find a stay  ·  Run a PG',
-                textAlign: TextAlign.center,
-                textScaler: TextScaler.noScaling,
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: .88),
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: .3,
+          RepaintBoundary(
+            child: Transform.translate(
+              offset: backgroundOffset,
+              child: Transform.scale(
+                scale: backgroundScale,
+                child: Image.asset(
+                  _roomBackground,
+                  key: const Key('launch-room-background'),
+                  fit: BoxFit.cover,
+                  alignment: Alignment.center,
+                  filterQuality: FilterQuality.medium,
+                  gaplessPlayback: true,
                 ),
               ),
             ),
           ),
-          if (flood > 0)
-            Positioned.fill(
-              child: ColoredBox(
-                color: AppColors.surface.withValues(alpha: flood),
+          const DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFDFEF8F6),
+                  Color(0xE8FEF8F6),
+                  Color(0x78FEF8F6),
+                  Color(0x00FFFFFF),
+                ],
+                stops: [0, 0.27, 0.52, 0.72],
+              ),
+            ),
+          ),
+          _topWave(size, progress),
+          _content(context, size, progress),
+          _bottomWave(size, progress),
+          if (fadeOut > 0)
+            ColoredBox(color: Colors.white.withValues(alpha: fadeOut)),
+        ],
+      ),
+    );
+  }
+
+  Widget _content(BuildContext context, Size size, double progress) {
+    final padding = MediaQuery.paddingOf(context);
+    final horizontal = (size.width * 0.09).clamp(26.0, 54.0);
+    final top = math.max(padding.top + 14, size.height * 0.052);
+    final logoSize = (size.width * 0.105).clamp(42.0, 70.0);
+    final headlineSize = (size.width * 0.064).clamp(27.0, 43.0);
+    final subtitleSize = (size.width * 0.033).clamp(15.0, 21.0);
+    final contentWidth = size.width - horizontal * 2;
+
+    return Positioned(
+      left: horizontal,
+      right: horizontal,
+      top: top,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _logo(logoSize, progress),
+          SizedBox(height: logoSize * 0.22),
+          _accent(progress),
+          SizedBox(height: headlineSize * 0.52),
+          _headline(headlineSize, progress),
+          SizedBox(height: headlineSize * 0.52),
+          _subtitle(subtitleSize, progress),
+          SizedBox(height: headlineSize * 0.86),
+          _features(contentWidth, size.width, progress),
+        ],
+      ),
+    );
+  }
+
+  Widget _logo(double fontSize, double progress) {
+    final raw = _progress(progress, _Timeline.logo);
+    final spring = Curves.easeOutBack.transform(raw);
+    return Opacity(
+      opacity: raw,
+      child: Transform.translate(
+        offset: Offset(0, (1 - spring) * 18),
+        child: Transform.scale(
+          scale: lerpDouble(0.72, 1, spring)!,
+          alignment: Alignment.bottomLeft,
+          child: HiPgPlainLogo(
+            key: const Key('launch-logo'),
+            fontSize: fontSize,
+            hiColor: const Color(0xFF96989D),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _accent(double progress) {
+    final value = Curves.easeOutCubic.transform(
+      _progress(progress, _Timeline.accent),
+    );
+    return Transform.scale(
+      scaleX: value,
+      alignment: Alignment.centerLeft,
+      child: Container(
+        key: const Key('launch-logo-accent'),
+        width: 48,
+        height: 5,
+        decoration: BoxDecoration(
+          color: AppColors.brand,
+          borderRadius: BorderRadius.circular(99),
+        ),
+      ),
+    );
+  }
+
+  Widget _headline(double fontSize, double progress) {
+    final style = TextStyle(
+      fontFamily: AppTheme.fontFamily,
+      color: const Color(0xFF111421),
+      fontSize: fontSize,
+      fontWeight: FontWeight.w800,
+      height: 1.08,
+      letterSpacing: -fontSize * 0.038,
+    );
+    final gap = fontSize * 0.22;
+    return Column(
+      key: const Key('launch-headline'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _word('Your', 0, style, progress),
+              SizedBox(width: gap),
+              _word('Next', 1, style, progress),
+              SizedBox(width: gap),
+              _word('Place', 2, style, progress),
+            ],
+          ),
+        ),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _word('Feels', 3, style, progress),
+              SizedBox(width: gap),
+              _word('Like', 4, style, progress),
+              SizedBox(width: gap),
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  _word(
+                    'Home',
+                    5,
+                    style.copyWith(color: AppColors.brand),
+                    progress,
+                    key: const Key('launch-home-word'),
+                  ),
+                  Positioned(
+                    left: 1,
+                    right: 0,
+                    bottom: -fontSize * 0.23,
+                    height: fontSize * 0.24,
+                    child: CustomPaint(
+                      key: const Key('launch-home-underline'),
+                      painter: _UnderlinePainter(
+                        Curves.easeOutCubic.transform(
+                          _progress(progress, _Timeline.underline),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _word(
+    String text,
+    int index,
+    TextStyle style,
+    double progress, {
+    Key? key,
+  }) {
+    final start = _Timeline.wordsStart + index * _Timeline.wordStagger;
+    final raw = _progress(
+      progress,
+      (start, start + _Timeline.wordDuration),
+    );
+    final eased = Curves.easeOutCubic.transform(raw);
+    return Opacity(
+      opacity: raw,
+      child: Transform.translate(
+        offset: Offset(0, (1 - eased) * style.fontSize! * 0.62),
+        child: Text(
+          text,
+          key: key ?? Key('launch-word-${text.toLowerCase()}'),
+          style: style,
+          textScaler: TextScaler.noScaling,
+        ),
+      ),
+    );
+  }
+
+  Widget _subtitle(double fontSize, double progress) {
+    final raw = _progress(progress, _Timeline.subtitle);
+    final eased = Curves.easeOutCubic.transform(raw);
+    return Opacity(
+      opacity: raw,
+      child: Transform.translate(
+        offset: Offset(0, (1 - eased) * 14),
+        child: Text(
+          'Discover comfortable PGs\nin the best locations.',
+          key: const Key('launch-subtitle'),
+          textScaler: TextScaler.noScaling,
+          style: TextStyle(
+            fontFamily: AppTheme.fontFamily,
+            color: const Color(0xFF66676D),
+            fontSize: fontSize,
+            fontWeight: FontWeight.w500,
+            height: 1.36,
+            letterSpacing: -0.2,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _features(double width, double screenWidth, double progress) {
+    final iconSize = (screenWidth * 0.058).clamp(23.0, 34.0);
+    final labelSize = (screenWidth * 0.026).clamp(12.0, 16.0);
+    final features = [
+      (Icons.location_on_rounded, 'Prime\nLocations', 'location'),
+      (Icons.bed_rounded, 'Verified\nPGs', 'bed'),
+      (Icons.verified_user_rounded, 'Safe &\nHassle-Free', 'shield'),
+    ];
+    return SizedBox(
+      width: width,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (var index = 0; index < features.length; index++)
+            Expanded(
+              child: _feature(
+                features[index],
+                index,
+                iconSize,
+                labelSize,
+                progress,
               ),
             ),
         ],
@@ -258,24 +409,77 @@ class _SplashScreenState extends State<SplashScreen>
     );
   }
 
-  Widget _letter(_Geometry g, int index, double t, double lockupOpacity) {
-    final start = _Timeline.lettersStart + index * _Timeline.letterStagger;
-    final pop = Curves.easeOutBack
-        .transform(_progress(t, (start, start + _Timeline.letterDuration)));
+  Widget _feature(
+    (IconData, String, String) feature,
+    int index,
+    double iconSize,
+    double labelSize,
+    double progress,
+  ) {
+    final start = _Timeline.featureStarts[index];
+    final raw = _progress(
+      progress,
+      (start, start + _Timeline.featureDuration),
+    );
+    final spring = Curves.easeOutBack.transform(raw);
+    return Opacity(
+      opacity: raw,
+      child: Transform.translate(
+        offset: Offset(0, (1 - spring) * 24),
+        child: Transform.scale(
+          scale: lerpDouble(0.58, 1, spring)!,
+          child: Column(
+            key: Key('launch-feature-${feature.$3}'),
+            children: [
+              Container(
+                width: iconSize * 2.05,
+                height: iconSize * 2.05,
+                decoration: const BoxDecoration(
+                  color: Color(0x66FFE1E8),
+                  shape: BoxShape.circle,
+                ),
+                alignment: Alignment.center,
+                child: Icon(
+                  feature.$1,
+                  size: iconSize,
+                  color: AppColors.brand,
+                ),
+              ),
+              SizedBox(height: iconSize * 0.33),
+              Text(
+                feature.$2,
+                textAlign: TextAlign.center,
+                textScaler: TextScaler.noScaling,
+                style: TextStyle(
+                  fontFamily: AppTheme.fontFamily,
+                  color: const Color(0xFF292B34),
+                  fontSize: labelSize,
+                  fontWeight: FontWeight.w600,
+                  height: 1.14,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _topWave(Size screen, double progress) {
+    final raw = _progress(progress, _Timeline.topWave);
+    final eased = Curves.easeOutCubic.transform(raw);
     return Positioned(
-      left: g.letterLeft(index),
-      top: g.center.dy - _Geometry.fontSize * .56,
+      right: -screen.width * 0.07,
+      top: -screen.height * 0.035,
       child: Opacity(
-        opacity: _progress(t, (start, start + .05)) * lockupOpacity,
+        opacity: raw,
         child: Transform.translate(
-          offset: Offset(0, (1 - pop) * _Geometry.fontSize * .5),
-          child: Transform.scale(
-            scale: .45 + .55 * pop,
-            alignment: Alignment.bottomCenter,
-            child: Text(
-              _Geometry.letters[index],
-              textScaler: TextScaler.noScaling,
-              style: brandWordStyle(_Geometry.fontSize, AppColors.surface),
+          offset: Offset((1 - eased) * screen.width * 0.2, 0),
+          child: RepaintBoundary(
+            child: CustomPaint(
+              key: const Key('launch-top-wave'),
+              size: Size(screen.width * 0.46, screen.height * 0.30),
+              painter: _TopWavePainter(progress),
             ),
           ),
         ),
@@ -283,78 +487,172 @@ class _SplashScreenState extends State<SplashScreen>
     );
   }
 
-  static double _progress(double t, (double, double) window) =>
-      ((t - window.$1) / (window.$2 - window.$1)).clamp(0.0, 1.0);
+  Widget _bottomWave(Size screen, double progress) {
+    final raw = _progress(progress, _Timeline.bottomWave);
+    final eased = Curves.easeOutCubic.transform(raw);
+    return Positioned(
+      left: -screen.width * 0.1,
+      right: -screen.width * 0.08,
+      bottom: -screen.height * 0.02,
+      height: screen.height * 0.17,
+      child: Opacity(
+        opacity: raw,
+        child: Transform.translate(
+          offset: Offset(0, (1 - eased) * screen.height * 0.11),
+          child: RepaintBoundary(
+            child: CustomPaint(
+              key: const Key('launch-bottom-wave'),
+              painter: _BottomWavePainter(progress),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  static double _progress(double value, (double, double) window) =>
+      ((value - window.$1) / (window.$2 - window.$1)).clamp(0.0, 1.0);
 }
 
-/// Where everything sits for a given screen size. The start size matches the
-/// native splash: splash_mark is a 288dp canvas and the mark fills
-/// [HiPgMarkPainter.adaptiveMarkFraction] of it.
-class _Geometry {
-  static const letters = ['h', 'i', 'p', 'g'];
-  static const double fontSize = 54;
-  static const double endMark = 58;
-  static const double gap = 14;
+class _UnderlinePainter extends CustomPainter {
+  final double progress;
 
-  /// Middle of the house body, as a fraction of the mark box; the closing
-  /// zoom grows around this point.
-  static const double anchorX = .5;
-  static const double anchorY = .66;
+  const _UnderlinePainter(this.progress);
 
-  final Size size;
-  final List<double> _letterWidths;
-
-  _Geometry(this.size)
-      : _letterWidths = [
-          for (final letter in letters) _measure(letter),
-        ];
-
-  static double _measure(String letter) {
-    final painter = TextPainter(
-      text: TextSpan(
-        text: letter,
-        style: brandWordStyle(fontSize, Colors.white),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    final width = painter.width;
-    painter.dispose();
-    return width;
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = Path()
+      ..moveTo(1, size.height * 0.62)
+      ..quadraticBezierTo(
+        size.width * 0.48,
+        size.height * 0.06,
+        size.width - 1,
+        size.height * 0.42,
+      );
+    final metric = path.computeMetrics().first;
+    canvas.drawPath(
+      metric.extractPath(0, metric.length * progress),
+      Paint()
+        ..color = AppColors.brand
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = math.max(3, size.height * 0.28)
+        ..strokeCap = StrokeCap.round,
+    );
   }
 
-  double get startMark => 288 * HiPgMarkPainter.adaptiveMarkFraction;
-  double get _space => fontSize * .24;
-  Offset get center => size.center(Offset.zero);
+  @override
+  bool shouldRepaint(_UnderlinePainter oldDelegate) =>
+      oldDelegate.progress != progress;
+}
 
-  double get _lockupLeft {
-    final word = _letterWidths.fold<double>(0, (a, b) => a + b) + _space;
-    return center.dx - (endMark + gap + word) / 2;
+class _TopWavePainter extends CustomPainter {
+  final double phase;
+
+  const _TopWavePainter(this.phase);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final drift = math.sin(phase * math.pi) * size.height * 0.035;
+    final fill = Path()
+      ..moveTo(size.width * 0.36, 0)
+      ..cubicTo(
+        size.width * 0.34,
+        size.height * 0.36 + drift,
+        size.width * 0.66,
+        size.height * 0.74 + drift,
+        size.width,
+        size.height * 0.84,
+      )
+      ..lineTo(size.width, 0)
+      ..close();
+    canvas.drawPath(
+        fill, Paint()..color = AppColors.brand.withValues(alpha: 0.9));
+
+    final line = Path()
+      ..moveTo(size.width * 0.24, 0)
+      ..cubicTo(
+        size.width * 0.28,
+        size.height * 0.34 + drift,
+        size.width * 0.61,
+        size.height * 0.63 + drift,
+        size.width,
+        size.height * 0.70,
+      );
+    canvas.drawPath(
+      line,
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.82)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..strokeCap = StrokeCap.round,
+    );
   }
 
-  Offset get endMarkCenter => Offset(_lockupLeft + endMark / 2, center.dy);
+  @override
+  bool shouldRepaint(_TopWavePainter oldDelegate) => oldDelegate.phase != phase;
+}
 
-  Offset get zoomAnchor =>
-      endMarkCenter + const Offset(0, endMark * (anchorY - .5));
+class _BottomWavePainter extends CustomPainter {
+  final double phase;
 
-  /// Mark size at which the solid part of the house body (about x .12-.88,
-  /// y .48-.82 of the mark box) would cover the whole screen around
-  /// [zoomAnchor]; the zoom heads here while the white flood takes over.
-  double get coverSize {
-    final a = zoomAnchor;
-    return [
-          a.dx / (anchorX - .12),
-          (size.width - a.dx) / (.88 - anchorX),
-          a.dy / (anchorY - .48),
-          (size.height - a.dy) / (.82 - anchorY),
-        ].reduce(math.max) *
-        1.05;
+  const _BottomWavePainter(this.phase);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final drift = math.sin(phase * math.pi) * size.height * 0.04;
+    final fill = Path()
+      ..moveTo(0, size.height * 0.27)
+      ..cubicTo(
+        size.width * 0.19,
+        -size.height * 0.02 + drift,
+        size.width * 0.39,
+        size.height * 0.10 + drift,
+        size.width * 0.56,
+        size.height * 0.43,
+      )
+      ..cubicTo(
+        size.width * 0.73,
+        size.height * 0.74,
+        size.width * 0.88,
+        size.height * 0.73,
+        size.width,
+        size.height * 0.62,
+      )
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+    canvas.drawPath(
+        fill, Paint()..color = AppColors.brand.withValues(alpha: 0.93));
+
+    final line = Path()
+      ..moveTo(0, size.height * 0.47)
+      ..cubicTo(
+        size.width * 0.22,
+        size.height * 0.28 + drift,
+        size.width * 0.42,
+        size.height * 0.39 + drift,
+        size.width * 0.61,
+        size.height * 0.68,
+      )
+      ..cubicTo(
+        size.width * 0.76,
+        size.height * 0.89,
+        size.width * 0.91,
+        size.height * 0.84,
+        size.width,
+        size.height * 0.76,
+      );
+    canvas.drawPath(
+      line,
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.88)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..strokeCap = StrokeCap.round,
+    );
   }
 
-  double letterLeft(int index) {
-    var left = _lockupLeft + endMark + gap;
-    for (var i = 0; i < index; i++) {
-      left += _letterWidths[i];
-    }
-    return index >= 2 ? left + _space : left;
-  }
+  @override
+  bool shouldRepaint(_BottomWavePainter oldDelegate) =>
+      oldDelegate.phase != phase;
 }

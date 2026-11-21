@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import { MotionGrid, MotionPage } from '@/components/MotionPrimitives';
+import { SearchFiltersPanel, type SearchFilterDefaults } from '@/components/SearchFiltersPanel';
 import { ApiError } from '@/lib/api';
 import { searchPgs, type GenderPreference, type PgSearchResult } from '@/lib/discovery';
 
@@ -32,107 +34,155 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
     errorMessage = error instanceof ApiError ? error.message : 'Could not load PG listings right now.';
   }
 
+  const defaults: SearchFilterDefaults = {
+    city: filters.city,
+    genderPreference: filters.genderPreference,
+    minRent: filters.minRent,
+    maxRent: filters.maxRent,
+  };
+
   return (
-    <main className="mx-auto max-w-5xl px-6 py-12">
-      <h1 className="text-2xl font-semibold">Find a PG</h1>
-      <p className="mt-2 text-slate-600">
-        Search active listings by city, gender preference, and monthly rent. Results are live -- availability reflects
-        the current bed status, not a cached snapshot.
-      </p>
-
-      <form className="mt-6 flex flex-wrap gap-3 rounded-lg border border-slate-200 p-4" method="get">
-        <input
-          type="text"
-          name="city"
-          placeholder="City"
-          defaultValue={filters.city ?? ''}
-          className="w-40 rounded-md border border-slate-300 px-3 py-2 text-sm"
-        />
-        <select
-          name="genderPreference"
-          defaultValue={filters.genderPreference ?? ''}
-          className="rounded-md border border-slate-300 px-3 py-2 text-sm"
-        >
-          <option value="">Any gender preference</option>
-          <option value="CO_ED">Co-ed</option>
-          <option value="MALE">Male</option>
-          <option value="FEMALE">Female</option>
-        </select>
-        <input
-          type="number"
-          name="minRent"
-          placeholder="Min rent"
-          defaultValue={filters.minRent ?? ''}
-          className="w-32 rounded-md border border-slate-300 px-3 py-2 text-sm"
-        />
-        <input
-          type="number"
-          name="maxRent"
-          placeholder="Max rent"
-          defaultValue={filters.maxRent ?? ''}
-          className="w-32 rounded-md border border-slate-300 px-3 py-2 text-sm"
-        />
-        <button type="submit" className="rounded-md bg-brand px-5 py-2 text-sm font-medium text-white">
-          Search
-        </button>
-      </form>
-
-      {errorMessage && <p className="mt-8 text-red-600">{errorMessage}</p>}
-
-      {results && (
-        <>
-          <p className="mt-6 text-sm text-slate-500">{results.totalElements} PG(s) found</p>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            {results.content.map((pg) => (
-              <PgCard key={pg.id} pg={pg} />
-            ))}
+    <MotionPage>
+      <main className="discovery-results-page">
+        <section className="search-page-hero">
+          <div className="search-page-hero-inner">
+            <div>
+              <p className="eyebrow">Find your next stay</p>
+              <h1>PGs that fit your life.</h1>
+              <p>Compare real prices, room configurations, and current availability before you decide.</p>
+            </div>
+            <form action="/search" method="get" className="compact-search-bar">
+              <label>
+                <span>Where</span>
+                <input name="city" defaultValue={filters.city ?? ''} placeholder="Search by city" />
+              </label>
+              {filters.genderPreference && <input type="hidden" name="genderPreference" value={filters.genderPreference} />}
+              {filters.minRent && <input type="hidden" name="minRent" value={filters.minRent} />}
+              {filters.maxRent && <input type="hidden" name="maxRent" value={filters.maxRent} />}
+              <button type="submit" aria-label="Search">
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></svg>
+              </button>
+            </form>
           </div>
-          {results.content.length === 0 && (
-            <p className="mt-8 text-slate-500">No PGs match those filters yet.</p>
+        </section>
+
+        <section className="search-results-shell" aria-labelledby="search-results-title">
+          <div className="search-toolbar">
+            <div>
+              <h2 id="search-results-title">{filters.city ? `Stays in ${filters.city}` : 'Explore available PGs'}</h2>
+              {results && <p aria-live="polite">{results.totalElements} {results.totalElements === 1 ? 'property' : 'properties'} found</p>}
+            </div>
+            <SearchFiltersPanel defaults={defaults} />
+          </div>
+
+          <ActiveFilters filters={filters} />
+
+          {errorMessage && (
+            <div role="alert" className="mt-5 rounded-panel border border-red-200 bg-red-50 p-5 text-sm text-red-700">
+              <p className="font-bold">We could not load listings.</p>
+              <p className="mt-1">{errorMessage}</p>
+            </div>
           )}
-          <Pagination
-            page={results.page}
-            totalPages={results.totalPages}
-            searchParams={filters}
-          />
-        </>
-      )}
-    </main>
+
+          {results && (
+            <>
+              <MotionGrid className="property-discovery-grid">
+                {results.content.map((pg) => <PgCard key={pg.id} pg={pg} />)}
+              </MotionGrid>
+              {results.content.length === 0 && (
+                <div className="search-empty-state">
+                  <div className="search-empty-icon">
+                    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4M8 11h6" /></svg>
+                  </div>
+                  <h3>No PGs match these filters</h3>
+                  <p>Try another city or widen your monthly budget.</p>
+                  <Link href="/search">Clear all filters</Link>
+                </div>
+              )}
+              <Pagination page={results.page} totalPages={results.totalPages} searchParams={filters} />
+            </>
+          )}
+        </section>
+      </main>
+    </MotionPage>
   );
 }
 
 function PgCard({ pg }: { pg: PgSearchResult }) {
+  const price = pg.minRentPerBed !== null ? formatRupees(pg.minRentPerBed) : null;
+  const place = [pg.address, pg.city].filter(Boolean).join(', ');
+
   return (
     <Link
       href={`/pgs/${pg.id}`}
-      className="block rounded-lg border border-slate-200 p-4 transition hover:border-brand hover:shadow-sm"
+      className="airbnb-property-card group"
     >
-      <div className="flex items-start justify-between">
-        <h2 className="text-lg font-semibold">{pg.name}</h2>
-        <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">
-          {pg.genderPreference === 'CO_ED' ? 'Co-ed' : pg.genderPreference}
+      <div
+        role="img"
+        aria-label={pg.photoUrl ? `${pg.name} property` : `${pg.name} photo placeholder`}
+        className={`airbnb-property-image ${pg.photoUrl ? '' : 'property-placeholder'}`}
+        style={pg.photoUrl ? { backgroundImage: `url(${JSON.stringify(pg.photoUrl)})` } : undefined}
+      >
+        <span className="property-category-badge">
+          {genderLabel(pg.genderPreference)}
+        </span>
+        <span className={`property-verification-badge ${pg.verified ? 'property-verified' : 'property-unverified'}`}>
+          {pg.verified ? 'Verified' : 'Verification pending'}
         </span>
       </div>
-      <p className="mt-1 text-sm text-slate-500">
-        {pg.address}, {pg.city}
-      </p>
-      {pg.description && <p className="mt-2 line-clamp-2 text-sm text-slate-600">{pg.description}</p>}
-      <div className="mt-3 flex items-center justify-between text-sm">
-        <span className={pg.availableBeds > 0 ? 'text-green-700' : 'text-slate-400'}>
-          {pg.availableBeds > 0 ? `${pg.availableBeds} bed(s) available` : 'No beds available'}
-        </span>
-        {pg.minRentPerBed !== null && (
-          <span className="font-medium">
-            ₹{pg.minRentPerBed.toLocaleString('en-IN')}
-            {pg.maxRentPerBed && pg.maxRentPerBed !== pg.minRentPerBed
-              ? ` - ₹${pg.maxRentPerBed.toLocaleString('en-IN')}`
-              : ''}
-            /mo
+
+      <div className="airbnb-property-copy">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h3>{pg.name}</h3>
+            <p>{place}</p>
+          </div>
+        </div>
+
+        <div className="property-facts">
+          {pg.offersMonthly && <span>Monthly</span>}
+          {pg.offersDayWise && <span>Day-wise</span>}
+          {pg.verified && <span>{pg.availableBeds} {pg.availableBeds === 1 ? 'bed' : 'beds'} free</span>}
+        </div>
+
+        <div className="property-price-row">
+          <div className="min-w-0">
+            {price ? (
+              <p>
+                <strong>{price}</strong><span> / month</span>
+              </p>
+            ) : (
+              <p className="property-price-muted">Price available in details</p>
+            )}
+          </div>
+          <span className={`availability-dot-label ${pg.verified && pg.availableBeds > 0 ? 'availability-open' : ''}`}>
+            <i />{!pg.verified ? 'View details' : pg.availableBeds > 0 ? 'Available' : 'Full now'}
           </span>
-        )}
+        </div>
       </div>
     </Link>
   );
+}
+
+function ActiveFilters({ filters }: { filters: Awaited<SearchPageProps['searchParams']> }) {
+  const labels = [
+    filters.genderPreference ? genderLabel(filters.genderPreference) : null,
+    filters.minRent ? `From ${formatRupees(Number(filters.minRent))}` : null,
+    filters.maxRent ? `Up to ${formatRupees(Number(filters.maxRent))}` : null,
+  ].filter(Boolean) as string[];
+  if (labels.length === 0) return null;
+  return <div className="active-filter-chips">{labels.map((label) => <span key={label}>{label}</span>)}</div>;
+}
+
+function genderLabel(gender: GenderPreference) {
+  if (gender === 'MALE') return 'Men';
+  if (gender === 'FEMALE') return 'Women';
+  if (gender === 'CO_ED') return 'Co-living';
+  return 'PG';
+}
+
+function formatRupees(value: number) {
+  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(value);
 }
 
 function Pagination({
@@ -157,24 +207,22 @@ function Pagination({
   };
 
   return (
-    <div className="mt-8 flex items-center justify-center gap-4 text-sm">
+    <nav className="mt-8 flex items-center justify-center gap-4 text-sm" aria-label="Search result pages">
       {page > 0 ? (
-        <Link href={buildHref(page - 1)} className="text-brand">
+        <Link href={buildHref(page - 1)} className="inline-flex min-h-11 items-center rounded-card border border-line bg-white px-4 font-bold text-brand-text">
           ← Previous
         </Link>
       ) : (
-        <span className="text-slate-300">← Previous</span>
+        <span className="inline-flex min-h-11 items-center px-4 text-slate-300">← Previous</span>
       )}
-      <span className="text-slate-500">
-        Page {page + 1} of {totalPages}
-      </span>
+      <span className="text-slate-500">Page {page + 1} of {totalPages}</span>
       {page + 1 < totalPages ? (
-        <Link href={buildHref(page + 1)} className="text-brand">
+        <Link href={buildHref(page + 1)} className="inline-flex min-h-11 items-center rounded-card border border-line bg-white px-4 font-bold text-brand-text">
           Next →
         </Link>
       ) : (
-        <span className="text-slate-300">Next →</span>
+        <span className="inline-flex min-h-11 items-center px-4 text-slate-300">Next →</span>
       )}
-    </div>
+    </nav>
   );
 }

@@ -47,12 +47,19 @@ public class UserEventBroadcaster {
         return emitter;
     }
 
-    public void publish(UUID userId, String title, String message) {
+    public void publish(UUID userId, UserNotification notification) {
         CopyOnWriteArrayList<SseEmitter> emitters = emittersByUser.get(userId);
         if (emitters == null || emitters.isEmpty()) {
             return;
         }
-        UserEvent event = new UserEvent(title, message, Instant.now());
+        UserEvent event = new UserEvent(
+                notification.getId(),
+                notification.getTitle(),
+                notification.getMessage(),
+                notification.getCategory(),
+                notification.getActionRoute(),
+                Instant.now()
+        );
         for (SseEmitter emitter : emitters) {
             try {
                 emitter.send(SseEmitter.event().name("notification").data(event));

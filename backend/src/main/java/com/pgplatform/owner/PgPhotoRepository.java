@@ -9,5 +9,6 @@ import java.util.UUID;
 public interface PgPhotoRepository extends JpaRepository<PgPhoto, UUID> {
     List<PgPhoto> findAllByPgIdAndDeletedAtIsNullOrderByDisplayOrderAscCreatedAtAsc(UUID pgId);
     Optional<PgPhoto> findByIdAndPgIdAndDeletedAtIsNull(UUID id, UUID pgId);
+    Optional<PgPhoto> findByStorageKeyAndDeletedAtIsNull(String storageKey);
     long countByPgIdAndDeletedAtIsNull(UUID pgId);
 }

@@ -15,6 +15,10 @@ class PushNotificationService {
 
   StreamSubscription<String>? _refreshSubscription;
   String? _registeredToken;
+  bool _navigationReady = false;
+  final StreamController<String> _routes = StreamController.broadcast();
+
+  Stream<String> get routes => _routes.stream;
 
   Future<void> activate() async {
     final messaging = FirebaseMessaging.instance;
@@ -27,6 +31,13 @@ class PushNotificationService {
 
     final token = await messaging.getToken();
     if (token != null && token.isNotEmpty) await _register(token);
+
+    if (!_navigationReady) {
+      _navigationReady = true;
+      FirebaseMessaging.onMessageOpenedApp.listen(_emitRoute);
+      final initialMessage = await messaging.getInitialMessage();
+      if (initialMessage != null) _emitRoute(initialMessage);
+    }
 
     await _refreshSubscription?.cancel();
     _refreshSubscription = messaging.onTokenRefresh.listen(
@@ -62,5 +73,14 @@ class PushNotificationService {
       data: {'token': token, 'platform': 'ANDROID'},
     );
     _registeredToken = token;
+  }
+
+  void _emitRoute(RemoteMessage message) {
+    final route = message.data['actionRoute'];
+    if (route is String && route.startsWith('/') && !route.startsWith('//')) {
+      _routes.add(route);
+    } else {
+      _routes.add('/notifications');
+    }
   }
 }

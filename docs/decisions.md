@@ -307,3 +307,15 @@ PG cities are selected from a server-owned supported-city list (with explicit al
 **External object cleanup**: database deletion does not pretend that an S3/R2 delete succeeded. Object keys enter a private retry queue in the same database transaction as anonymization. Successful deletion clears the key; failures back off and retry without restoring account access.
 
 **Google Play pages**: the backend publicly serves `/privacy`, `/terms`, and `/account-deletion`. Production requires `LEGAL_OPERATOR_NAME`, `LEGAL_SUPPORT_EMAIL`, and `LEGAL_POSTAL_ADDRESS`; these values must match the verified Play developer/store listing and the final policy must receive jurisdiction-specific legal review.
+
+## 2026-11-02 -- ADR-0034: Notifications are durable first, then delivered through inbox, FCM, SSE, and provider-gated business SMS
+
+**Decision**: `NotificationService` now persists a `user_notifications` row before attempting any external or live delivery. The Flutter inbox is therefore authoritative even when the device was offline, notification permission was denied, an FCM token expired, or an external provider failed. Read state is per user and exposed through `/me/notifications`; the existing authenticated SSE stream remains the low-latency foreground path.
+
+**Routing and categories**: notifications carry a category and an optional app-internal `actionRoute`. FCM data messages and SSE events use the same route, and Flutter opens it from a notification tap or a foreground `View` action. Admin-authored routes must begin with `/`; external URLs are deliberately rejected so the messaging console cannot become an arbitrary link-delivery channel.
+
+**Admin communication**: ADMIN can send a titled message to all active accounts, owners, students, or direct recipients resolved by UUID, email, or normalized phone number. Every matched recipient receives their own durable record and normal fan-out. The response reports matched recipients and records created; it does not pretend that every external channel delivered successfully.
+
+**Owner invitation SMS**: admin-created PG invitation SMS is separate from Firebase Phone Authentication and from Play Store publication. Delivery uses the existing auditable `owner_sms_messages` record and exposes `SENT`, `FAILED`, or `SKIPPED` plus a safe failure reason in the admin listing panel. A retry reuses the same business-event record and never resends after success. Twilio remains disabled until `APP_SMS_ENABLED`, credentials, sender, claim URL, and applicable India business-messaging requirements are configured.
+
+**Failure boundary**: external notification delivery is still a side effect and cannot roll back booking, payment, complaint, or property state. The durable inbox preserves the user-visible result. Transactional email, WhatsApp, external-channel delivery receipts, dead-letter retry workers, and invalid-FCM-token pruning remain follow-up work.

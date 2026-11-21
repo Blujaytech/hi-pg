@@ -40,3 +40,10 @@ mobile/android/key.properties
 
 # Infra
 infra/postgres-data/
+
+# Local tool state, logs and release binaries (never commit)
+.gcloud/
+.wrangler/
+firebase-debug.log
+mobile/.dart-appdata/
+mobile/releases/

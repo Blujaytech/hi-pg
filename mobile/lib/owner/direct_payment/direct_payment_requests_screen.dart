@@ -145,13 +145,11 @@ class _DirectPaymentRequestsScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: AppBarTitle(
-          title: widget.bookingId == null
-              ? 'Direct payment requests'
-              : 'Review customer payment',
-          subtitle: widget.pg?.name,
-        ),
+      appBar: PremiumAppBar(
+        title: widget.bookingId == null
+            ? 'Direct payment requests'
+            : 'Review customer payment',
+        subtitle: widget.pg?.name ?? 'Confirm customer payment claims',
         actions: [
           if (widget.pgId != null)
             IconButton(

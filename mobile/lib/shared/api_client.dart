@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:dio/io.dart';
 
 import '../core/api_exception.dart';
 import '../core/env.dart';
@@ -21,6 +23,7 @@ class ApiClient {
       connectTimeout: requestTimeout,
       receiveTimeout: requestTimeout,
     ));
+    _preferIpv4ForCloudRun();
 
     _dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) async {
@@ -57,6 +60,138 @@ class ApiClient {
 
   static final ApiClient instance = ApiClient._internal();
   late final Dio _dio;
+
+  static const _cloudRunIpv4Fallback = [
+    '34.143.72.2',
+    '34.143.73.2',
+    '34.143.74.2',
+    '34.143.75.2',
+    '34.143.76.2',
+    '34.143.77.2',
+    '34.143.78.2',
+    '34.143.79.2',
+  ];
+
+  void _preferIpv4ForCloudRun() {
+    final apiHost = Uri.parse(Env.apiBaseUrl).host;
+    if (!apiHost.endsWith('.run.app')) return;
+
+    _dio.httpClientAdapter = IOHttpClientAdapter(
+      createHttpClient: () {
+        final client = HttpClient();
+        client.connectionFactory = (uri, proxyHost, proxyPort) async {
+          if (proxyHost != null) {
+            return Socket.startConnect(proxyHost, proxyPort!);
+          }
+
+          final port = uri.hasPort
+              ? uri.port
+              : uri.scheme == 'https'
+                  ? 443
+                  : 80;
+          if (uri.host != apiHost) {
+            return uri.scheme == 'https'
+                ? SecureSocket.startConnect(uri.host, port)
+                : Socket.startConnect(uri.host, port);
+          }
+          return _cloudRunConnection(uri, port);
+        };
+        return client;
+      },
+    );
+  }
+
+  Future<ConnectionTask<Socket>> _cloudRunConnection(Uri uri, int port) async {
+    var canceled = false;
+    ConnectionTask<Socket>? activeTask;
+    Socket? activeSocket;
+
+    final socket = () async {
+      Object? lastError;
+      final addresses = await _resolveCloudRunIpv4(uri.host);
+      for (final address in addresses) {
+        if (canceled) throw const SocketException('Connection canceled');
+        try {
+          activeTask = await Socket.startConnect(address, port);
+          final connected = await activeTask!.socket.timeout(
+            const Duration(seconds: 12),
+          );
+          activeTask = null;
+          activeSocket = connected;
+          if (uri.scheme != 'https') return connected;
+
+          final secured = await SecureSocket.secure(
+            connected,
+            host: uri.host,
+          ).timeout(const Duration(seconds: 12));
+          activeSocket = secured;
+          return secured;
+        } catch (error) {
+          lastError = error;
+          activeTask?.cancel();
+          activeTask = null;
+          activeSocket?.destroy();
+          activeSocket = null;
+        }
+      }
+      throw lastError ??
+          SocketException('Cannot connect to the Hi PG server at ${uri.host}');
+    }();
+
+    return ConnectionTask.fromSocket(socket, () {
+      canceled = true;
+      activeTask?.cancel();
+      activeSocket?.destroy();
+    });
+  }
+
+  Future<List<InternetAddress>> _resolveCloudRunIpv4(String host) async {
+    try {
+      final systemAddresses = await InternetAddress.lookup(
+        host,
+        type: InternetAddressType.IPv4,
+      ).timeout(const Duration(seconds: 5));
+      if (systemAddresses.isNotEmpty) return systemAddresses;
+    } catch (_) {}
+
+    final googleAddresses = await _resolveWithGoogleDns(host);
+    if (googleAddresses.isNotEmpty) return googleAddresses;
+
+    return _cloudRunIpv4Fallback.map(InternetAddress.new).toList();
+  }
+
+  Future<List<InternetAddress>> _resolveWithGoogleDns(String host) async {
+    final client = HttpClient()..connectionTimeout = const Duration(seconds: 8);
+    try {
+      final request = await client.getUrl(Uri.https(
+        'dns.google',
+        '/resolve',
+        {'name': host, 'type': 'A'},
+      ));
+      request.headers.set(HttpHeaders.acceptHeader, 'application/dns-json');
+      final response = await request.close().timeout(
+            const Duration(seconds: 8),
+          );
+      if (response.statusCode != HttpStatus.ok) return const [];
+
+      final payload = jsonDecode(
+        await response.transform(utf8.decoder).join(),
+      ) as Map<String, dynamic>;
+      final answers = payload['Answer'];
+      if (answers is! List) return const [];
+
+      return answers
+          .whereType<Map>()
+          .map((answer) => InternetAddress.tryParse('${answer['data']}'))
+          .whereType<InternetAddress>()
+          .where((address) => address.type == InternetAddressType.IPv4)
+          .toList();
+    } catch (_) {
+      return const [];
+    } finally {
+      client.close(force: true);
+    }
+  }
 
   /// Called once when the refresh token is rejected and the stored session
   /// has been cleared. AuthState registers here so the router can send the
@@ -260,8 +395,22 @@ class ApiClient {
         statusCode: e.response?.statusCode,
       );
     }
+    if (e.response?.statusCode == 404) {
+      return ApiException(
+        message:
+            'This app version cannot reach the Hi PG service. Please update the app and try again.',
+        statusCode: 404,
+      );
+    }
+    if (e.response != null) {
+      return ApiException(
+        message:
+            'The server could not complete this request. Please try again.',
+        statusCode: e.response?.statusCode,
+      );
+    }
     return ApiException(
-      message: e.message ?? 'Network error. Check your connection.',
+      message: 'Network error. Check your connection and try again.',
       statusCode: e.response?.statusCode,
     );
   }

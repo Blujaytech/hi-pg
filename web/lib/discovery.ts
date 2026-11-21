@@ -5,7 +5,7 @@
  */
 import { apiFetch } from './api';
 
-export type GenderPreference = 'MALE' | 'FEMALE' | 'CO_ED';
+export type GenderPreference = 'MALE' | 'FEMALE' | 'CO_ED' | 'UNSPECIFIED';
 
 export interface PgSearchResult {
   id: string;
@@ -13,12 +13,20 @@ export interface PgSearchResult {
   city: string;
   address: string;
   description: string | null;
+  photoUrl: string | null;
   genderPreference: GenderPreference;
   latitude: number | null;
   longitude: number | null;
+  locationUrl: string | null;
   availableBeds: number;
   minRentPerBed: number | null;
   maxRentPerBed: number | null;
+  offersMonthly: boolean;
+  offersDayWise: boolean;
+  stayTypeConfigured: boolean;
+  minDayWiseRate: number | null;
+  verified: boolean;
+  verificationStatus: string;
 }
 
 export interface PagedResponse<T> {
@@ -32,6 +40,13 @@ export interface PagedResponse<T> {
 export interface AvailableBedOption {
   id: string;
   label: string;
+  bookingMode: 'MONTHLY' | 'DAY_WISE' | 'FLEXIBLE';
+}
+
+export interface BedSeat {
+  id: string;
+  label: string;
+  available: boolean;
 }
 
 export interface RoomAvailability {
@@ -40,8 +55,13 @@ export interface RoomAvailability {
   roomType: 'AC' | 'NON_AC';
   sharingCount: number;
   rentPerBed: number;
+  dayWiseRate: number | null;
+  bookingMode: 'MONTHLY' | 'DAY_WISE' | 'FLEXIBLE';
+  noticePeriodDays: number;
+  securityDeposit: number;
   availableBeds: number;
   availableBedOptions: AvailableBedOption[];
+  beds: BedSeat[];
 }
 
 export interface FloorAvailability {
@@ -59,11 +79,23 @@ export interface PgDetails {
   state: string | null;
   pincode: string | null;
   description: string | null;
+  photoUrl: string | null;
+  photos: Array<{
+    id: string | null;
+    url: string;
+    cover: boolean;
+    displayOrder: number;
+  }>;
   genderPreference: GenderPreference;
   latitude: number | null;
   longitude: number | null;
+  locationUrl: string | null;
   totalBeds: number;
   availableBeds: number;
+  directPaymentAvailable: boolean;
+  verified: boolean;
+  verificationStatus: string;
+  bookingEnabled: boolean;
   floors: FloorAvailability[];
 }
 
@@ -73,6 +105,7 @@ export interface SearchFilters {
   minRent?: string;
   maxRent?: string;
   page?: number;
+  size?: number;
 }
 
 export async function searchPgs(filters: SearchFilters): Promise<PagedResponse<PgSearchResult>> {
@@ -82,7 +115,7 @@ export async function searchPgs(filters: SearchFilters): Promise<PagedResponse<P
   if (filters.minRent) params.set('minRent', filters.minRent);
   if (filters.maxRent) params.set('maxRent', filters.maxRent);
   params.set('page', String(filters.page ?? 0));
-  params.set('size', '12');
+  params.set('size', String(filters.size ?? 12));
 
   return apiFetch<PagedResponse<PgSearchResult>>(`/public/pgs?${params.toString()}`, { cache: 'no-store' });
 }

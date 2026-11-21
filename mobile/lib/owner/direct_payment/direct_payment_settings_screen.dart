@@ -114,8 +114,9 @@ class _DirectPaymentSettingsScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Direct payment settings'),
+      appBar: PremiumAppBar(
+        title: 'Direct payment settings',
+        subtitle: widget.pg?.name ?? 'Owner-confirmed payment destination',
         actions: [
           IconButton(
             tooltip: 'Payment requests',
